@@ -34,6 +34,17 @@ openclaw_control_ui_enabled = false
 # Enable only when Control UI onboarding / device pairing approval through admin RPC is needed.
 openclaw_admin_http_rpc_enabled = false
 
+# Telegram status-only adapter. Keep disabled until bot token and chat allowlist
+# handling are separately approved. Values here are identifiers or placeholders,
+# never secret values or real operator chat IDs.
+telegram_adapter_enabled               = false
+telegram_bot_token_secret_id           = "openclaw-telegram-bot-token"
+telegram_allowed_chat_ids              = ""
+telegram_adapter_openclaw_base_url     = "http://127.0.0.1:8080"
+telegram_bot_token_file                = "/run/openclaw/secrets/TELEGRAM_BOT_TOKEN"
+telegram_adapter_working_directory     = "/opt/stateful-agent-runtime"
+telegram_adapter_poll_interval_seconds = 5
+
 # Service-state exporter deployment skeleton. Keep disabled until deployment
 # and live metric writes are separately approved.
 service_state_exporter_enabled                  = false

@@ -26,15 +26,17 @@ operator commands.
   template, stateful MIG, health check, snapshot policy, and outputs
 - `openclaw.service` systemd template
 - service-state exporter systemd service and timer templates
+- Telegram status-only adapter systemd service template
 - bootstrap template for disk mount, secret retrieval, runtime environment
-  rendering, systemd wiring, and gated service-state exporter installation
+  rendering, systemd wiring, and gated optional component installation
 - service-state monitoring helper package, tests, and Terraform wiring
+- Telegram status-only adapter package, tests, and Terraform wiring
 - runtime documentation index, operations runbook, backup and restore guide,
-  monitoring baseline, implementation notes, and import notes
+  monitoring baseline, Telegram status-only channel, implementation notes, and
+  import notes
 
 ## Intentionally Excluded
 
-- Telegram status-only adapter
 - context lifecycle work
 - platform adapters
 - restore-drill automation
@@ -51,6 +53,7 @@ gcp/stateful-agent-runtime/
 |-- systemd/
 |-- scripts/
 |-- monitoring/
+|-- telegram_adapter/
 `-- docs/
 ```
 
@@ -91,6 +94,5 @@ Do not run infrastructure plans or applies without a separate approval.
 
 Add these as separate commits after the base private VM runtime is reviewed:
 
-- Telegram status-only operator channel
 - context lifecycle module
 - platform adapters

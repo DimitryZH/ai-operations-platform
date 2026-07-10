@@ -29,6 +29,9 @@ DATA_DEVICE="/dev/disk/by-id/google-$DATA_DISK_DEVICE_NAME"
 SERVICE_STATE_EXPORTER_USER='${service_state_exporter_user}'
 SERVICE_STATE_EXPORTER_GROUP='${service_state_exporter_group}'
 SERVICE_STATE_EXPORTER_WORKING_DIR="$(decode '${service_state_exporter_working_dir_b64}')"
+TELEGRAM_ADAPTER_USER="openclaw-telegram"
+TELEGRAM_ADAPTER_GROUP="openclaw-telegram"
+TELEGRAM_ADAPTER_WORKING_DIR="$(decode '${telegram_adapter_working_dir_b64}')"
 
 [[ "$EUID" -eq 0 ]] || fail "Bootstrap must run as root."
 [[ "$CONTAINER_IMAGE" == *@sha256:* ]] || fail "Container image must be pinned by digest."
@@ -124,6 +127,39 @@ chown -R "root:$SERVICE_STATE_EXPORTER_GROUP" "$SERVICE_STATE_EXPORTER_VENV_DIR"
 chmod -R g+rX,o-rwx "$SERVICE_STATE_EXPORTER_VENV_DIR"
 %{ endif ~}
 
+%{ if telegram_adapter_enabled ~}
+if ! getent group "$TELEGRAM_ADAPTER_GROUP" >/dev/null; then
+  groupadd --system "$TELEGRAM_ADAPTER_GROUP"
+fi
+
+if ! id -u "$TELEGRAM_ADAPTER_USER" >/dev/null 2>&1; then
+  useradd --system \
+    --gid "$TELEGRAM_ADAPTER_GROUP" \
+    --home-dir /nonexistent \
+    --shell /usr/sbin/nologin \
+    "$TELEGRAM_ADAPTER_USER"
+fi
+
+install -d -o root -g root -m 0755 /opt
+install -d -o root -g "$TELEGRAM_ADAPTER_GROUP" -m 0750 "$TELEGRAM_ADAPTER_WORKING_DIR"
+install -d -o root -g "$TELEGRAM_ADAPTER_GROUP" -m 0750 "$TELEGRAM_ADAPTER_WORKING_DIR/telegram_adapter"
+
+while IFS=$'\t' read -r relative_path content_b64; do
+  [[ "$relative_path" == telegram_adapter/*.py ]] ||
+    fail "Invalid Telegram adapter package path."
+  [[ "$relative_path" != *".."* ]] ||
+    fail "Invalid Telegram adapter package path."
+
+  target_path="$TELEGRAM_ADAPTER_WORKING_DIR/$relative_path"
+  temp_path="$target_path.tmp"
+  install -d -o root -g "$TELEGRAM_ADAPTER_GROUP" -m 0750 "$(dirname "$target_path")"
+  printf '%s' "$content_b64" | base64 -d > "$temp_path"
+  chown "root:$TELEGRAM_ADAPTER_GROUP" "$temp_path"
+  chmod 0640 "$temp_path"
+  mv -f "$temp_path" "$target_path"
+done < <(decode '${telegram_adapter_package_files_b64}' | jq -r 'to_entries[] | [.key, .value] | @tsv')
+%{ endif ~}
+
 install -d -o root -g root -m 0750 /etc/openclaw
 install -d -o root -g root -m 0755 /usr/local/sbin
 
@@ -140,6 +176,9 @@ CONTAINER_IMAGE=$CONTAINER_IMAGE
 OPENCLAW_UID=$OPENCLAW_UID
 OPENCLAW_GID=$OPENCLAW_GID
 OPENCLAW_RUNTIME_DIR=$OPENCLAW_RUNTIME_DIR
+%{ if telegram_adapter_enabled ~}
+TELEGRAM_ADAPTER_GROUP=$TELEGRAM_ADAPTER_GROUP
+%{ endif ~}
 EOF
 chmod 0640 /etc/openclaw/openclaw-host.env
 
@@ -159,6 +198,10 @@ source /etc/openclaw/openclaw-host.env
 install -d -o "$OPENCLAW_UID" -g "$OPENCLAW_GID" -m 0750 "$OPENCLAW_RUNTIME_DIR"
 rm -rf /run/openclaw/secrets
 install -d -o "$OPENCLAW_UID" -g "$OPENCLAW_GID" -m 0700 /run/openclaw/secrets
+%{ if telegram_adapter_enabled ~}
+chgrp "$TELEGRAM_ADAPTER_GROUP" /run/openclaw
+chmod 0710 /run/openclaw
+%{ endif ~}
 
 ACCESS_TOKEN="$(
   curl -fsS \
@@ -184,6 +227,10 @@ while IFS=$'\t' read -r env_name secret_id; do
   [[ -s "$temp_path" ]] || fail "Required Secret Manager secret is empty: $secret_id"
   chown "$OPENCLAW_UID:$OPENCLAW_GID" "$temp_path"
   chmod 0400 "$temp_path"
+  if [[ "$env_name" == "TELEGRAM_BOT_TOKEN" ]]; then
+    chown "$OPENCLAW_UID:$TELEGRAM_ADAPTER_GROUP" "$temp_path"
+    chmod 0440 "$temp_path"
+  fi
   mv -f "$temp_path" "$secret_path"
 done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' /etc/openclaw/secret-map.json)
 
@@ -209,12 +256,25 @@ decode '${service_state_exporter_systemd_timer_b64}' > /etc/systemd/system/openc
 chmod 0644 /etc/systemd/system/openclaw-service-state-exporter.timer
 %{ endif ~}
 
+%{ if telegram_adapter_enabled ~}
+decode '${telegram_adapter_environment_b64}' > /etc/openclaw/openclaw-telegram-adapter.env
+chmod 0640 /etc/openclaw/openclaw-telegram-adapter.env
+
+decode '${telegram_adapter_systemd_unit_b64}' > /etc/systemd/system/openclaw-telegram-adapter.service
+chmod 0644 /etc/systemd/system/openclaw-telegram-adapter.service
+%{ endif ~}
+
 systemctl daemon-reload
 systemctl enable openclaw.service
 systemctl restart openclaw.service
 
 %{ if service_state_exporter_enabled ~}
 systemctl enable --now openclaw-service-state-exporter.timer
+%{ endif ~}
+
+%{ if telegram_adapter_enabled ~}
+systemctl enable openclaw-telegram-adapter.service
+systemctl restart openclaw-telegram-adapter.service
 %{ endif ~}
 
 log "Bootstrap completed without printing secret values."

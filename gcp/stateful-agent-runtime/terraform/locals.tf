@@ -21,7 +21,10 @@ locals {
     var.runtime_secret_ids,
     var.github_pr_secret_id == null ? {} : {
       GITHUB_PR_TOKEN = var.github_pr_secret_id
-    }
+    },
+    var.telegram_adapter_enabled ? {
+      TELEGRAM_BOT_TOKEN = var.telegram_bot_token_secret_id
+    } : {}
   )
 
   runtime_environment = merge(
@@ -68,6 +71,28 @@ locals {
     state_mount_path = var.state_mount_path
   })
 
+  telegram_adapter_environment = {
+    OPENCLAW_BASE_URL         = var.telegram_adapter_openclaw_base_url
+    TELEGRAM_ALLOWED_CHAT_IDS = var.telegram_allowed_chat_ids
+    TELEGRAM_BOT_TOKEN_FILE   = var.telegram_bot_token_file
+  }
+
+  telegram_adapter_environment_file = join("\n", [
+    for env_name in sort(keys(local.telegram_adapter_environment)) :
+    "${env_name}=${local.telegram_adapter_environment[env_name]}"
+  ])
+
+  telegram_adapter_package_files = {
+    for file_name in sort(fileset("${path.module}/../telegram_adapter", "*.py")) :
+    "telegram_adapter/${file_name}" => base64encode(file("${path.module}/../telegram_adapter/${file_name}"))
+  }
+
+  telegram_adapter_systemd_unit = templatefile("${path.module}/../systemd/openclaw-telegram-adapter.service.tftpl", {
+    telegram_adapter_poll_interval_seconds = var.telegram_adapter_poll_interval_seconds
+    telegram_adapter_working_directory     = var.telegram_adapter_working_directory
+    telegram_bot_token_file                = var.telegram_bot_token_file
+  })
+
   bootstrap_script = templatefile("${path.module}/../scripts/bootstrap-openclaw.sh.tftpl", {
     container_image_b64                      = base64encode(var.container_image)
     data_disk_device_name_b64                = base64encode(var.data_disk_device_name)
@@ -89,6 +114,11 @@ locals {
     service_state_exporter_working_dir_b64   = base64encode(var.service_state_exporter_working_directory)
     state_mount_path_b64                     = base64encode(var.state_mount_path)
     systemd_unit_b64                         = base64encode(local.systemd_unit)
+    telegram_adapter_enabled                 = var.telegram_adapter_enabled
+    telegram_adapter_environment_b64         = base64encode("${local.telegram_adapter_environment_file}\n")
+    telegram_adapter_package_files_b64       = base64encode(jsonencode(local.telegram_adapter_package_files))
+    telegram_adapter_systemd_unit_b64        = base64encode(local.telegram_adapter_systemd_unit)
+    telegram_adapter_working_dir_b64         = base64encode(var.telegram_adapter_working_directory)
   })
 }
 
@@ -113,5 +143,19 @@ check "persistent_paths_under_mount" {
       startswith(var.openclaw_workspace_dir, "${var.state_mount_path}/")
     )
     error_message = "openclaw_state_dir and openclaw_workspace_dir must remain under state_mount_path."
+  }
+}
+
+check "telegram_adapter_requires_allowlist" {
+  assert {
+    condition     = !var.telegram_adapter_enabled || trimspace(var.telegram_allowed_chat_ids) != ""
+    error_message = "telegram_allowed_chat_ids must be set before enabling the Telegram adapter."
+  }
+}
+
+check "telegram_adapter_requires_token_mapping" {
+  assert {
+    condition     = !var.telegram_adapter_enabled || trimspace(var.telegram_bot_token_secret_id) != ""
+    error_message = "telegram_bot_token_secret_id must be set before enabling the Telegram adapter."
   }
 }
