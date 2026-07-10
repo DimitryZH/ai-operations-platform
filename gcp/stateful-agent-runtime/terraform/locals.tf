@@ -69,19 +69,26 @@ locals {
   })
 
   bootstrap_script = templatefile("${path.module}/../scripts/bootstrap-openclaw.sh.tftpl", {
-    container_image_b64        = base64encode(var.container_image)
-    data_disk_device_name_b64  = base64encode(var.data_disk_device_name)
-    openclaw_gid               = var.openclaw_gid
-    openclaw_runtime_dir_b64   = base64encode(var.openclaw_runtime_dir)
-    openclaw_state_dir_b64     = base64encode(var.openclaw_state_dir)
-    openclaw_uid               = var.openclaw_uid
-    openclaw_workspace_dir_b64 = base64encode(var.openclaw_workspace_dir)
-    project_id_b64             = base64encode(var.project_id)
-    runtime_environment_b64    = base64encode("${local.runtime_environment_file}\n")
-    secret_project_id_b64      = base64encode(local.secret_project_id)
-    secret_map_json_b64        = base64encode(jsonencode(local.runtime_secret_ids))
-    state_mount_path_b64       = base64encode(var.state_mount_path)
-    systemd_unit_b64           = base64encode(local.systemd_unit)
+    container_image_b64                      = base64encode(var.container_image)
+    data_disk_device_name_b64                = base64encode(var.data_disk_device_name)
+    openclaw_gid                             = var.openclaw_gid
+    openclaw_runtime_dir_b64                 = base64encode(var.openclaw_runtime_dir)
+    openclaw_state_dir_b64                   = base64encode(var.openclaw_state_dir)
+    openclaw_uid                             = var.openclaw_uid
+    openclaw_workspace_dir_b64               = base64encode(var.openclaw_workspace_dir)
+    project_id_b64                           = base64encode(var.project_id)
+    runtime_environment_b64                  = base64encode("${local.runtime_environment_file}\n")
+    secret_project_id_b64                    = base64encode(local.secret_project_id)
+    secret_map_json_b64                      = base64encode(jsonencode(local.runtime_secret_ids))
+    service_state_exporter_enabled           = var.service_state_exporter_enabled
+    service_state_exporter_group             = var.service_state_exporter_group
+    service_state_exporter_package_files_b64 = base64encode(jsonencode(local.service_state_exporter_package_files))
+    service_state_exporter_systemd_timer_b64 = base64encode(local.service_state_exporter_systemd_timer)
+    service_state_exporter_systemd_unit_b64  = base64encode(local.service_state_exporter_systemd_unit)
+    service_state_exporter_user              = var.service_state_exporter_user
+    service_state_exporter_working_dir_b64   = base64encode(var.service_state_exporter_working_directory)
+    state_mount_path_b64                     = base64encode(var.state_mount_path)
+    systemd_unit_b64                         = base64encode(local.systemd_unit)
   })
 }
 

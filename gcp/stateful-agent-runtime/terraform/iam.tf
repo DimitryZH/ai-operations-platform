@@ -5,9 +5,10 @@ resource "google_service_account" "openclaw" {
   description  = "Dedicated least-privilege identity for the single-writer OpenClaw stateful VM runtime."
 }
 
-resource "google_project_iam_member" "runtime_logging" {
+resource "google_project_iam_member" "runtime_observability" {
   for_each = toset([
     "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
   ])
 
   project = var.project_id

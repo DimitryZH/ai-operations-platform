@@ -61,7 +61,7 @@ resource "google_compute_instance_template" "openclaw" {
   depends_on = [
     google_artifact_registry_repository_iam_member.runtime_image_reader,
     google_compute_disk_resource_policy_attachment.openclaw_state_snapshot,
-    google_project_iam_member.runtime_logging,
+    google_project_iam_member.runtime_observability,
     google_secret_manager_secret_iam_member.runtime_secret_accessor,
   ]
 }

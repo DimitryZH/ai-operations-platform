@@ -91,7 +91,6 @@ secretmanager.googleapis.com
 
 Deferred from this first import:
 
-- monitoring and service-state exporter
 - Telegram status-only operator channel
 - restore-drill automation
 - context lifecycle management

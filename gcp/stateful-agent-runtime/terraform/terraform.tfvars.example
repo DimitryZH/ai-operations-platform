@@ -34,6 +34,22 @@ openclaw_control_ui_enabled = false
 # Enable only when Control UI onboarding / device pairing approval through admin RPC is needed.
 openclaw_admin_http_rpc_enabled = false
 
+# Service-state exporter deployment skeleton. Keep disabled until deployment
+# and live metric writes are separately approved.
+service_state_exporter_enabled                  = false
+service_state_exporter_live_writes_enabled      = false
+service_state_exporter_schedule                 = "*:0/5"
+service_state_exporter_metric_prefix            = "custom.googleapis.com/openclaw/service_state"
+service_state_exporter_working_directory        = "/opt/openclaw-service-state-exporter"
+service_state_exporter_user                     = "openclaw-monitoring"
+service_state_exporter_group                    = "openclaw-monitoring"
+service_state_exporter_randomized_delay_seconds = 30
+
+# Service-state alert policy skeleton. Keep disabled until alert routing and
+# apply are separately approved.
+service_state_alert_policy_create  = false
+service_state_alert_policy_enabled = false
+
 create_network   = true
 create_cloud_nat = true
 subnetwork_cidr  = "10.42.0.0/24"

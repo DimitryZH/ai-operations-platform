@@ -1,0 +1,12 @@
+[Unit]
+Description=Run OpenClaw service-state exporter dry-run
+Documentation=https://github.com/openclaw/openclaw
+
+[Timer]
+OnCalendar=${schedule}
+Persistent=true
+RandomizedDelaySec=${randomized_delay_seconds}
+Unit=openclaw-service-state-exporter.service
+
+[Install]
+WantedBy=timers.target

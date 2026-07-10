@@ -25,14 +25,15 @@ operator commands.
 - Terraform source for the private VM, network, IAM, state disk, instance
   template, stateful MIG, health check, snapshot policy, and outputs
 - `openclaw.service` systemd template
+- service-state exporter systemd service and timer templates
 - bootstrap template for disk mount, secret retrieval, runtime environment
-  rendering, and systemd wiring
+  rendering, systemd wiring, and gated service-state exporter installation
+- service-state monitoring helper package, tests, and Terraform wiring
 - runtime documentation index, operations runbook, backup and restore guide,
-  implementation notes, and import notes
+  monitoring baseline, implementation notes, and import notes
 
 ## Intentionally Excluded
 
-- monitoring and service-state exporter code
 - Telegram status-only adapter
 - context lifecycle work
 - platform adapters
@@ -49,6 +50,7 @@ gcp/stateful-agent-runtime/
 |-- terraform/
 |-- systemd/
 |-- scripts/
+|-- monitoring/
 `-- docs/
 ```
 
@@ -89,7 +91,6 @@ Do not run infrastructure plans or applies without a separate approval.
 
 Add these as separate commits after the base private VM runtime is reviewed:
 
-- monitoring and service-state exporter baseline
 - Telegram status-only operator channel
 - context lifecycle module
 - platform adapters

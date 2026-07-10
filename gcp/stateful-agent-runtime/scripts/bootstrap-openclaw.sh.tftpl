@@ -26,6 +26,9 @@ OPENCLAW_RUNTIME_DIR="$(decode '${openclaw_runtime_dir_b64}')"
 OPENCLAW_UID='${openclaw_uid}'
 OPENCLAW_GID='${openclaw_gid}'
 DATA_DEVICE="/dev/disk/by-id/google-$DATA_DISK_DEVICE_NAME"
+SERVICE_STATE_EXPORTER_USER='${service_state_exporter_user}'
+SERVICE_STATE_EXPORTER_GROUP='${service_state_exporter_group}'
+SERVICE_STATE_EXPORTER_WORKING_DIR="$(decode '${service_state_exporter_working_dir_b64}')"
 
 [[ "$EUID" -eq 0 ]] || fail "Bootstrap must run as root."
 [[ "$CONTAINER_IMAGE" == *@sha256:* ]] || fail "Container image must be pinned by digest."
@@ -75,6 +78,51 @@ chown "root:$OPENCLAW_GID" "$STATE_MOUNT_PATH"
 chmod 0750 "$STATE_MOUNT_PATH"
 install -d -o "$OPENCLAW_UID" -g "$OPENCLAW_GID" -m 0700 "$OPENCLAW_STATE_DIR"
 install -d -o "$OPENCLAW_UID" -g "$OPENCLAW_GID" -m 0700 "$OPENCLAW_WORKSPACE_DIR"
+
+%{ if service_state_exporter_enabled ~}
+SERVICE_STATE_EXPORTER_VENV_DIR="$SERVICE_STATE_EXPORTER_WORKING_DIR/.venv"
+
+if ! getent group "$SERVICE_STATE_EXPORTER_GROUP" >/dev/null; then
+  groupadd --system "$SERVICE_STATE_EXPORTER_GROUP"
+fi
+
+if ! id -u "$SERVICE_STATE_EXPORTER_USER" >/dev/null 2>&1; then
+  useradd --system \
+    --gid "$SERVICE_STATE_EXPORTER_GROUP" \
+    --home-dir /nonexistent \
+    --shell /usr/sbin/nologin \
+    "$SERVICE_STATE_EXPORTER_USER"
+fi
+
+install -d -o root -g root -m 0755 /opt
+install -d -o root -g "$SERVICE_STATE_EXPORTER_GROUP" -m 0750 "$SERVICE_STATE_EXPORTER_WORKING_DIR"
+install -d -o root -g "$SERVICE_STATE_EXPORTER_GROUP" -m 0750 "$SERVICE_STATE_EXPORTER_WORKING_DIR/monitoring"
+
+while IFS=$'\t' read -r relative_path content_b64; do
+  [[ "$relative_path" == monitoring/*.py ||
+    "$relative_path" == monitoring/requirements.txt ]] ||
+    fail "Invalid service-state exporter package path."
+  [[ "$relative_path" != *".."* ]] ||
+    fail "Invalid service-state exporter package path."
+
+  target_path="$SERVICE_STATE_EXPORTER_WORKING_DIR/$relative_path"
+  temp_path="$target_path.tmp"
+  install -d -o root -g "$SERVICE_STATE_EXPORTER_GROUP" -m 0750 "$(dirname "$target_path")"
+  printf '%s' "$content_b64" | base64 -d > "$temp_path"
+  chown "root:$SERVICE_STATE_EXPORTER_GROUP" "$temp_path"
+  chmod 0640 "$temp_path"
+  mv -f "$temp_path" "$target_path"
+done < <(decode '${service_state_exporter_package_files_b64}' | jq -r 'to_entries[] | [.key, .value] | @tsv')
+
+apt-get install -y --no-install-recommends python3-venv
+python3 -m venv "$SERVICE_STATE_EXPORTER_VENV_DIR"
+"$SERVICE_STATE_EXPORTER_VENV_DIR/bin/python" -m pip install \
+  --disable-pip-version-check \
+  --no-cache-dir \
+  -r "$SERVICE_STATE_EXPORTER_WORKING_DIR/monitoring/requirements.txt"
+chown -R "root:$SERVICE_STATE_EXPORTER_GROUP" "$SERVICE_STATE_EXPORTER_VENV_DIR"
+chmod -R g+rX,o-rwx "$SERVICE_STATE_EXPORTER_VENV_DIR"
+%{ endif ~}
 
 install -d -o root -g root -m 0750 /etc/openclaw
 install -d -o root -g root -m 0755 /usr/local/sbin
@@ -153,8 +201,20 @@ chmod 0750 /usr/local/sbin/openclaw-prepare-runtime
 decode '${systemd_unit_b64}' > /etc/systemd/system/openclaw.service
 chmod 0644 /etc/systemd/system/openclaw.service
 
+%{ if service_state_exporter_enabled ~}
+decode '${service_state_exporter_systemd_unit_b64}' > /etc/systemd/system/openclaw-service-state-exporter.service
+chmod 0644 /etc/systemd/system/openclaw-service-state-exporter.service
+
+decode '${service_state_exporter_systemd_timer_b64}' > /etc/systemd/system/openclaw-service-state-exporter.timer
+chmod 0644 /etc/systemd/system/openclaw-service-state-exporter.timer
+%{ endif ~}
+
 systemctl daemon-reload
 systemctl enable openclaw.service
 systemctl restart openclaw.service
+
+%{ if service_state_exporter_enabled ~}
+systemctl enable --now openclaw-service-state-exporter.timer
+%{ endif ~}
 
 log "Bootstrap completed without printing secret values."

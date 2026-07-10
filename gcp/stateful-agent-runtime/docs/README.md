@@ -7,6 +7,7 @@ private Stateful VM runtime foundation.
 
 - [Operations Runbook](operations-runbook.md)
 - [Backup And Restore](backup-and-restore.md)
+- [Monitoring Baseline](monitoring-baseline.md)
 - [Implementation Notes](implementation-notes.md)
 - [Import Notes](import-notes.md)
 
@@ -20,12 +21,14 @@ private Stateful VM runtime foundation.
 - runtime secrets loaded from Secret Manager at service start
 - image rollout by immutable digest
 - daily scheduled snapshots of the authoritative state disk
+- service-state exporter and alert policy wiring disabled by default
 
 ## Documentation Boundaries
 
-These docs describe the base runtime foundation only. Later modules should add
-separate documentation for monitoring, Telegram status-only operation, context
-lifecycle management, platform adapters, and operational agents.
+These docs describe the runtime foundation and service-state monitoring
+baseline only. Later modules should add separate documentation for operator
+channels, context lifecycle management, platform adapters, and operational
+agents.
 
 Do not record secret values, token material, private operator notes, raw plans,
 or raw logs in this documentation tree.

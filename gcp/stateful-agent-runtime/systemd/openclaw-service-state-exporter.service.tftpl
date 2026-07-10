@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenClaw service-state exporter
+Documentation=https://github.com/openclaw/openclaw
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=${service_state_exporter_user}
+Group=${service_state_exporter_group}
+WorkingDirectory=${service_state_exporter_working_directory}
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=${service_state_exporter_working_directory}/.venv/bin/python -m monitoring.service_state_monitor_runner --project ${project_id} --metric-prefix ${metric_prefix}%{ if service_state_exporter_live_writes_enabled } --write%{ endif }
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=${service_state_exporter_working_directory}
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw-service-state-exporter
