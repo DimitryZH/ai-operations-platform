@@ -1,88 +1,57 @@
 # Architecture
 
-## Overview
+AI Operations Platform is a GCP-first platform foundation for self-hosted AI
+operations runtimes.
 
-AI Operations Platform is a cloud-native operational intelligence layer designed for GCP and GKE environments.
+The current architecture starts with a private Stateful VM runtime and layers
+operational context, operator channels, monitoring, and future platform
+capabilities above it.
 
-The platform combines:
-
-- AI operational agents
-- reusable operational skills
-- workflow orchestration
-- platform adapters
-- observability integrations
-- cloud-native infrastructure
-- explicit operational context lifecycle management
-
-The current foundation is GCP-first and starts from a private Stateful VM
-runtime with Terraform-managed infrastructure. Platform context is documented
-separately under `platform/context/`.
-
----
-
-# High-Level Architecture
+## Current Layers
 
 ```text
-                   AI Operations Platform
-                              │
-                ┌─────────────┼─────────────┐
-                │             │             │
-          Operational     Workflow      Platform
-             Agents      Orchestration   Adapters
-                │             │             │
-                └────── Shared Context ────┘
-                              │
-     ┌──────────────┬─────────┼──────────┬──────────────┐
-     │              │         │          │              │
- Cloud Logging   GKE API  Prometheus  GitHub API  Cloud Monitoring
- ```
- 
-# Core Components
+AI Operations Platform
+|-- platform/context/
+|   `-- explicit operational context lifecycle boundaries
+`-- gcp/stateful-agent-runtime/
+    |-- private Stateful VM runtime
+    |-- Persistent Disk state model
+    |-- IAP-only operator access
+    |-- Secret Manager runtime integration
+    |-- systemd-managed OpenClaw runtime
+    |-- service-state monitoring baseline
+    `-- Telegram status-only operator channel
+```
 
-## Runtime Layer
+## Runtime Foundation
 
-Primary runtime services:
+The runtime foundation lives in `gcp/stateful-agent-runtime/`.
 
-- GCP Stateful VM runtime
-- Artifact Registry
-- Secret Manager
-- Compute Engine
-- IAP
+It provides:
 
-## Operational Agents
+- private Compute Engine VM runtime with no public VM IP
+- preserved Persistent Disk for durable runtime state
+- Terraform-managed infrastructure
+- runtime secrets loaded from Secret Manager
+- systemd-managed OpenClaw service
+- optional service-state exporter wiring
+- optional Telegram status-only adapter wiring
 
-The platform supports multiple operational agents:
+## Context Layer
 
-- Observability Agent
-- Incident Agent
-- Rollout Analysis Agent
-- FinOps Agent
-- Delivery Governance Agent
+The context lifecycle foundation lives in `platform/context/`.
 
-## Skills
+It defines how the platform separates durable runtime state from reviewable
+operational context, summaries, evidence references, approvals, and forbidden
+data.
 
-Skills provide reusable operational capabilities:
+## Design Boundaries
 
-- GCP logging access
-- GKE diagnostics
-- Prometheus queries
-- rollout analysis
-- GitHub operational context
-
-## Platform Adapters
-
-Adapters allow integration with multiple environments:
-
-- GCP/GKE
-- Docker environments
-- future platform integrations
-
-## Long-Term Direction
-
-The platform is intended to evolve toward:
-
-- multi-agent orchestration
-- operational memory
-- adaptive troubleshooting workflows
-- AI-assisted operational governance
-- centralized cloud operations intelligence
+- Runtime state and operational context are separate concerns.
+- Stateful VM state is durable runtime state.
+- Platform context is explicit, reviewable, and bounded.
+- Telegram status-only interactions are observation inputs, not approval
+  signals.
+- Destructive actions require human approval.
+- No secrets, raw credentials, real chat IDs, Terraform state, local tfvars, or
+  raw plans belong in tracked context.

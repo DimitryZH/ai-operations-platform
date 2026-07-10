@@ -1,61 +1,36 @@
-## Phase 1 — Foundation
+# Roadmap
 
-Initial project setup:
+This repository is centered on a GCP-first Stateful VM runtime foundation for
+AI Operations Platform.
 
-- repository structure
-- README
-- documentation baseline
-- Terraform foundation
-- Cloud Run runtime model
-- Secret Manager integration
+## Completed Foundation Imports
 
----
+- private Stateful VM runtime foundation
+- service-state monitoring baseline
+- Telegram status-only operator channel
+- context lifecycle foundation
 
-## Phase 2 — Runtime Foundation
+## Near-Term Direction
 
-Initial runtime implementation:
+1. Review and harden the Stateful VM runtime foundation.
+2. Keep service-state monitoring disabled or limited until each environment
+   explicitly approves writes and alerts.
+3. Keep Telegram status-only and disabled by default unless a reviewed
+   environment provides token and allowlist inputs.
+4. Evolve `platform/context/` from documentation into reviewed interfaces only
+   after the context lifecycle boundaries are accepted.
 
-- Cloud Run deployment
-- containerized runtime
-- operational API layer
-- GitHub Actions CI/CD
-- logging integration
+## Later Platform Layers
 
----
+- operational agents
+- workflow orchestration
+- platform adapters
+- human-approved remediation workflows
 
-## Phase 3 — Operational Agents
+## Boundaries
 
-Initial operational agents:
-
-- observability agent
-- GKE diagnostics agent
-- rollout analysis agent
-- incident triage agent
-
----
-
-## Phase 4 — Skills & Workflows
-
-Operational skills:
-
-- Prometheus integration
-- Cloud Logging integration
-- GitHub operational context
-- operational summaries
-
----
-
-## Phase 5 — Platform Expansion
-
-Future platform integrations:
-
-- Docker environments
-- additional cloud providers
-- advanced operational workflows
-- multi-agent orchestration
-
----
-
-## Long-Term Vision
-
-The long-term objective is to evolve toward a modular AI-powered operational intelligence platform for cloud engineering environments.
+- no legacy container-service scaffold as the platform foundation
+- no alternate cloud-provider planning in the current foundation
+- no Telegram capability expansion without a separate design and approval
+- no secrets, real chat IDs, Terraform state, tfvars, raw plans, or private
+  operator notes in tracked files

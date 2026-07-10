@@ -1,60 +1,36 @@
 # Backup & Restore
 
-## Overview
+The current backup and restore model starts with the GCP Stateful VM runtime
+foundation.
 
-The platform is designed around stateless runtime principles with externalized operational state and configuration.
+## Runtime State
 
----
+Runtime state belongs to `gcp/stateful-agent-runtime/`.
 
-# Backup Areas
+The runtime uses a preserved Persistent Disk for durable OpenClaw state. Backup
+and restore details for this foundation are documented in:
 
-The platform may back up:
+- [Stateful Runtime Backup And Restore](../gcp/stateful-agent-runtime/docs/backup-and-restore.md)
 
-- operational configuration
-- runtime settings
-- agent definitions
-- workflow configurations
-- prompts
-- operational runbooks
+## Platform Context
 
----
+Platform context is separate from runtime state. Context backup should retain
+reviewed summaries, decisions, approval records, and evidence references only
+when they have operational value.
 
-# Storage Strategy
+Do not back up or retain:
 
-Recommended backup storage:
+- secret values
+- raw credentials or tokens
+- real Telegram chat IDs
+- Terraform state files
+- local tfvars
+- raw plans
+- private operator notes
+- sensitive raw logs
 
-- encrypted Cloud Storage buckets
-- private GitHub repositories
-- versioned configuration snapshots
+## Restore Boundary
 
----
-
-# Secrets
-
-Secrets should remain externalized through:
-
-- Secret Manager
-
-Secrets should not be included in backups.
-
----
-
-# Restore Model
-
-The platform should support:
-
-1. infrastructure recreation via Terraform
-2. runtime redeployment via CI/CD
-3. configuration restoration
-4. operational workflow recovery
-
----
-
-# Long-Term Direction
-
-Future backup areas may include:
-
-- operational memory
-- workflow execution history
-- incident knowledge datasets
-- platform operational snapshots
+Restoring runtime state must not imply approval to execute remediation,
+Terraform changes, shell commands, or capability expansion. Those actions still
+require explicit human approval.

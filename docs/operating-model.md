@@ -1,79 +1,44 @@
 # Operating Model
 
-## Overview
+AI Operations Platform assists operators. It is not an autonomous
+infrastructure control system.
 
-AI Operations Platform is designed as an operational assistance platform rather than an autonomous infrastructure control system.
-
-The platform assists operators with:
-
-- observability analysis
-- incident investigation
-- rollout diagnostics
-- operational summaries
-- cloud operational context
-- explicit context lifecycle management
-
----
-
-# Operational Philosophy
-
-The platform follows:
+## Operating Philosophy
 
 ```text
-Analyze → Recommend → Human Approves
+Observe -> Summarize -> Recommend -> Human Approves -> Execute
 ```
+
 The platform should:
 
-assist operators
-summarize operational signals
-recommend actions
-avoid uncontrolled infrastructure mutation
-preserve human approval boundaries
-keep retained context reviewable and free of secrets
+- summarize operational signals
+- preserve context boundaries
+- recommend actions with clear scope
+- require human approval before mutation
+- avoid uncontrolled infrastructure changes
+- keep retained context reviewable and free of secrets
 
+## Current Operational Surface
 
-# Example Workflows
-## GKE Health Investigation
+- Stateful VM runtime foundation: `gcp/stateful-agent-runtime/`
+- Service-state monitoring baseline: runtime status observations
+- Telegram status-only channel: `/status`, `/health`, `/whoami`, `/help`
+- Context lifecycle foundation: `platform/context/`
 
-Workflow:
+## Approval Boundary
 
-1. Collect Kubernetes status
-2. Review pod failures
-3. Analyze events
-4. Review operational logs
-5. Generate operational summary
+Operational context can inform a recommendation, but it does not authorize
+execution.
 
-## Rollout Analysis
+Destructive actions, infrastructure mutation, credential changes, capability
+expansion, and remediation workflows require explicit human approval in the
+active workflow.
 
-Workflow:
+Telegram status-only messages are not approval signals.
 
-1. Inspect rollout status
-2. Analyze AnalysisRuns
-3. Review burn-rate metrics
-4. Correlate deployment events
-5. Recommend operator actions
+## Future Direction
 
-# Deployment Model
-
-```text
-GitHub Actions
-        ↓
-Artifact Registry
-        ↓
-GCP Stateful VM Runtime
-        ↓
-Operational Runtime
-```
-# Long-Term Operational Direction
-
-Future operational capabilities may include:
-
-- scheduled operational summaries
-- incident knowledge accumulation
-- operational pattern analysis
-- adaptive troubleshooting assistance
-
-Context lifecycle rules are documented in
-[`platform/context/`](../platform/context/README.md). Retained context may
-inform recommendations, but it must not become execution authority without
-explicit human approval.
+Future platform layers may add operational agents, workflow orchestration, and
+platform adapters. Those layers should consume context through explicit,
+bounded, reviewable interfaces and preserve the runtime and approval
+boundaries defined here.
