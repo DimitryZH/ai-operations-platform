@@ -87,15 +87,18 @@ logging.googleapis.com
 secretmanager.googleapis.com
 ```
 
-## Deferred Work
+## Deferred Runtime Work
 
-Deferred from this first import:
+Deferred from the runtime module:
 
-- Telegram status-only operator channel
 - restore-drill automation
-- context lifecycle management
 - platform adapters
 - operational agents and workflow orchestration
+
+The service-state monitoring baseline, Telegram status-only operator channel,
+and platform context lifecycle foundation have been imported as separate
+follow-up changes. Platform context documentation lives outside this module
+under `platform/context/`.
 
 ## Risks
 

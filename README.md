@@ -38,6 +38,7 @@ ai-operations-platform/
 - [Operating Model](docs/operating-model.md)
 - [Backup & Restore](docs/backup-restore.md)
 - [Roadmap](docs/roadmap.md)
+- [Initial Migration Closeout](docs/migration-closeout.md)
 - [Stateful Agent Runtime](gcp/stateful-agent-runtime/README.md)
 - [Context Lifecycle Foundation](platform/context/README.md)
 

@@ -1,36 +1,47 @@
 # Roadmap
 
-This repository is centered on a GCP-first Stateful VM runtime foundation for
-AI Operations Platform.
+This repository is now aligned around the initial AI Operations Platform
+migration: a GCP-first private Stateful VM runtime foundation with explicit
+operational boundaries.
 
-## Completed Foundation Imports
+## Completed Foundation
 
-- private Stateful VM runtime foundation
+- GCP private Stateful VM runtime foundation
+- Persistent Disk state model
+- IAP-only operator access
+- Secret Manager runtime integration
+- systemd-managed OpenClaw runtime
 - service-state monitoring baseline
 - Telegram status-only operator channel
 - context lifecycle foundation
+- removal of the legacy container-service scaffold
 
-## Near-Term Direction
+## Near-Term Next Steps
 
-1. Review and harden the Stateful VM runtime foundation.
-2. Keep service-state monitoring disabled or limited until each environment
-   explicitly approves writes and alerts.
-3. Keep Telegram status-only and disabled by default unless a reviewed
-   environment provides token and allowlist inputs.
-4. Evolve `platform/context/` from documentation into reviewed interfaces only
-   after the context lifecycle boundaries are accepted.
+- validate the imported runtime from this target repository
+- review Terraform plans with sanitized environment values
+- run local Terraform validation before any reviewed infrastructure plan
+- define a small context lifecycle implementation spike
+- design operator workflows around explicit approvals
+- design approval workflow records and review boundaries
+- decide whether backend bootstrap automation belongs in this repository
 
-## Later Platform Layers
+## Deferred Work
 
-- operational agents
-- workflow orchestration
+- full alert routing
+- incident workflows
+- agent remediation
 - platform adapters
-- human-approved remediation workflows
+- operational agents
+- multi-agent orchestration
+- restore-drill automation
 
-## Boundaries
+## Explicitly Out Of Scope For Now
 
-- no legacy container-service scaffold as the platform foundation
-- no alternate cloud-provider planning in the current foundation
-- no Telegram capability expansion without a separate design and approval
-- no secrets, real chat IDs, Terraform state, tfvars, raw plans, or private
+- alternate runtime foundations
+- alternate cloud-provider scope
+- cloud-provider abstraction
+- write-capable Telegram commands
+- unapproved autonomous remediation
+- secrets, real chat IDs, Terraform state, tfvars, raw plans, or private
   operator notes in tracked files

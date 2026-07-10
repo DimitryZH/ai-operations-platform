@@ -37,7 +37,6 @@ operator commands.
 
 ## Intentionally Excluded
 
-- context lifecycle work
 - platform adapters
 - restore-drill automation
 - backend bootstrap state setup
@@ -90,9 +89,10 @@ terraform -chdir=gcp/stateful-agent-runtime/terraform validate
 
 Do not run infrastructure plans or applies without a separate approval.
 
-## Next Planned Imports
+## Related Platform Work
 
-Add these as separate commits after the base private VM runtime is reviewed:
+The platform-level context lifecycle foundation now lives in
+`platform/context/`. Future platform work should stay outside this runtime
+module unless it changes runtime ownership directly.
 
-- context lifecycle module
 - platform adapters

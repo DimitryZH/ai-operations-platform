@@ -1,9 +1,9 @@
 # Stateful Agent Runtime Import Notes
 
-## Source Repository
+## Historical Source Reference
 
 ```text
-C:\projects\ai\ai-agent-host
+ai-agent-host
 ```
 
 The source repository was used as a read-only reference.
@@ -11,21 +11,21 @@ The source repository was used as a read-only reference.
 ## Source Paths Imported
 
 ```text
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\terraform\
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\systemd\openclaw.service.tftpl
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\scripts\bootstrap-openclaw.sh.tftpl
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\docs\README.md
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\docs\stateful-vm-operations-runbook.md
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\docs\stateful-vm-backup-and-restore.md
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\docs\stateful-vm-implementation-summary.md
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\monitoring\
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\systemd\openclaw-service-state-exporter.service.tftpl
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\systemd\openclaw-service-state-exporter.timer.tftpl
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\terraform\service_state_exporter.tf
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\terraform\service_state_alert_policy.tf
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\terraform\monitoring.tf
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\telegram_adapter\
-C:\projects\ai\ai-agent-host\gcp\openclaw_stateful_vm\systemd\openclaw-telegram-adapter.service.tftpl
+gcp/openclaw_stateful_vm/terraform/
+gcp/openclaw_stateful_vm/systemd/openclaw.service.tftpl
+gcp/openclaw_stateful_vm/scripts/bootstrap-openclaw.sh.tftpl
+gcp/openclaw_stateful_vm/docs/README.md
+gcp/openclaw_stateful_vm/docs/stateful-vm-operations-runbook.md
+gcp/openclaw_stateful_vm/docs/stateful-vm-backup-and-restore.md
+gcp/openclaw_stateful_vm/docs/stateful-vm-implementation-summary.md
+gcp/openclaw_stateful_vm/monitoring/
+gcp/openclaw_stateful_vm/systemd/openclaw-service-state-exporter.service.tftpl
+gcp/openclaw_stateful_vm/systemd/openclaw-service-state-exporter.timer.tftpl
+gcp/openclaw_stateful_vm/terraform/service_state_exporter.tf
+gcp/openclaw_stateful_vm/terraform/service_state_alert_policy.tf
+gcp/openclaw_stateful_vm/terraform/monitoring.tf
+gcp/openclaw_stateful_vm/telegram_adapter/
+gcp/openclaw_stateful_vm/systemd/openclaw-telegram-adapter.service.tftpl
 ```
 
 ## Target Paths Created
@@ -72,8 +72,8 @@ gcp/stateful-agent-runtime/docs/import-notes.md
 - set environment-specific Telegram token secret ID and allowed chat IDs only
   in untracked deployment inputs before enabling the adapter
 
-## Next Planned Commits
+## Post-Migration Follow-Up
 
-1. Add context lifecycle scaffolding under the platform layer.
-2. Add platform adapters and operational agents after the runtime foundation is
-   stable.
+- Context lifecycle scaffolding now lives under `platform/context/`.
+- Add platform adapters and operational agents only after the runtime foundation
+  is reviewed and stable.

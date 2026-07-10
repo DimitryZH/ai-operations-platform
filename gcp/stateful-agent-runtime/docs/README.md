@@ -28,9 +28,9 @@ private Stateful VM runtime foundation.
 ## Documentation Boundaries
 
 These docs describe the runtime foundation, service-state monitoring baseline,
-and status-only Telegram operator channel. Later modules should add separate
-documentation for context lifecycle management, platform adapters, and
-operational agents.
+and status-only Telegram operator channel. Platform-level context lifecycle
+documentation lives in `platform/context/`. Later modules should add separate
+documentation for platform adapters and operational agents.
 
 Do not record secret values, token material, private operator notes, raw plans,
 or raw logs in this documentation tree.
