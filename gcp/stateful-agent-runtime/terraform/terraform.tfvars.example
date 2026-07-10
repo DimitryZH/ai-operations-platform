@@ -1,0 +1,58 @@
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+name_prefix  = "openclaw-stateful"
+machine_type = "e2-small"
+
+# Replace the placeholder digest with an approved immutable image digest.
+container_image = "us-central1-docker.pkg.dev/your-gcp-project-id/ai-operations-runtime/openclaw-runtime@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+artifact_registry_project_id    = "your-gcp-project-id"
+artifact_registry_location      = "us-central1"
+artifact_registry_repository_id = "ai-operations-runtime"
+
+# Optional: pin the boot image to avoid image-family drift during controlled rollouts.
+# ubuntu_image_name = "ubuntu-2404-noble-amd64-v20260615"
+
+boot_disk_size_gb = 20
+data_disk_size_gb = 30
+data_disk_type    = "pd-balanced"
+
+# These are Secret Manager identifiers only. Never place secret values here.
+runtime_secret_ids = {
+  OPENCLAW_GATEWAY_TOKEN = "openclaw-gateway-token-experimental"
+  GEMINI_API_KEY         = "gemini-api-key-experimental"
+  GH_TOKEN               = "openclaw-github-readonly-token-experimental"
+}
+
+openclaw_github_mode = "readonly"
+github_pr_secret_id  = null
+
+openclaw_control_ui_enabled = false
+
+# Enable only when Control UI onboarding / device pairing approval through admin RPC is needed.
+openclaw_admin_http_rpc_enabled = false
+
+create_network   = true
+create_cloud_nat = true
+subnetwork_cidr  = "10.42.0.0/24"
+
+operator_iam_members = [
+  # "user:operator@example.com"
+]
+
+admin_iam_members = [
+  # "user:admin@example.com"
+]
+
+health_check_mode              = "TCP"
+health_check_initial_delay_sec = 300
+
+snapshot_start_time_utc = "04:00"
+snapshot_retention_days = 14
+
+labels = {
+  project = "ai-operations-platform"
+  env     = "prototype"
+}

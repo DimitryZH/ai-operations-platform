@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+log() {
+  printf '[openclaw-bootstrap] %s\n' "$*"
+}
+
+fail() {
+  log "ERROR: $*"
+  exit 1
+}
+
+decode() {
+  printf '%s' "$1" | base64 -d
+}
+
+PROJECT_ID="$(decode '${project_id_b64}')"
+SECRET_PROJECT_ID="$(decode '${secret_project_id_b64}')"
+CONTAINER_IMAGE="$(decode '${container_image_b64}')"
+DATA_DISK_DEVICE_NAME="$(decode '${data_disk_device_name_b64}')"
+STATE_MOUNT_PATH="$(decode '${state_mount_path_b64}')"
+OPENCLAW_STATE_DIR="$(decode '${openclaw_state_dir_b64}')"
+OPENCLAW_WORKSPACE_DIR="$(decode '${openclaw_workspace_dir_b64}')"
+OPENCLAW_RUNTIME_DIR="$(decode '${openclaw_runtime_dir_b64}')"
+OPENCLAW_UID='${openclaw_uid}'
+OPENCLAW_GID='${openclaw_gid}'
+DATA_DEVICE="/dev/disk/by-id/google-$DATA_DISK_DEVICE_NAME"
+
+[[ "$EUID" -eq 0 ]] || fail "Bootstrap must run as root."
+[[ "$CONTAINER_IMAGE" == *@sha256:* ]] || fail "Container image must be pinned by digest."
+
+export DEBIAN_FRONTEND=noninteractive
+
+if ! command -v docker >/dev/null 2>&1; then
+  log "Installing Docker Engine from the official Docker apt repository"
+  apt-get update
+  apt-get install -y --no-install-recommends ca-certificates curl gnupg jq
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
+  . /etc/os-release
+  printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu %s stable\n' \
+    "$(dpkg --print-architecture)" "$VERSION_CODENAME" \
+    > /etc/apt/sources.list.d/docker.list
+  apt-get update
+  apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+else
+  apt-get update
+  apt-get install -y --no-install-recommends ca-certificates curl jq
+fi
+
+systemctl enable --now docker.service
+
+log "Waiting for authoritative state disk $DATA_DEVICE"
+for _ in $(seq 1 60); do
+  [[ -b "$DATA_DEVICE" ]] && break
+  sleep 2
+done
+[[ -b "$DATA_DEVICE" ]] || fail "State disk is not available at $DATA_DEVICE."
+
+if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
+  log "Formatting previously unformatted state disk as ext4"
+  mkfs.ext4 -F -m 0 -L openclaw-state "$DATA_DEVICE"
+fi
+
+install -d -m 0750 "$STATE_MOUNT_PATH"
+FSTAB_ENTRY="$DATA_DEVICE $STATE_MOUNT_PATH ext4 defaults,nodev,nosuid,nofail,x-systemd.device-timeout=30s 0 2"
+if ! grep -Fq "$DATA_DEVICE $STATE_MOUNT_PATH " /etc/fstab; then
+  printf '%s\n' "$FSTAB_ENTRY" >> /etc/fstab
+fi
+mountpoint -q "$STATE_MOUNT_PATH" || mount "$STATE_MOUNT_PATH"
+
+chown "root:$OPENCLAW_GID" "$STATE_MOUNT_PATH"
+chmod 0750 "$STATE_MOUNT_PATH"
+install -d -o "$OPENCLAW_UID" -g "$OPENCLAW_GID" -m 0700 "$OPENCLAW_STATE_DIR"
+install -d -o "$OPENCLAW_UID" -g "$OPENCLAW_GID" -m 0700 "$OPENCLAW_WORKSPACE_DIR"
+
+install -d -o root -g root -m 0750 /etc/openclaw
+install -d -o root -g root -m 0755 /usr/local/sbin
+
+decode '${runtime_environment_b64}' > /etc/openclaw/openclaw.env
+chmod 0640 /etc/openclaw/openclaw.env
+
+decode '${secret_map_json_b64}' > /etc/openclaw/secret-map.json
+chmod 0640 /etc/openclaw/secret-map.json
+
+cat > /etc/openclaw/openclaw-host.env <<EOF
+PROJECT_ID=$PROJECT_ID
+SECRET_PROJECT_ID=$SECRET_PROJECT_ID
+CONTAINER_IMAGE=$CONTAINER_IMAGE
+OPENCLAW_UID=$OPENCLAW_UID
+OPENCLAW_GID=$OPENCLAW_GID
+OPENCLAW_RUNTIME_DIR=$OPENCLAW_RUNTIME_DIR
+EOF
+chmod 0640 /etc/openclaw/openclaw-host.env
+
+cat > /usr/local/sbin/openclaw-prepare-runtime <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+fail() {
+  printf '[openclaw-prepare-runtime] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+# This file contains resource identifiers and paths only, never secret values.
+source /etc/openclaw/openclaw-host.env
+
+install -d -o "$OPENCLAW_UID" -g "$OPENCLAW_GID" -m 0750 "$OPENCLAW_RUNTIME_DIR"
+rm -rf /run/openclaw/secrets
+install -d -o "$OPENCLAW_UID" -g "$OPENCLAW_GID" -m 0700 /run/openclaw/secrets
+
+ACCESS_TOKEN="$(
+  curl -fsS \
+    -H 'Metadata-Flavor: Google' \
+    'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' |
+    jq -er '.access_token'
+)" || fail "Unable to acquire a VM service account access token."
+
+while IFS=$'\t' read -r env_name secret_id; do
+  [[ "$env_name" =~ ^[A-Z][A-Z0-9_]*$ ]] || fail "Invalid secret environment name."
+  [[ "$secret_id" =~ ^[a-zA-Z0-9_-]+$ ]] || fail "Invalid Secret Manager secret ID."
+
+  secret_path="/run/openclaw/secrets/$env_name"
+  temp_path="$(mktemp /run/openclaw/secrets/.secret.XXXXXX)"
+
+  curl -fsS \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    "https://secretmanager.googleapis.com/v1/projects/$SECRET_PROJECT_ID/secrets/$secret_id/versions/latest:access" |
+    jq -er '.payload.data' |
+    base64 -d > "$temp_path" ||
+    fail "Unable to access required Secret Manager secret ID: $secret_id"
+
+  [[ -s "$temp_path" ]] || fail "Required Secret Manager secret is empty: $secret_id"
+  chown "$OPENCLAW_UID:$OPENCLAW_GID" "$temp_path"
+  chmod 0400 "$temp_path"
+  mv -f "$temp_path" "$secret_path"
+done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' /etc/openclaw/secret-map.json)
+
+REGISTRY_HOST="$${CONTAINER_IMAGE%%/*}"
+printf '%s' "$ACCESS_TOKEN" |
+  docker login -u oauth2accesstoken --password-stdin "$REGISTRY_HOST" >/dev/null ||
+  fail "Artifact Registry authentication failed."
+
+docker pull "$CONTAINER_IMAGE"
+docker logout "$REGISTRY_HOST" >/dev/null 2>&1 || true
+docker image inspect "$CONTAINER_IMAGE" >/dev/null
+EOF
+chmod 0750 /usr/local/sbin/openclaw-prepare-runtime
+
+decode '${systemd_unit_b64}' > /etc/systemd/system/openclaw.service
+chmod 0644 /etc/systemd/system/openclaw.service
+
+systemctl daemon-reload
+systemctl enable openclaw.service
+systemctl restart openclaw.service
+
+log "Bootstrap completed without printing secret values."

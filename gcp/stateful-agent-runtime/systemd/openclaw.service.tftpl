@@ -1,0 +1,29 @@
+[Unit]
+Description=OpenClaw single-writer stateful gateway
+Documentation=https://github.com/openclaw/openclaw
+Requires=docker.service
+RequiresMountsFor=${state_mount_path}
+After=docker.service network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStartPre=/usr/local/sbin/openclaw-prepare-runtime
+ExecStartPre=-/usr/bin/docker rm -f openclaw-gateway
+ExecStart=/usr/bin/docker run --name openclaw-gateway --rm --pull never --user ${openclaw_uid}:${openclaw_gid} --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 512 --env-file /etc/openclaw/openclaw.env --publish 0.0.0.0:${openclaw_port}:${openclaw_port} --volume ${state_mount_path}/state:${state_mount_path}/state:rw --volume ${state_mount_path}/workspace:${state_mount_path}/workspace:rw --volume /run/openclaw/runtime:/run/openclaw/runtime:rw --volume /run/openclaw/secrets:/run/openclaw/secrets:ro ${container_image}
+ExecStop=/usr/bin/docker stop --time 60 openclaw-gateway
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=600
+TimeoutStopSec=90
+KillMode=process
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw
+
+[Install]
+WantedBy=multi-user.target
