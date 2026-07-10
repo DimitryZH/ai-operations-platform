@@ -11,6 +11,7 @@ The platform assists operators with:
 - rollout diagnostics
 - operational summaries
 - cloud operational context
+- explicit context lifecycle management
 
 ---
 
@@ -27,6 +28,8 @@ assist operators
 summarize operational signals
 recommend actions
 avoid uncontrolled infrastructure mutation
+preserve human approval boundaries
+keep retained context reviewable and free of secrets
 
 
 # Example Workflows
@@ -57,7 +60,7 @@ GitHub Actions
         ↓
 Artifact Registry
         ↓
-Cloud Run Deployment
+GCP Stateful VM Runtime
         ↓
 Operational Runtime
 ```
@@ -69,3 +72,8 @@ Future operational capabilities may include:
 - incident knowledge accumulation
 - operational pattern analysis
 - adaptive troubleshooting assistance
+
+Context lifecycle rules are documented in
+[`platform/context/`](../platform/context/README.md). Retained context may
+inform recommendations, but it must not become execution authority without
+explicit human approval.

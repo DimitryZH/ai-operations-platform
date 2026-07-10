@@ -6,6 +6,9 @@ The platform is designed as a modular, extensible AI operations layer that integ
 
 This platform evolved from the earlier `ai-agent-host` infrastructure foundation project.
 
+The current foundation is GCP-first and starts with a private Stateful VM
+runtime plus a lightweight platform context lifecycle scaffold.
+
 ---
 
 ## Overview
@@ -20,6 +23,7 @@ Core areas:
 - Kubernetes operational analysis
 - FinOps operational insights
 - AI-assisted cloud operations
+- Explicit operational context lifecycle management
 
 ---
 
@@ -63,6 +67,7 @@ ai-operations-platform/
 - [Architecture](docs/architecture.md)
 - [Security Model](docs/security-model.md)
 - [Operating Model](docs/operating-model.md)
+- [Context Lifecycle Foundation](platform/context/README.md)
 - [Backup & Restore](docs/backup-restore.md)
 - [Roadmap](docs/roadmap.md)
 
@@ -100,7 +105,7 @@ Build Container
         ↓
 Artifact Registry
         ↓
-Cloud Run Deployment
+GCP Stateful VM Runtime
         ↓
 Operational Runtime
 ```

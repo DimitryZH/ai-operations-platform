@@ -12,8 +12,11 @@ The platform combines:
 - platform adapters
 - observability integrations
 - cloud-native infrastructure
+- explicit operational context lifecycle management
 
-The primary runtime model is based on Google Cloud Run with Terraform-managed infrastructure.
+The current foundation is GCP-first and starts from a private Stateful VM
+runtime with Terraform-managed infrastructure. Platform context is documented
+separately under `platform/context/`.
 
 ---
 
@@ -40,11 +43,11 @@ The primary runtime model is based on Google Cloud Run with Terraform-managed in
 
 Primary runtime services:
 
-- Cloud Run
+- GCP Stateful VM runtime
 - Artifact Registry
 - Secret Manager
-- Cloud Scheduler
-- Pub/Sub
+- Compute Engine
+- IAP
 
 ## Operational Agents
 
@@ -72,7 +75,7 @@ Adapters allow integration with multiple environments:
 
 - GCP/GKE
 - Docker environments
-- future multi-cloud integrations
+- future platform integrations
 
 ## Long-Term Direction
 
