@@ -1,0 +1,42 @@
+project_id = "example-nonprod-project"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+name_prefix  = "agent-devbox"
+network_name = "agent-devbox-vpc"
+subnet_name  = "agent-devbox-subnet"
+subnet_cidr  = "10.52.0.0/24"
+
+machine_type      = "e2-standard-2"
+boot_disk_size_gb = 80
+boot_disk_type    = "pd-balanced"
+
+service_account_id = "agent-devbox-vm"
+
+operator_iam_members = [
+  # "user:operator@example.com"
+]
+
+admin_iam_members = [
+  # "user:admin@example.com"
+]
+
+# Secret identifiers only. Never place secret payloads, private keys, or tokens here.
+secret_manager_secret_refs = [
+  # "github-app-private-key-placeholder",
+  # "projects/example-nonprod-project/secrets/github-app-id-placeholder",
+]
+
+artifact_registry_reader_enabled = false
+# artifact_registry_project_id    = "example-nonprod-project"
+# artifact_registry_location      = "us-central1"
+# artifact_registry_repository_id = "example-repository"
+
+deletion_protection = false
+dotnet_sdk_channel  = "10.0"
+nodejs_major_version = 20
+
+labels = {
+  owner       = "platform"
+  environment = "experiment"
+}

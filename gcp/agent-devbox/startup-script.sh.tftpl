@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+log() {
+  printf '[agent-devbox-bootstrap] %s\n' "$*"
+}
+
+fail() {
+  log "ERROR: $*"
+  exit 1
+}
+
+[[ "$EUID" -eq 0 ]] || fail "Startup script must run as root."
+
+DOTNET_SDK_CHANNEL="${dotnet_sdk_channel}"
+NODEJS_MAJOR_VERSION="${nodejs_major_version}"
+
+export DEBIAN_FRONTEND=noninteractive
+
+log "Installing base packages"
+apt-get update
+apt-get install -y --no-install-recommends \
+  apt-transport-https \
+  build-essential \
+  ca-certificates \
+  curl \
+  git \
+  gnupg \
+  jq \
+  lsb-release \
+  software-properties-common \
+  unzip
+
+install -m 0755 -d /etc/apt/keyrings
+. /etc/os-release
+ARCH="$(dpkg --print-architecture)"
+
+if ! command -v docker >/dev/null 2>&1; then
+  log "Installing Docker Engine and Compose plugin"
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
+  printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu %s stable\n' \
+    "$ARCH" "$VERSION_CODENAME" > /etc/apt/sources.list.d/docker.list
+  apt-get update
+  apt-get install -y --no-install-recommends \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-ce \
+    docker-ce-cli \
+    docker-compose-plugin
+fi
+systemctl enable --now docker.service
+
+if ! command -v gh >/dev/null 2>&1; then
+  log "Installing GitHub CLI binary without authentication"
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
+  chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+  printf 'deb [arch=%s signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\n' \
+    "$ARCH" > /etc/apt/sources.list.d/github-cli.list
+  apt-get update
+  apt-get install -y --no-install-recommends gh
+fi
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  log "Installing .NET SDK $DOTNET_SDK_CHANNEL"
+  curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb \
+    -o /tmp/packages-microsoft-prod.deb
+  dpkg -i /tmp/packages-microsoft-prod.deb
+  rm -f /tmp/packages-microsoft-prod.deb
+  apt-get update
+  apt-get install -y --no-install-recommends "dotnet-sdk-$DOTNET_SDK_CHANNEL"
+fi
+
+if ! command -v node >/dev/null 2>&1 || [[ "$(node -p 'Number(process.versions.node.split(".")[0])')" -lt "$NODEJS_MAJOR_VERSION" ]]; then
+  log "Installing Node.js $NODEJS_MAJOR_VERSION"
+  curl -fsSL "https://deb.nodesource.com/setup_$NODEJS_MAJOR_VERSION.x" | bash -
+  apt-get install -y --no-install-recommends nodejs
+fi
+
+for user_name in devclaw-svc devclaw-token devclaw-validate; do
+  if ! id -u "$user_name" >/dev/null 2>&1; then
+    useradd --system --create-home --shell /bin/bash "$user_name"
+  fi
+done
+
+usermod -aG docker devclaw-svc
+if id -nG devclaw-token | tr ' ' '\n' | grep -qx docker; then
+  gpasswd -d devclaw-token docker
+fi
+
+log "Creating base directories"
+install -d -o root -g devclaw-svc -m 0750 /opt/devclaw
+install -d -o root -g devclaw-svc -m 0750 /opt/devclaw/runtime
+install -d -o root -g devclaw-svc -m 0750 /opt/devclaw/config
+install -d -o root -g devclaw-svc -m 0750 /opt/devclaw/prompts
+install -d -o root -g devclaw-svc -m 0750 /opt/devclaw/bin
+
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/lib/devclaw
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/lib/devclaw/projects
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/lib/devclaw/sessions
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/lib/devclaw/audit
+
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /workspace
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /workspace/repos
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /workspace/worktrees
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /workspace/evidence
+
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/cache/devclaw-experiment
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/cache/devclaw-experiment/docker
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/cache/devclaw-experiment/nuget
+install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/cache/devclaw-experiment/dotnet
+
+install -d -o devclaw-token -g devclaw-token -m 0700 /run/secrets/devclaw
+install -d -o devclaw-token -g devclaw-token -m 0710 /run/devclaw
+
+printf '%s' '${validation_tools_b64}' | base64 -d > /opt/devclaw/bin/validate-tools.sh
+printf '%s' '${validation_runtime_b64}' | base64 -d > /opt/devclaw/bin/validate-runtime.sh
+chown root:devclaw-svc /opt/devclaw/bin/validate-tools.sh /opt/devclaw/bin/validate-runtime.sh
+chmod 0750 /opt/devclaw/bin/validate-tools.sh /opt/devclaw/bin/validate-runtime.sh
+
+cat > /var/lib/devclaw/bootstrap-ready <<EOF
+base_prerequisites=installed
+openclaw=not-installed
+devclaw=not-installed
+credentials=not-configured
+EOF
+chown devclaw-svc:devclaw-svc /var/lib/devclaw/bootstrap-ready
+chmod 0640 /var/lib/devclaw/bootstrap-ready
+
+log "Base prerequisite bootstrap complete. OpenClaw and DevClaw are intentionally not installed."
