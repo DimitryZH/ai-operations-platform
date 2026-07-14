@@ -21,6 +21,29 @@ run_as_devclaw() {
     "$@"
 }
 
+normalize_openclaw_prefix() {
+  [[ -d "$OPENCLAW_NPM_PREFIX" ]] || fail "Missing OpenClaw npm prefix: $OPENCLAW_NPM_PREFIX"
+
+  chown -R -h root:devclaw-svc "$OPENCLAW_NPM_PREFIX"
+  chmod -R u=rwX,g=rX,o= "$OPENCLAW_NPM_PREFIX"
+
+  [[ -x "$OPENCLAW_BIN" ]] || fail "Missing executable OpenClaw entry in the controlled prefix."
+  run_as_devclaw test -x "$OPENCLAW_BIN" ||
+    fail "devclaw-svc cannot execute the controlled OpenClaw entry."
+  if run_as_devclaw test -w "$OPENCLAW_NPM_PREFIX"; then
+    fail "devclaw-svc must not be able to modify the controlled npm prefix."
+  fi
+
+  local representative_file
+  representative_file="$(find "$OPENCLAW_NPM_PREFIX/lib/node_modules/openclaw" -type f -name package.json -print -quit 2>/dev/null || true)"
+  [[ -n "$representative_file" ]] || fail "Missing representative OpenClaw package file."
+  run_as_devclaw test -r "$representative_file" ||
+    fail "devclaw-svc cannot read the OpenClaw package files."
+  if run_as_devclaw test -w "$representative_file"; then
+    fail "devclaw-svc must not be able to modify OpenClaw package files."
+  fi
+}
+
 require_value() {
   local name="$1"
   local actual="$2"
@@ -51,11 +74,16 @@ verify_npm_metadata() {
 }
 
 installed_openclaw_version() {
-  if [[ -x /opt/devclaw/runtime/npm/bin/openclaw ]]; then
-    /opt/devclaw/runtime/npm/bin/openclaw --version 2>/dev/null | grep -Eo '[0-9]{4}\.[0-9]+\.[0-9]+' | head -n1 || true
+  if [[ -x "${OPENCLAW_BIN:-/opt/devclaw/runtime/npm/bin/openclaw}" ]]; then
+    "${OPENCLAW_BIN:-/opt/devclaw/runtime/npm/bin/openclaw}" --version 2>/dev/null | grep -Eo '[0-9]{4}\.[0-9]+\.[0-9]+' | head -n1 || true
   elif command -v openclaw >/dev/null 2>&1; then
     openclaw --version 2>/dev/null | grep -Eo '[0-9]{4}\.[0-9]+\.[0-9]+' | head -n1 || true
   fi
+}
+
+installed_devclaw_version() {
+  run_as_devclaw openclaw plugins inspect devclaw --json 2>/dev/null |
+    jq -r '.plugin.version // .install.version // .version // .package.version // .manifest.version // .meta.version // empty' 2>/dev/null || true
 }
 
 assert_node_supported_for_openclaw() {
@@ -126,6 +154,10 @@ require_value DEVCLAW_VERSION "$DEVCLAW_VERSION" "1.6.10"
 require_value OPENCLAW_PACKAGE "$OPENCLAW_PACKAGE" "openclaw"
 require_value DEVCLAW_PACKAGE "$DEVCLAW_PACKAGE" "@laurentenhoor/devclaw"
 
+OPENCLAW_NPM_PREFIX=/opt/devclaw/runtime/npm
+OPENCLAW_BIN="$OPENCLAW_NPM_PREFIX/bin/openclaw"
+OPENCLAW_SYMLINK=/usr/local/bin/openclaw
+
 normalize_base_marker
 
 command -v node >/dev/null 2>&1 || fail "Missing node."
@@ -150,14 +182,17 @@ log "Verifying official npm metadata"
 verify_npm_metadata "${OPENCLAW_PACKAGE}@${OPENCLAW_VERSION}" "$OPENCLAW_PACKAGE" "$OPENCLAW_VERSION"
 verify_npm_metadata "${DEVCLAW_PACKAGE}@${DEVCLAW_VERSION}" "$DEVCLAW_PACKAGE" "$DEVCLAW_VERSION"
 
-log "Installing pinned OpenClaw into /opt/devclaw/runtime/npm"
-install -d -o root -g devclaw-svc -m 0755 /opt/devclaw/runtime/npm
-npm install --global --prefix /opt/devclaw/runtime/npm --no-audit --no-fund \
-  "${OPENCLAW_PACKAGE}@${OPENCLAW_VERSION}"
-chown -R root:devclaw-svc /opt/devclaw/runtime/npm
-find /opt/devclaw/runtime/npm -type d -exec chmod 0755 {} +
-find /opt/devclaw/runtime/npm -type f -exec chmod go-w {} +
-ln -sfn /opt/devclaw/runtime/npm/bin/openclaw /usr/local/bin/openclaw
+if [[ -n "$existing_openclaw" ]]; then
+  log "Pinned OpenClaw ${OPENCLAW_VERSION} already exists; normalizing controlled prefix"
+else
+  log "Installing pinned OpenClaw into $OPENCLAW_NPM_PREFIX"
+  install -d -o root -g devclaw-svc -m 0750 "$OPENCLAW_NPM_PREFIX"
+  npm install --global --prefix "$OPENCLAW_NPM_PREFIX" --no-audit --no-fund \
+    "${OPENCLAW_PACKAGE}@${OPENCLAW_VERSION}"
+fi
+normalize_openclaw_prefix
+ln -sfn "$OPENCLAW_BIN" "$OPENCLAW_SYMLINK"
+chown -h root:root "$OPENCLAW_SYMLINK"
 
 actual_openclaw="$(installed_openclaw_version)"
 require_value "Installed OpenClaw version" "$actual_openclaw" "$OPENCLAW_VERSION"
@@ -170,8 +205,17 @@ log "Enforcing OpenClaw inactive baseline configuration"
 run_as_devclaw openclaw config set gateway.bind loopback
 run_as_devclaw openclaw config set tools.exec.mode deny
 
-log "Installing pinned DevClaw plugin"
-run_as_devclaw openclaw plugins install "${DEVCLAW_PACKAGE}@${DEVCLAW_VERSION}"
+existing_devclaw="$(installed_devclaw_version)"
+if [[ -n "$existing_devclaw" && "$existing_devclaw" != "$DEVCLAW_VERSION" ]]; then
+  fail "A different DevClaw version is already installed: $existing_devclaw."
+fi
+if [[ -n "$existing_devclaw" ]]; then
+  log "Pinned DevClaw ${DEVCLAW_VERSION} already exists; preserving plugin installation"
+else
+  log "Installing pinned DevClaw plugin"
+  run_as_devclaw openclaw plugins install "${DEVCLAW_PACKAGE}@${DEVCLAW_VERSION}"
+fi
+normalize_openclaw_prefix
 
 log "Enforcing DevClaw inactive safe-mode configuration"
 run_as_devclaw openclaw config set plugins.entries.devclaw.enabled false

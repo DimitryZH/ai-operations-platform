@@ -27,9 +27,8 @@ resource "google_compute_instance" "devbox" {
     block-project-ssh-keys = "TRUE"
     enable-oslogin         = "TRUE"
     serial-port-enable     = "FALSE"
+    startup-script         = local.startup_script
   }
-
-  metadata_startup_script = local.startup_script
 
   service_account {
     email  = google_service_account.devbox.email

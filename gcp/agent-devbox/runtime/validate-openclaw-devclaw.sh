@@ -42,6 +42,14 @@ plugin_json_value() {
   jq -r "$expr" /tmp/devclaw-plugin-inspect.json
 }
 
+require_no_output() {
+  local message="$1"
+  shift
+  local output
+  output="$("$@" -print -quit 2>/dev/null || true)"
+  [[ -z "$output" ]] || fail "$message: $output"
+}
+
 VERSION_FILE="${AGENT_DEVBOX_VERSION_FILE:-/opt/devclaw/config/versions.env}"
 [[ -f "$VERSION_FILE" ]] || fail "Missing versions file: $VERSION_FILE"
 # shellcheck disable=SC1090
@@ -52,30 +60,72 @@ require_value DEVCLAW_VERSION "$DEVCLAW_VERSION" "1.6.10"
 require_value OPENCLAW_PACKAGE "$OPENCLAW_PACKAGE" "openclaw"
 require_value DEVCLAW_PACKAGE "$DEVCLAW_PACKAGE" "@laurentenhoor/devclaw"
 
+OPENCLAW_NPM_PREFIX=/opt/devclaw/runtime/npm
+OPENCLAW_BIN="$OPENCLAW_NPM_PREFIX/bin/openclaw"
+OPENCLAW_SYMLINK=/usr/local/bin/openclaw
+
 command -v openclaw >/dev/null 2>&1 || fail "Missing openclaw binary."
 command -v jq >/dev/null 2>&1 || fail "Missing jq."
-[[ -x /opt/devclaw/runtime/npm/bin/openclaw ]] || fail "Missing controlled OpenClaw executable."
-[[ "$(readlink -f /usr/local/bin/openclaw)" == "/opt/devclaw/runtime/npm/bin/openclaw" ]] ||
-  fail "/usr/local/bin/openclaw must point to the controlled prefix."
+[[ -L "$OPENCLAW_SYMLINK" ]] || fail "$OPENCLAW_SYMLINK must be a symlink."
+literal_target="$(readlink "$OPENCLAW_SYMLINK")" ||
+  fail "Cannot read literal OpenClaw symlink target."
+require_value "OpenClaw symlink literal target" "$literal_target" "$OPENCLAW_BIN"
 
-require_value "OpenClaw prefix owner" "$(stat -c '%U:%G' /opt/devclaw/runtime/npm)" "root:devclaw-svc"
-if [[ "$(stat -c '%A' /opt/devclaw/runtime/npm | cut -c6)" == "w" ]]; then
+[[ -e "$OPENCLAW_BIN" ]] || fail "Missing controlled OpenClaw entry: $OPENCLAW_BIN"
+[[ -x "$OPENCLAW_BIN" ]] || fail "Controlled OpenClaw entry is not executable by root: $OPENCLAW_BIN"
+
+canonical_target="$(run_as_devclaw readlink -f "$OPENCLAW_SYMLINK" 2>/tmp/openclaw-readlink-error || true)"
+if [[ -z "$canonical_target" ]]; then
+  readlink_error="$(cat /tmp/openclaw-readlink-error 2>/dev/null || true)"
+  fail "OpenClaw symlink target is configured correctly but cannot be resolved by devclaw-svc; inspect controlled-prefix traversal permissions. ${readlink_error}"
+fi
+case "$canonical_target" in
+  "$OPENCLAW_NPM_PREFIX"/*) ;;
+  *) fail "OpenClaw canonical target escaped the controlled prefix: $canonical_target" ;;
+esac
+
+require_value "OpenClaw prefix owner" "$(stat -c '%U:%G' "$OPENCLAW_NPM_PREFIX")" "root:devclaw-svc"
+if [[ "$(stat -c '%A' "$OPENCLAW_NPM_PREFIX" | cut -c6)" == "w" ]]; then
   fail "OpenClaw prefix must not be group-writable."
 fi
-if run_as_devclaw test -w /opt/devclaw/runtime/npm; then
+require_no_output "OpenClaw prefix contains non-root-owned path" \
+  find "$OPENCLAW_NPM_PREFIX" ! -user root
+require_no_output "OpenClaw prefix contains path outside devclaw-svc group" \
+  find "$OPENCLAW_NPM_PREFIX" ! -group devclaw-svc
+require_no_output "OpenClaw prefix grants permissions to others" \
+  find "$OPENCLAW_NPM_PREFIX" ! -type l -perm /0007
+require_no_output "OpenClaw prefix grants group write permission" \
+  find "$OPENCLAW_NPM_PREFIX" ! -type l -perm /0020
+require_no_output "OpenClaw prefix contains a directory not traversable by devclaw-svc group" \
+  find "$OPENCLAW_NPM_PREFIX" -type d ! -perm -0050
+require_no_output "OpenClaw prefix contains a regular file not readable by devclaw-svc group" \
+  find "$OPENCLAW_NPM_PREFIX" -type f ! -perm -0040
+
+if run_as_devclaw test -w "$OPENCLAW_NPM_PREFIX"; then
   fail "devclaw-svc must not be able to modify the OpenClaw package prefix."
 fi
 
-actual_openclaw="$(openclaw --version | grep -Eo '[0-9]{4}\.[0-9]+\.[0-9]+' | head -n1)"
+representative_file="$(find "$OPENCLAW_NPM_PREFIX/lib/node_modules/openclaw" -type f -name package.json -print -quit 2>/dev/null || true)"
+[[ -n "$representative_file" ]] || fail "Missing representative OpenClaw package file."
+if run_as_devclaw test -w "$representative_file"; then
+  fail "devclaw-svc must not be able to modify OpenClaw package files."
+fi
+
+openclaw_version_output="$(run_as_devclaw openclaw --version 2>/tmp/openclaw-version-error || true)"
+if [[ -z "$openclaw_version_output" ]]; then
+  version_error="$(cat /tmp/openclaw-version-error 2>/dev/null || true)"
+  fail "OpenClaw symlink resolved but execution as devclaw-svc failed. ${version_error}"
+fi
+actual_openclaw="$(printf '%s\n' "$openclaw_version_output" | grep -Eo '[0-9]{4}\.[0-9]+\.[0-9]+' | head -n1)"
 require_value "OpenClaw version" "$actual_openclaw" "$OPENCLAW_VERSION"
 
-npm list --global --prefix /opt/devclaw/runtime/npm --depth=0 "${OPENCLAW_PACKAGE}@${OPENCLAW_VERSION}" >/dev/null ||
+npm list --global --prefix "$OPENCLAW_NPM_PREFIX" --depth=0 "${OPENCLAW_PACKAGE}@${OPENCLAW_VERSION}" >/dev/null ||
   fail "Pinned OpenClaw package is not installed in the controlled prefix."
 
 run_as_devclaw openclaw plugins list --json >/tmp/devclaw-plugins-list.json
 run_as_devclaw openclaw plugins inspect devclaw --json >/tmp/devclaw-plugin-inspect.json
 
-devclaw_version="$(plugin_json_value '.version // .package.version // .manifest.version // .meta.version // empty')"
+devclaw_version="$(plugin_json_value '.plugin.version // .install.version // .version // .package.version // .manifest.version // .meta.version // empty')"
 require_value "DevClaw version" "$devclaw_version" "$DEVCLAW_VERSION"
 
 devclaw_id="$(plugin_json_value '.id // .manifest.id // .plugin.id // empty')"
