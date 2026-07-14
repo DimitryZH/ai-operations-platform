@@ -141,8 +141,21 @@ chmod 0640 /opt/devclaw/config/bootstrap-validation.env
 
 printf '%s' '${validation_tools_b64}' | base64 -d > /opt/devclaw/bin/validate-tools.sh
 printf '%s' '${validation_runtime_b64}' | base64 -d > /opt/devclaw/bin/validate-runtime.sh
-chown root:devclaw-svc /opt/devclaw/bin/validate-tools.sh /opt/devclaw/bin/validate-runtime.sh
-chmod 0750 /opt/devclaw/bin/validate-tools.sh /opt/devclaw/bin/validate-runtime.sh
+printf '%s' '${validation_openclaw_b64}' | base64 -d > /opt/devclaw/bin/validate-openclaw-devclaw.sh
+printf '%s' '${runtime_install_b64}' | base64 -d > /opt/devclaw/bin/install-openclaw-devclaw.sh
+printf '%s' '${runtime_versions_b64}' | base64 -d > /opt/devclaw/config/versions.env
+chown root:devclaw-svc \
+  /opt/devclaw/bin/validate-tools.sh \
+  /opt/devclaw/bin/validate-runtime.sh \
+  /opt/devclaw/bin/validate-openclaw-devclaw.sh \
+  /opt/devclaw/bin/install-openclaw-devclaw.sh
+chmod 0750 \
+  /opt/devclaw/bin/validate-tools.sh \
+  /opt/devclaw/bin/validate-runtime.sh \
+  /opt/devclaw/bin/validate-openclaw-devclaw.sh \
+  /opt/devclaw/bin/install-openclaw-devclaw.sh
+chown root:devclaw-svc /opt/devclaw/config/versions.env
+chmod 0640 /opt/devclaw/config/versions.env
 
 /opt/devclaw/bin/validate-tools.sh
 REQUIRE_BOOTSTRAP_MARKER=false /opt/devclaw/bin/validate-runtime.sh
@@ -150,12 +163,10 @@ REQUIRE_BOOTSTRAP_MARKER=false /opt/devclaw/bin/validate-runtime.sh
 marker_tmp="$(mktemp /var/lib/devclaw/.bootstrap-ready.XXXXXX)"
 cat > "$marker_tmp" <<EOF
 base_prerequisites=installed
-openclaw=not-installed
-devclaw=not-installed
-credentials=not-configured
+base_validation=passed
 EOF
 chown devclaw-svc:devclaw-svc "$marker_tmp"
 chmod 0640 "$marker_tmp"
 mv -f "$marker_tmp" /var/lib/devclaw/bootstrap-ready
 
-log "Base prerequisite bootstrap complete. OpenClaw and DevClaw are intentionally not installed."
+log "Base prerequisite bootstrap complete."

@@ -23,10 +23,13 @@ locals {
   }
 
   startup_script = templatefile("${path.module}/startup-script.sh.tftpl", {
-    dotnet_sdk_channel     = var.dotnet_sdk_channel
-    nodejs_major_version   = var.nodejs_major_version
-    validation_runtime_b64 = filebase64("${path.module}/validation/validate-runtime.sh")
-    validation_tools_b64   = filebase64("${path.module}/validation/validate-tools.sh")
+    dotnet_sdk_channel      = var.dotnet_sdk_channel
+    nodejs_major_version    = var.nodejs_major_version
+    runtime_versions_b64    = filebase64("${path.module}/runtime/versions.env")
+    runtime_install_b64     = filebase64("${path.module}/runtime/install-openclaw-devclaw.sh")
+    validation_openclaw_b64 = filebase64("${path.module}/runtime/validate-openclaw-devclaw.sh")
+    validation_runtime_b64  = filebase64("${path.module}/validation/validate-runtime.sh")
+    validation_tools_b64    = filebase64("${path.module}/validation/validate-tools.sh")
   })
 }
 

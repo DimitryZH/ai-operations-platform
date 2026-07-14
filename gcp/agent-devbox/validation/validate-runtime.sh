@@ -27,6 +27,12 @@ require_mode() {
   [[ "$actual" == "$expected" ]] || fail "Unexpected mode for $path: $actual, expected $expected."
 }
 
+require_marker_line() {
+  local path="$1"
+  local expected="$2"
+  grep -q "^${expected}$" "$path" || fail "Marker $path is missing: $expected"
+}
+
 require_member() {
   local user_name="$1"
   local group_name="$2"
@@ -45,6 +51,11 @@ require_not_member() {
 check_absent_file() {
   local path="$1"
   [[ ! -f "$path" ]] || fail "Unsafe credential location exists: $path"
+}
+
+check_absent_dir() {
+  local path="$1"
+  [[ ! -e "$path" ]] || fail "Unexpected runtime state exists: $path"
 }
 
 check_user_credentials() {
@@ -113,6 +124,18 @@ require_owner_group /opt/devclaw/bin/validate-tools.sh root:devclaw-svc
 require_mode /opt/devclaw/bin/validate-tools.sh 750
 require_owner_group /opt/devclaw/bin/validate-runtime.sh root:devclaw-svc
 require_mode /opt/devclaw/bin/validate-runtime.sh 750
+if [[ -f /opt/devclaw/bin/validate-openclaw-devclaw.sh ]]; then
+  require_owner_group /opt/devclaw/bin/validate-openclaw-devclaw.sh root:devclaw-svc
+  require_mode /opt/devclaw/bin/validate-openclaw-devclaw.sh 750
+fi
+if [[ -f /opt/devclaw/bin/install-openclaw-devclaw.sh ]]; then
+  require_owner_group /opt/devclaw/bin/install-openclaw-devclaw.sh root:devclaw-svc
+  require_mode /opt/devclaw/bin/install-openclaw-devclaw.sh 750
+fi
+if [[ -f /opt/devclaw/config/versions.env ]]; then
+  require_owner_group /opt/devclaw/config/versions.env root:devclaw-svc
+  require_mode /opt/devclaw/config/versions.env 640
+fi
 
 require_member devclaw-svc docker
 require_member devclaw-svc devclaw-broker
@@ -125,10 +148,8 @@ if [[ "$REQUIRE_BOOTSTRAP_MARKER" == "true" ]]; then
   [[ -f /var/lib/devclaw/bootstrap-ready ]] || fail "Missing bootstrap readiness marker."
   require_owner_group /var/lib/devclaw/bootstrap-ready devclaw-svc:devclaw-svc
   require_mode /var/lib/devclaw/bootstrap-ready 640
-  grep -q '^base_prerequisites=installed$' /var/lib/devclaw/bootstrap-ready || fail "Readiness marker must confirm base prerequisites only."
-  grep -q '^openclaw=not-installed$' /var/lib/devclaw/bootstrap-ready || fail "Readiness marker must not claim OpenClaw is installed."
-  grep -q '^devclaw=not-installed$' /var/lib/devclaw/bootstrap-ready || fail "Readiness marker must not claim DevClaw is installed."
-  grep -q '^credentials=not-configured$' /var/lib/devclaw/bootstrap-ready || fail "Readiness marker must not claim credentials are configured."
+  require_marker_line /var/lib/devclaw/bootstrap-ready 'base_prerequisites=installed'
+  require_marker_line /var/lib/devclaw/bootstrap-ready 'base_validation=passed'
 else
   [[ ! -f /var/lib/devclaw/bootstrap-ready ]] || fail "Readiness marker exists before bootstrap validation completed."
 fi
@@ -141,12 +162,21 @@ if git config --system --get credential.helper >/dev/null 2>&1; then
   fail "System Git credential helper is configured."
 fi
 
-if command -v openclaw >/dev/null 2>&1; then
-  fail "OpenClaw is installed, but this validation expects base prerequisites only."
-fi
-
-if npm list -g --depth=0 2>/dev/null | grep -q '@laurentenhoor/devclaw'; then
-  fail "DevClaw is installed, but this validation expects base prerequisites only."
+if [[ -f /var/lib/devclaw/openclaw-devclaw-installed ]]; then
+  [[ -x /opt/devclaw/bin/validate-openclaw-devclaw.sh ]] ||
+    fail "Installed runtime marker exists, but installed-stage validator is missing."
+  /opt/devclaw/bin/validate-openclaw-devclaw.sh
+else
+  if command -v openclaw >/dev/null 2>&1; then
+    fail "OpenClaw is installed, but the installed marker is absent."
+  fi
+  if [[ -d /home/devclaw-svc/.openclaw ]]; then
+    fail "OpenClaw state/config exists, but the installed marker is absent."
+  fi
+  if npm list --global --prefix /opt/devclaw/runtime/npm --depth=0 2>/dev/null | grep -Eq 'openclaw|@laurentenhoor/devclaw'; then
+    fail "OpenClaw or DevClaw package exists, but the installed marker is absent."
+  fi
+  check_absent_dir /opt/devclaw/runtime/npm/lib/node_modules/openclaw
 fi
 
 printf '[validate-runtime] Runtime filesystem validation passed. No secrets were printed.\n'
