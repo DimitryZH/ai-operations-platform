@@ -167,12 +167,18 @@ variable "dotnet_sdk_channel" {
 variable "nodejs_major_version" {
   description = "Node.js major version compatible with future DevClaw installation."
   type        = number
-  default     = 20
+  default     = 22
 
   validation {
-    condition     = var.nodejs_major_version >= 20
-    error_message = "nodejs_major_version must be at least 20."
+    condition     = var.nodejs_major_version >= 22
+    error_message = "nodejs_major_version must be at least 22."
   }
+}
+
+variable "observability_iam_enabled" {
+  description = "Grant logging and monitoring writer roles. This does not install or configure the Ops Agent."
+  type        = bool
+  default     = false
 }
 
 variable "enable_secure_boot" {

@@ -6,10 +6,10 @@ resource "google_service_account" "devbox" {
 }
 
 resource "google_project_iam_member" "observability" {
-  for_each = toset([
+  for_each = var.observability_iam_enabled ? toset([
     "roles/logging.logWriter",
     "roles/monitoring.metricWriter",
-  ])
+  ]) : toset([])
 
   project = var.project_id
   role    = each.value
@@ -33,14 +33,20 @@ resource "google_artifact_registry_repository_iam_member" "optional_reader" {
   repository = var.artifact_registry_repository_id
   role       = "roles/artifactregistry.reader"
   member     = "serviceAccount:${google_service_account.devbox.email}"
+
+  depends_on = [
+    google_project_service.artifact_registry,
+  ]
 }
 
-resource "google_project_iam_member" "operator_iap_tunnel" {
+resource "google_iap_tunnel_instance_iam_member" "operator_iap_tunnel" {
   for_each = local.operator_members
 
-  project = var.project_id
-  role    = "roles/iap.tunnelResourceAccessor"
-  member  = each.value
+  project  = var.project_id
+  zone     = var.zone
+  instance = google_compute_instance.devbox.name
+  role     = "roles/iap.tunnelResourceAccessor"
+  member   = each.value
 }
 
 resource "google_project_iam_member" "operator_os_login" {
@@ -57,4 +63,12 @@ resource "google_project_iam_member" "admin_os_login" {
   project = var.project_id
   role    = "roles/compute.osAdminLogin"
   member  = each.value
+}
+
+resource "google_service_account_iam_member" "operator_service_account_user" {
+  for_each = local.operator_members
+
+  service_account_id = google_service_account.devbox.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = each.value
 }

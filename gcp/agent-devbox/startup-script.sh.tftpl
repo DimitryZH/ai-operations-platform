@@ -16,7 +16,14 @@ fail() {
 DOTNET_SDK_CHANNEL="${dotnet_sdk_channel}"
 NODEJS_MAJOR_VERSION="${nodejs_major_version}"
 
+dotnet_channel_installed() {
+  command -v dotnet >/dev/null 2>&1 || return 1
+  local channel_pattern="$${DOTNET_SDK_CHANNEL//./\\.}"
+  dotnet --list-sdks | awk '{print $1}' | grep -Eq "^$channel_pattern\\."
+}
+
 export DEBIAN_FRONTEND=noninteractive
+rm -f /var/lib/devclaw/bootstrap-ready
 
 log "Installing base packages"
 apt-get update
@@ -63,13 +70,11 @@ if ! command -v gh >/dev/null 2>&1; then
   apt-get install -y --no-install-recommends gh
 fi
 
-if ! command -v dotnet >/dev/null 2>&1; then
+if ! dotnet_channel_installed; then
   log "Installing .NET SDK $DOTNET_SDK_CHANNEL"
-  curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb \
-    -o /tmp/packages-microsoft-prod.deb
-  dpkg -i /tmp/packages-microsoft-prod.deb
-  rm -f /tmp/packages-microsoft-prod.deb
   apt-get update
+  apt-cache show "dotnet-sdk-$DOTNET_SDK_CHANNEL" >/dev/null 2>&1 ||
+    fail "Ubuntu APT package dotnet-sdk-$DOTNET_SDK_CHANNEL is unavailable."
   apt-get install -y --no-install-recommends "dotnet-sdk-$DOTNET_SDK_CHANNEL"
 fi
 
@@ -85,9 +90,21 @@ for user_name in devclaw-svc devclaw-token devclaw-validate; do
   fi
 done
 
+if ! getent group devclaw-broker >/dev/null; then
+  groupadd --system devclaw-broker
+fi
+
 usermod -aG docker devclaw-svc
+usermod -aG devclaw-broker devclaw-svc
+usermod -aG devclaw-broker devclaw-token
 if id -nG devclaw-token | tr ' ' '\n' | grep -qx docker; then
   gpasswd -d devclaw-token docker
+fi
+if id -nG devclaw-validate | tr ' ' '\n' | grep -qx docker; then
+  gpasswd -d devclaw-validate docker
+fi
+if id -nG devclaw-validate | tr ' ' '\n' | grep -qx devclaw-broker; then
+  gpasswd -d devclaw-validate devclaw-broker
 fi
 
 log "Creating base directories"
@@ -113,20 +130,32 @@ install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/cache/devclaw-experiment/n
 install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/cache/devclaw-experiment/dotnet
 
 install -d -o devclaw-token -g devclaw-token -m 0700 /run/secrets/devclaw
-install -d -o devclaw-token -g devclaw-token -m 0710 /run/devclaw
+install -d -o devclaw-token -g devclaw-broker -m 0750 /run/devclaw
+
+cat > /opt/devclaw/config/bootstrap-validation.env <<EOF
+EXPECTED_DOTNET_SDK_CHANNEL=$DOTNET_SDK_CHANNEL
+EXPECTED_NODEJS_MAJOR=$NODEJS_MAJOR_VERSION
+EOF
+chown root:devclaw-svc /opt/devclaw/config/bootstrap-validation.env
+chmod 0640 /opt/devclaw/config/bootstrap-validation.env
 
 printf '%s' '${validation_tools_b64}' | base64 -d > /opt/devclaw/bin/validate-tools.sh
 printf '%s' '${validation_runtime_b64}' | base64 -d > /opt/devclaw/bin/validate-runtime.sh
 chown root:devclaw-svc /opt/devclaw/bin/validate-tools.sh /opt/devclaw/bin/validate-runtime.sh
 chmod 0750 /opt/devclaw/bin/validate-tools.sh /opt/devclaw/bin/validate-runtime.sh
 
-cat > /var/lib/devclaw/bootstrap-ready <<EOF
+/opt/devclaw/bin/validate-tools.sh
+REQUIRE_BOOTSTRAP_MARKER=false /opt/devclaw/bin/validate-runtime.sh
+
+marker_tmp="$(mktemp /var/lib/devclaw/.bootstrap-ready.XXXXXX)"
+cat > "$marker_tmp" <<EOF
 base_prerequisites=installed
 openclaw=not-installed
 devclaw=not-installed
 credentials=not-configured
 EOF
-chown devclaw-svc:devclaw-svc /var/lib/devclaw/bootstrap-ready
-chmod 0640 /var/lib/devclaw/bootstrap-ready
+chown devclaw-svc:devclaw-svc "$marker_tmp"
+chmod 0640 "$marker_tmp"
+mv -f "$marker_tmp" /var/lib/devclaw/bootstrap-ready
 
 log "Base prerequisite bootstrap complete. OpenClaw and DevClaw are intentionally not installed."

@@ -1,8 +1,3 @@
-data "google_compute_image" "ubuntu" {
-  project = var.source_image_project
-  family  = var.source_image_family
-}
-
 resource "google_compute_instance" "devbox" {
   project      = var.project_id
   name         = var.name_prefix
@@ -18,7 +13,7 @@ resource "google_compute_instance" "devbox" {
     auto_delete = true
 
     initialize_params {
-      image = data.google_compute_image.ubuntu.id
+      image = "projects/${var.source_image_project}/global/images/family/${var.source_image_family}"
       size  = var.boot_disk_size_gb
       type  = var.boot_disk_type
     }
@@ -30,7 +25,6 @@ resource "google_compute_instance" "devbox" {
 
   metadata = {
     block-project-ssh-keys = "TRUE"
-    enable-osconfig        = "TRUE"
     enable-oslogin         = "TRUE"
     serial-port-enable     = "FALSE"
   }

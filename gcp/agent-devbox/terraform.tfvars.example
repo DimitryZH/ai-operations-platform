@@ -33,8 +33,11 @@ artifact_registry_reader_enabled = false
 # artifact_registry_repository_id = "example-repository"
 
 deletion_protection = false
-dotnet_sdk_channel  = "10.0"
-nodejs_major_version = 20
+dotnet_sdk_channel   = "10.0"
+nodejs_major_version = 22
+
+# Enables IAM only. It does not install or configure the Google Cloud Ops Agent.
+observability_iam_enabled = false
 
 labels = {
   owner       = "platform"

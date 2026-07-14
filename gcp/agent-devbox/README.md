@@ -32,7 +32,7 @@ skeleton does not clone that repository.
 - Cloud Router and Cloud NAT for private VM egress.
 - IAP-only SSH firewall rule from `35.235.240.0/20`.
 - Dedicated Compute Engine service account.
-- Minimal IAM for logging and monitoring.
+- Optional IAM for logging and monitoring.
 - Optional Artifact Registry reader binding.
 - Named Secret Manager accessor bindings only.
 - A private Ubuntu VM with no external IP.
@@ -47,11 +47,11 @@ The startup script installs and validates only base prerequisites:
 - Docker Engine and Docker Compose plugin;
 - Git;
 - GitHub CLI binary, without authentication;
-- .NET SDK;
-- Node.js;
-- proposed Linux users;
+- .NET SDK from the Ubuntu APT package feed;
+- Node.js 22 by default;
+- proposed Linux users and broker IPC group;
 - base DevClaw experiment directories;
-- non-secret bootstrap readiness marker.
+- non-secret bootstrap readiness marker written only after validation passes.
 
 ## Intentionally Not Installed
 
@@ -72,18 +72,45 @@ added in later tasks, must use IAP or SSH tunnels rather than public ingress.
 
 Example IAP SSH command is exposed as a Terraform output after apply.
 
+Operator and admin identities require three grants:
+
+- OS Login or OS Admin Login at the project level;
+- instance-scoped IAP tunnel access on this VM;
+- `roles/iam.serviceAccountUser` on the exact VM service account.
+
+The service-account-user grant is intentionally scoped to
+`google_service_account.devbox`, not the project.
+
 ## IAM Boundary
 
-The VM service account receives only:
+The VM service account receives:
 
-- `roles/logging.logWriter`;
-- `roles/monitoring.metricWriter`;
+- `roles/logging.logWriter` and `roles/monitoring.metricWriter` only when
+  `observability_iam_enabled = true`;
 - named Secret Manager `roles/secretmanager.secretAccessor` bindings for
   explicitly supplied secret references;
 - optional Artifact Registry reader binding when enabled.
 
+Enabling observability IAM does not install or configure the Google Cloud Ops
+Agent. Agent installation is a separate future task.
+
 Do not grant Owner, Editor, Compute Admin, Service Account Admin, Secret Manager
 Admin, or broad project write permissions.
+
+## Runtime User Boundary
+
+The bootstrap creates:
+
+- `devclaw-svc` for future OpenClaw/DevClaw runtime and Docker access;
+- `devclaw-token` for a future token broker, without Docker access;
+- `devclaw-validate` for optional validation work, without Docker or broker
+  access;
+- `devclaw-broker` as the future token-broker IPC group.
+
+`/run/secrets/devclaw` is owned by `devclaw-token:devclaw-token` with mode
+`0700`. `/run/devclaw` is owned by `devclaw-token:devclaw-broker` with mode
+`0750`. A future broker socket should use a group-restricted mode such as
+`0660`.
 
 ## Variables
 
@@ -102,6 +129,43 @@ Important variables:
 - `secret_manager_secret_refs`;
 - `dotnet_sdk_channel`;
 - `nodejs_major_version`.
+- `observability_iam_enabled`.
+
+The default `nodejs_major_version` is `22`. The default `dotnet_sdk_channel` is
+`10.0`; startup installs `dotnet-sdk-$DOTNET_SDK_CHANNEL` from the Ubuntu APT
+package feed and fails clearly if the package is unavailable.
+
+## Bootstrap Readiness
+
+The startup script removes any stale readiness marker, installs base packages,
+creates users/groups/directories, installs validation scripts, runs tool and
+runtime validation, and only then writes `/var/lib/devclaw/bootstrap-ready`
+atomically.
+
+The marker states only:
+
+- base prerequisites installed;
+- OpenClaw not installed;
+- DevClaw not installed;
+- credentials not configured.
+
+It does not claim OpenClaw, DevClaw, credentials, or future runtime services are
+ready.
+
+## Credential Checks
+
+Runtime validation checks common credential locations for service users:
+
+- GitHub CLI `hosts.yml`;
+- `.git-credentials`;
+- `.netrc`;
+- private SSH key filenames;
+- configured Git credential helpers;
+- `GH_TOKEN` and `GITHUB_TOKEN` in the validation process environment.
+
+These are common-location checks, not a cryptographic proof that no credential
+exists anywhere on the VM. Validation reports only unsafe location or variable
+names, never credential values.
 
 ## Validation
 
