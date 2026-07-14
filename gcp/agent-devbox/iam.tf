@@ -3,6 +3,10 @@ resource "google_service_account" "devbox" {
   account_id   = var.service_account_id
   display_name = "Agent DevBox experiment VM"
   description  = "Dedicated least-privilege identity for the disposable Agent DevBox experiment VM."
+
+  depends_on = [
+    google_project_service.required,
+  ]
 }
 
 resource "google_project_iam_member" "observability" {

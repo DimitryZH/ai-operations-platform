@@ -16,9 +16,11 @@ resource "google_project_service" "required" {
 }
 
 resource "google_project_service" "artifact_registry" {
-  for_each = var.artifact_registry_reader_enabled ? toset(["artifactregistry.googleapis.com"]) : toset([])
+  for_each = var.artifact_registry_reader_enabled ? toset([
+    "artifactregistry.googleapis.com",
+  ]) : toset([])
 
-  project            = var.project_id
+  project            = var.artifact_registry_project_id
   service            = each.value
   disable_on_destroy = false
 }
