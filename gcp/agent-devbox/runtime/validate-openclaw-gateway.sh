@@ -47,8 +47,13 @@ require_value "Gateway marker owner" "$(stat -c '%U:%G' /var/lib/devclaw/opencla
 require_value "Gateway marker mode" "$(stat -c '%a' /var/lib/devclaw/openclaw-gateway-managed)" "640"
 grep -q '^gateway_managed=true$' /var/lib/devclaw/openclaw-gateway-managed ||
   fail "Managed Gateway marker is missing gateway_managed=true."
-grep -q '^credentials=not-configured$' /var/lib/devclaw/openclaw-gateway-managed ||
-  fail "Managed Gateway marker must preserve provider credentials as not configured."
+
+stage4_model_provider_enabled=false
+if grep -q '^credentials=openai-oauth$' /var/lib/devclaw/openclaw-gateway-managed; then
+  stage4_model_provider_enabled=true
+elif ! grep -q '^credentials=not-configured$' /var/lib/devclaw/openclaw-gateway-managed; then
+  fail "Managed Gateway marker must record credentials as not-configured or openai-oauth."
+fi
 
 require_value "Gateway token directory owner" "$(stat -c '%U:%G' /var/lib/devclaw/gateway)" "root:devclaw-broker"
 require_value "Gateway token directory mode" "$(stat -c '%a' /var/lib/devclaw/gateway)" "750"
@@ -61,16 +66,44 @@ grep -q '^OPENCLAW_GATEWAY_TOKEN=' /var/lib/devclaw/gateway/openclaw-gateway.env
 
 require_value "gateway.mode" "$(config_get gateway.mode)" "local"
 require_value "gateway.bind" "$(config_get gateway.bind)" "loopback"
-require_value "tools.exec.mode" "$(config_get tools.exec.mode)" "deny"
+if [[ "$stage4_model_provider_enabled" == "true" ]]; then
+  grep -q '^plugins_allow=devclaw,codex$' /var/lib/devclaw/openclaw-gateway-managed ||
+    fail "Stage 4 Gateway marker must record plugins_allow=devclaw,codex."
+  grep -q '^model_provider=openai$' /var/lib/devclaw/openclaw-gateway-managed ||
+    fail "Stage 4 Gateway marker must record model_provider=openai."
+  grep -q '^model_auth=oauth$' /var/lib/devclaw/openclaw-gateway-managed ||
+    fail "Stage 4 Gateway marker must record model_auth=oauth."
+  grep -q '^model_default=openai/gpt-5.5$' /var/lib/devclaw/openclaw-gateway-managed ||
+    fail "Stage 4 Gateway marker must record model_default=openai/gpt-5.5."
+  require_value "tools.exec.mode" "$(config_get tools.exec.mode)" "auto"
+  require_value "tools.exec.strictInlineEval" "$(config_get tools.exec.strictInlineEval)" "true"
+  require_value "tools.exec.commandHighlighting" "$(config_get tools.exec.commandHighlighting)" "true"
+  require_value "plugins.entries.codex.enabled" "$(config_get plugins.entries.codex.enabled)" "true"
+else
+  grep -q '^plugins_allow=devclaw$' /var/lib/devclaw/openclaw-gateway-managed ||
+    fail "Managed Gateway marker must record plugins_allow=devclaw before Stage 4."
+  require_value "tools.exec.mode" "$(config_get tools.exec.mode)" "deny"
+fi
 require_value "plugins.entries.devclaw.enabled" "$(config_get plugins.entries.devclaw.enabled)" "true"
 require_value "plugins.entries.devclaw.config.work_heartbeat.enabled" "$(config_get plugins.entries.devclaw.config.work_heartbeat.enabled)" "false"
 require_value "plugins.entries.devclaw.config.projectExecution" "$(config_get plugins.entries.devclaw.config.projectExecution)" "sequential"
 
-node <<'NODE'
+STAGE4_MODEL_PROVIDER_ENABLED="$stage4_model_provider_enabled" node <<'NODE'
 const fs = require("fs");
 const config = JSON.parse(fs.readFileSync("/home/devclaw-svc/.openclaw/openclaw.json", "utf8"));
-if (JSON.stringify(config.plugins?.allow) !== JSON.stringify(["devclaw"])) {
-  throw new Error("plugins.allow must be exactly [\"devclaw\"]");
+const stage4 = process.env.STAGE4_MODEL_PROVIDER_ENABLED === "true";
+const expected = stage4 ? ["devclaw", "codex"] : ["devclaw"];
+if (JSON.stringify(config.plugins?.allow) !== JSON.stringify(expected)) {
+  throw new Error(`plugins.allow must be exactly ${JSON.stringify(expected)}`);
+}
+if (stage4) {
+  const model = config.agents?.defaults?.models?.["openai/gpt-5.5"];
+  if (model?.agentRuntime?.id !== "codex") {
+    throw new Error("openai/gpt-5.5 must use codex agent runtime");
+  }
+  if (config.models?.providers?.openai) {
+    throw new Error("Stage 4 must not configure a generic OpenAI provider override");
+  }
 }
 NODE
 
@@ -136,6 +169,21 @@ run_as_devclaw /usr/local/bin/openclaw plugins doctor > /tmp/openclaw-plugins-do
   fail "Gateway status RPC did not report rpc.ok=true."
 [[ "$(jq -r '(.plugins.loaded // []) | index("devclaw") != null' /tmp/openclaw-gateway-health.json)" == "true" ]] ||
   fail "Gateway health did not include devclaw in the active plugin set."
+if [[ "$stage4_model_provider_enabled" == "true" ]]; then
+  [[ "$(jq -r '(.plugins.loaded // []) | index("codex") != null' /tmp/openclaw-gateway-health.json)" == "true" ]] ||
+    fail "Gateway health did not include codex in the active plugin set."
+  run_as_devclaw /usr/local/bin/openclaw models status --json > /tmp/openclaw-models-status.json
+  [[ "$(jq -r '.defaultModel' /tmp/openclaw-models-status.json)" == "openai/gpt-5.5" ]] ||
+    fail "Stage 4 default model must be openai/gpt-5.5."
+  [[ "$(jq -r '.resolvedDefault' /tmp/openclaw-models-status.json)" == "openai/gpt-5.5" ]] ||
+    fail "Stage 4 resolved default model must be openai/gpt-5.5."
+  [[ "$(jq -r '(.allowed // []) == ["openai/gpt-5.5"]' /tmp/openclaw-models-status.json)" == "true" ]] ||
+    fail "Stage 4 allowed model list must be exactly openai/gpt-5.5."
+  [[ "$(jq -r '(.auth.missingProvidersInUse // []) | length' /tmp/openclaw-models-status.json)" == "0" ]] ||
+    fail "Stage 4 model auth has missing providers."
+  [[ "$(jq -r '[.auth.providers[]? | select(.provider == "openai") | (.profiles.apiKey // 0)] | add // 0' /tmp/openclaw-models-status.json)" == "0" ]] ||
+    fail "Stage 4 must not use OpenAI API key profiles."
+fi
 require_value "DevClaw runtime status" "$(jq -r '.plugin.status // empty' /tmp/openclaw-devclaw-runtime.json)" "loaded"
 require_value "DevClaw runtime tool count" "$(jq -r '(.plugin.toolNames // []) | length' /tmp/openclaw-devclaw-runtime.json)" "23"
 require_value "DevClaw runtime diagnostic count" "$(jq -r '(.diagnostics // []) | length' /tmp/openclaw-devclaw-runtime.json)" "0"

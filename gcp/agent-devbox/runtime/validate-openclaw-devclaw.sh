@@ -67,6 +67,11 @@ OPENCLAW_SYMLINK=/usr/local/bin/openclaw
 DEVCLAW_COMPAT_OVERLAY=/opt/devclaw/config/devclaw-manifest-overlay.json
 EXPECTED_DEVCLAW_TOOL_COUNT=23
 MANAGED_GATEWAY_MARKER=/var/lib/devclaw/openclaw-gateway-managed
+stage4_model_provider_enabled=false
+if [[ -f "$MANAGED_GATEWAY_MARKER" ]] &&
+  grep -q '^credentials=openai-oauth$' "$MANAGED_GATEWAY_MARKER"; then
+  stage4_model_provider_enabled=true
+fi
 
 command -v openclaw >/dev/null 2>&1 || fail "Missing openclaw binary."
 command -v jq >/dev/null 2>&1 || fail "Missing jq."
@@ -162,7 +167,13 @@ if (JSON.stringify(tools) !== JSON.stringify(overlay.contracts.tools)) {
 NODE
 
 require_value "gateway.bind" "$(config_get gateway.bind)" "loopback"
-require_value "tools.exec.mode" "$(config_get tools.exec.mode)" "deny"
+if [[ "$stage4_model_provider_enabled" == "true" ]]; then
+  require_value "tools.exec.mode" "$(config_get tools.exec.mode)" "auto"
+  require_value "tools.exec.strictInlineEval" "$(config_get tools.exec.strictInlineEval)" "true"
+  require_value "tools.exec.commandHighlighting" "$(config_get tools.exec.commandHighlighting)" "true"
+else
+  require_value "tools.exec.mode" "$(config_get tools.exec.mode)" "deny"
+fi
 require_value "plugins.entries.devclaw.config.work_heartbeat.enabled" "$(config_get plugins.entries.devclaw.config.work_heartbeat.enabled)" "false"
 require_value "plugins.entries.devclaw.config.projectExecution" "$(config_get plugins.entries.devclaw.config.projectExecution)" "sequential"
 
@@ -170,11 +181,25 @@ managed_gateway_enabled=false
 if [[ -f "$MANAGED_GATEWAY_MARKER" ]]; then
   managed_gateway_enabled=true
   require_value "plugins.entries.devclaw.enabled" "$(config_get plugins.entries.devclaw.enabled)" "true"
-  node <<'NODE'
+  if [[ "$stage4_model_provider_enabled" == "true" ]]; then
+    require_value "plugins.entries.codex.enabled" "$(config_get plugins.entries.codex.enabled)" "true"
+  fi
+  STAGE4_MODEL_PROVIDER_ENABLED="$stage4_model_provider_enabled" node <<'NODE'
 const fs = require("fs");
 const config = JSON.parse(fs.readFileSync("/home/devclaw-svc/.openclaw/openclaw.json", "utf8"));
-if (JSON.stringify(config.plugins?.allow) !== JSON.stringify(["devclaw"])) {
-  throw new Error("plugins.allow must be exactly [\"devclaw\"] when managed Gateway is enabled");
+const stage4 = process.env.STAGE4_MODEL_PROVIDER_ENABLED === "true";
+const expected = stage4 ? ["devclaw", "codex"] : ["devclaw"];
+if (JSON.stringify(config.plugins?.allow) !== JSON.stringify(expected)) {
+  throw new Error(`plugins.allow must be exactly ${JSON.stringify(expected)} when managed Gateway is enabled`);
+}
+if (stage4) {
+  const model = config.agents?.defaults?.models?.["openai/gpt-5.5"];
+  if (model?.agentRuntime?.id !== "codex") {
+    throw new Error("openai/gpt-5.5 must use codex agent runtime");
+  }
+  if (config.models?.providers?.openai) {
+    throw new Error("Stage 4 must not configure a generic OpenAI provider override");
+  }
 }
 NODE
   systemctl is-enabled openclaw-gateway.service >/dev/null ||
