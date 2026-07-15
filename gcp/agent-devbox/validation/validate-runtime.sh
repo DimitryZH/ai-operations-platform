@@ -95,6 +95,7 @@ for path in \
   /var/lib/devclaw/projects \
   /var/lib/devclaw/sessions \
   /var/lib/devclaw/audit \
+  /var/lib/devclaw/gateway \
   /workspace \
   /workspace/repos \
   /workspace/worktrees \
@@ -112,6 +113,10 @@ require_owner_group /opt/devclaw root:devclaw-svc
 require_mode /opt/devclaw 750
 require_owner_group /var/lib/devclaw devclaw-svc:devclaw-svc
 require_mode /var/lib/devclaw 750
+if [[ -d /var/lib/devclaw/gateway ]]; then
+  require_owner_group /var/lib/devclaw/gateway root:devclaw-broker
+  require_mode /var/lib/devclaw/gateway 750
+fi
 require_owner_group /workspace devclaw-svc:devclaw-svc
 require_mode /workspace 750
 require_owner_group /workspace/repos devclaw-svc:devclaw-svc
@@ -132,6 +137,14 @@ fi
 if [[ -f /opt/devclaw/bin/install-openclaw-devclaw.sh ]]; then
   require_owner_group /opt/devclaw/bin/install-openclaw-devclaw.sh root:devclaw-svc
   require_mode /opt/devclaw/bin/install-openclaw-devclaw.sh 750
+fi
+if [[ -f /opt/devclaw/bin/install-openclaw-gateway-service.sh ]]; then
+  require_owner_group /opt/devclaw/bin/install-openclaw-gateway-service.sh root:devclaw-svc
+  require_mode /opt/devclaw/bin/install-openclaw-gateway-service.sh 750
+fi
+if [[ -f /opt/devclaw/bin/validate-openclaw-gateway.sh ]]; then
+  require_owner_group /opt/devclaw/bin/validate-openclaw-gateway.sh root:devclaw-svc
+  require_mode /opt/devclaw/bin/validate-openclaw-gateway.sh 750
 fi
 if [[ -f /opt/devclaw/bin/build-devclaw-compat-package.sh ]]; then
   require_owner_group /opt/devclaw/bin/build-devclaw-compat-package.sh root:devclaw-svc
@@ -179,6 +192,11 @@ if [[ -f /var/lib/devclaw/openclaw-devclaw-installed ]]; then
   [[ -x /opt/devclaw/bin/validate-openclaw-devclaw.sh ]] ||
     fail "Installed runtime marker exists, but installed-stage validator is missing."
   /opt/devclaw/bin/validate-openclaw-devclaw.sh
+  if [[ -f /var/lib/devclaw/openclaw-gateway-managed ]]; then
+    [[ -x /opt/devclaw/bin/validate-openclaw-gateway.sh ]] ||
+      fail "Managed Gateway marker exists, but Gateway validator is missing."
+    /opt/devclaw/bin/validate-openclaw-gateway.sh
+  fi
 else
   if command -v openclaw >/dev/null 2>&1; then
     fail "OpenClaw is installed, but the installed marker is absent."

@@ -118,6 +118,7 @@ install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/lib/devclaw
 install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/lib/devclaw/projects
 install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/lib/devclaw/sessions
 install -d -o devclaw-svc -g devclaw-svc -m 0750 /var/lib/devclaw/audit
+install -d -o root -g devclaw-broker -m 0750 /var/lib/devclaw/gateway
 
 install -d -o devclaw-svc -g devclaw-svc -m 0750 /workspace
 install -d -o devclaw-svc -g devclaw-svc -m 0750 /workspace/repos
@@ -144,6 +145,8 @@ printf '%s' '${validation_tools_b64}' | base64 -d > /opt/devclaw/bin/validate-to
 printf '%s' '${validation_runtime_b64}' | base64 -d > /opt/devclaw/bin/validate-runtime.sh
 printf '%s' '${validation_openclaw_b64}' | base64 -d > /opt/devclaw/bin/validate-openclaw-devclaw.sh
 printf '%s' '${runtime_install_b64}' | base64 -d > /opt/devclaw/bin/install-openclaw-devclaw.sh
+printf '%s' '${gateway_install_b64}' | base64 -d > /opt/devclaw/bin/install-openclaw-gateway-service.sh
+printf '%s' '${gateway_validate_b64}' | base64 -d > /opt/devclaw/bin/validate-openclaw-gateway.sh
 printf '%s' '${devclaw_compat_build_b64}' | base64 -d > /opt/devclaw/bin/build-devclaw-compat-package.sh
 printf '%s' '${devclaw_compat_validate_b64}' | base64 -d > /opt/devclaw/bin/validate-devclaw-compat-package.sh
 printf '%s' '${runtime_versions_b64}' | base64 -d > /opt/devclaw/config/versions.env
@@ -153,6 +156,8 @@ chown root:devclaw-svc \
   /opt/devclaw/bin/validate-runtime.sh \
   /opt/devclaw/bin/validate-openclaw-devclaw.sh \
   /opt/devclaw/bin/install-openclaw-devclaw.sh \
+  /opt/devclaw/bin/install-openclaw-gateway-service.sh \
+  /opt/devclaw/bin/validate-openclaw-gateway.sh \
   /opt/devclaw/bin/build-devclaw-compat-package.sh \
   /opt/devclaw/bin/validate-devclaw-compat-package.sh
 chmod 0750 \
@@ -160,6 +165,8 @@ chmod 0750 \
   /opt/devclaw/bin/validate-runtime.sh \
   /opt/devclaw/bin/validate-openclaw-devclaw.sh \
   /opt/devclaw/bin/install-openclaw-devclaw.sh \
+  /opt/devclaw/bin/install-openclaw-gateway-service.sh \
+  /opt/devclaw/bin/validate-openclaw-gateway.sh \
   /opt/devclaw/bin/build-devclaw-compat-package.sh \
   /opt/devclaw/bin/validate-devclaw-compat-package.sh
 chown root:devclaw-svc \

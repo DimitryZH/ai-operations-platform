@@ -66,6 +66,7 @@ OPENCLAW_BIN="$OPENCLAW_NPM_PREFIX/bin/openclaw"
 OPENCLAW_SYMLINK=/usr/local/bin/openclaw
 DEVCLAW_COMPAT_OVERLAY=/opt/devclaw/config/devclaw-manifest-overlay.json
 EXPECTED_DEVCLAW_TOOL_COUNT=23
+MANAGED_GATEWAY_MARKER=/var/lib/devclaw/openclaw-gateway-managed
 
 command -v openclaw >/dev/null 2>&1 || fail "Missing openclaw binary."
 command -v jq >/dev/null 2>&1 || fail "Missing jq."
@@ -162,22 +163,38 @@ NODE
 
 require_value "gateway.bind" "$(config_get gateway.bind)" "loopback"
 require_value "tools.exec.mode" "$(config_get tools.exec.mode)" "deny"
-require_value "plugins.entries.devclaw.enabled" "$(config_get plugins.entries.devclaw.enabled)" "false"
 require_value "plugins.entries.devclaw.config.work_heartbeat.enabled" "$(config_get plugins.entries.devclaw.config.work_heartbeat.enabled)" "false"
 require_value "plugins.entries.devclaw.config.projectExecution" "$(config_get plugins.entries.devclaw.config.projectExecution)" "sequential"
 
-if systemctl list-unit-files 2>/dev/null | grep -Eiq 'openclaw|devclaw|gateway'; then
-  fail "Unexpected system gateway/OpenClaw/DevClaw service is installed."
-fi
-if systemctl list-units --type=service --all 2>/dev/null | grep -Eiq 'openclaw|devclaw|gateway'; then
-  fail "Unexpected system gateway/OpenClaw/DevClaw service exists."
-fi
-if run_as_devclaw systemctl --user list-unit-files 2>/dev/null | grep -Eiq 'openclaw|devclaw|gateway'; then
-  fail "Unexpected user gateway/OpenClaw/DevClaw service is installed."
-fi
-
-if ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq '(^|:)(127\.0\.0\.1|0\.0\.0\.0|\[::\]|::1)?:18789$|:18789$'; then
-  fail "Unexpected listener on TCP 18789."
+managed_gateway_enabled=false
+if [[ -f "$MANAGED_GATEWAY_MARKER" ]]; then
+  managed_gateway_enabled=true
+  require_value "plugins.entries.devclaw.enabled" "$(config_get plugins.entries.devclaw.enabled)" "true"
+  node <<'NODE'
+const fs = require("fs");
+const config = JSON.parse(fs.readFileSync("/home/devclaw-svc/.openclaw/openclaw.json", "utf8"));
+if (JSON.stringify(config.plugins?.allow) !== JSON.stringify(["devclaw"])) {
+  throw new Error("plugins.allow must be exactly [\"devclaw\"] when managed Gateway is enabled");
+}
+NODE
+  systemctl is-enabled openclaw-gateway.service >/dev/null ||
+    fail "Managed Gateway marker exists, but openclaw-gateway.service is not enabled."
+  systemctl is-active openclaw-gateway.service >/dev/null ||
+    fail "Managed Gateway marker exists, but openclaw-gateway.service is not active."
+else
+  require_value "plugins.entries.devclaw.enabled" "$(config_get plugins.entries.devclaw.enabled)" "false"
+  if systemctl list-unit-files 2>/dev/null | grep -Eiq 'openclaw|devclaw|gateway'; then
+    fail "Unexpected system gateway/OpenClaw/DevClaw service is installed."
+  fi
+  if systemctl list-units --type=service --all 2>/dev/null | grep -Eiq 'openclaw|devclaw|gateway'; then
+    fail "Unexpected system gateway/OpenClaw/DevClaw service exists."
+  fi
+  if run_as_devclaw systemctl --user list-unit-files 2>/dev/null | grep -Eiq 'openclaw|devclaw|gateway'; then
+    fail "Unexpected user gateway/OpenClaw/DevClaw service is installed."
+  fi
+  if ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq '(^|:)(127\.0\.0\.1|0\.0\.0\.0|\[::\]|::1)?:18789$|:18789$'; then
+    fail "Unexpected listener on TCP 18789."
+  fi
 fi
 
 for name in GH_TOKEN GITHUB_TOKEN OPENAI_API_KEY ANTHROPIC_API_KEY GOOGLE_API_KEY; do
@@ -225,4 +242,8 @@ if [[ "$REQUIRE_INSTALLED_MARKER" == "true" ]]; then
     fail "Installed marker must record credentials as not configured."
 fi
 
-printf '[validate-openclaw-devclaw] Cold plugin installation and configuration validated. Live Gateway plugin loading not yet validated.\n'
+if [[ "$managed_gateway_enabled" == "true" ]]; then
+  printf '[validate-openclaw-devclaw] Installed DevClaw state and managed Gateway guardrails validated. Live loading is covered by validate-openclaw-gateway.sh.\n'
+else
+  printf '[validate-openclaw-devclaw] Cold plugin installation and configuration validated. Live Gateway plugin loading not yet validated.\n'
+fi

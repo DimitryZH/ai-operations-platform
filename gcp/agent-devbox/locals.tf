@@ -28,6 +28,8 @@ locals {
     devclaw_compat_build_b64    = filebase64("${path.module}/runtime/devclaw-compat/build-devclaw-compat-package.sh")
     devclaw_compat_overlay_b64  = filebase64("${path.module}/runtime/devclaw-compat/devclaw-manifest-overlay.json")
     devclaw_compat_validate_b64 = filebase64("${path.module}/runtime/devclaw-compat/validate-devclaw-compat-package.sh")
+    gateway_install_b64         = filebase64("${path.module}/runtime/install-openclaw-gateway-service.sh")
+    gateway_validate_b64        = filebase64("${path.module}/runtime/validate-openclaw-gateway.sh")
     runtime_versions_b64        = filebase64("${path.module}/runtime/versions.env")
     runtime_install_b64         = filebase64("${path.module}/runtime/install-openclaw-devclaw.sh")
     validation_openclaw_b64     = filebase64("${path.module}/runtime/validate-openclaw-devclaw.sh")
