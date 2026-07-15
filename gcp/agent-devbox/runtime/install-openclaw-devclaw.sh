@@ -107,6 +107,7 @@ write_installed_marker() {
   cat > "$marker_tmp" <<EOF
 openclaw_version=${OPENCLAW_VERSION}
 devclaw_version=${DEVCLAW_VERSION}
+devclaw_compat_revision=${DEVCLAW_COMPAT_REVISION}
 activation=disabled
 credentials=not-configured
 EOF
@@ -151,12 +152,17 @@ source "$VERSION_FILE"
 
 require_value OPENCLAW_VERSION "$OPENCLAW_VERSION" "2026.7.1"
 require_value DEVCLAW_VERSION "$DEVCLAW_VERSION" "1.6.10"
+require_value DEVCLAW_COMPAT_REVISION "$DEVCLAW_COMPAT_REVISION" "aiops-1"
 require_value OPENCLAW_PACKAGE "$OPENCLAW_PACKAGE" "openclaw"
 require_value DEVCLAW_PACKAGE "$DEVCLAW_PACKAGE" "@laurentenhoor/devclaw"
 
 OPENCLAW_NPM_PREFIX=/opt/devclaw/runtime/npm
 OPENCLAW_BIN="$OPENCLAW_NPM_PREFIX/bin/openclaw"
 OPENCLAW_SYMLINK=/usr/local/bin/openclaw
+DEVCLAW_COMPAT_BUILD_SCRIPT=/opt/devclaw/bin/build-devclaw-compat-package.sh
+DEVCLAW_COMPAT_VALIDATE_SCRIPT=/opt/devclaw/bin/validate-devclaw-compat-package.sh
+DEVCLAW_COMPAT_OVERLAY=/opt/devclaw/config/devclaw-manifest-overlay.json
+DEVCLAW_COMPAT_BUILD_DIR=/var/cache/devclaw-experiment/devclaw-compat
 
 normalize_base_marker
 
@@ -165,12 +171,19 @@ command -v npm >/dev/null 2>&1 || fail "Missing npm."
 command -v jq >/dev/null 2>&1 || fail "Missing jq."
 assert_node_supported_for_openclaw
 npm --version >/dev/null 2>&1 || fail "npm is not usable."
+[[ -x "$DEVCLAW_COMPAT_BUILD_SCRIPT" ]] || fail "Missing executable compatibility build script."
+[[ -x "$DEVCLAW_COMPAT_VALIDATE_SCRIPT" ]] || fail "Missing executable compatibility validation script."
+[[ -f "$DEVCLAW_COMPAT_OVERLAY" ]] || fail "Missing compatibility manifest overlay."
 
 if [[ -f /var/lib/devclaw/openclaw-devclaw-installed ]]; then
   grep -q "^openclaw_version=${OPENCLAW_VERSION}$" /var/lib/devclaw/openclaw-devclaw-installed ||
     fail "Installed marker contains a different OpenClaw version."
   grep -q "^devclaw_version=${DEVCLAW_VERSION}$" /var/lib/devclaw/openclaw-devclaw-installed ||
     fail "Installed marker contains a different DevClaw version."
+  if grep -q '^devclaw_compat_revision=' /var/lib/devclaw/openclaw-devclaw-installed; then
+    grep -q "^devclaw_compat_revision=${DEVCLAW_COMPAT_REVISION}$" /var/lib/devclaw/openclaw-devclaw-installed ||
+      fail "Installed marker contains a different DevClaw compatibility revision."
+  fi
 fi
 
 existing_openclaw="$(installed_openclaw_version)"
@@ -209,12 +222,28 @@ existing_devclaw="$(installed_devclaw_version)"
 if [[ -n "$existing_devclaw" && "$existing_devclaw" != "$DEVCLAW_VERSION" ]]; then
   fail "A different DevClaw version is already installed: $existing_devclaw."
 fi
-if [[ -n "$existing_devclaw" ]]; then
-  log "Pinned DevClaw ${DEVCLAW_VERSION} already exists; preserving plugin installation"
-else
-  log "Installing pinned DevClaw plugin"
-  run_as_devclaw openclaw plugins install "${DEVCLAW_PACKAGE}@${DEVCLAW_VERSION}"
-fi
+
+log "Building DevClaw ${DEVCLAW_VERSION} compatibility package revision ${DEVCLAW_COMPAT_REVISION}"
+install -d -o root -g devclaw-svc -m 0750 "$DEVCLAW_COMPAT_BUILD_DIR"
+rm -f "$DEVCLAW_COMPAT_BUILD_DIR"/*.tgz "$DEVCLAW_COMPAT_BUILD_DIR"/*.json "$DEVCLAW_COMPAT_BUILD_DIR"/*.txt
+"$DEVCLAW_COMPAT_BUILD_SCRIPT" \
+  --output-dir "$DEVCLAW_COMPAT_BUILD_DIR" \
+  --overlay "$DEVCLAW_COMPAT_OVERLAY"
+
+compat_tarball="$(find "$DEVCLAW_COMPAT_BUILD_DIR" -maxdepth 1 -type f -name "*-${DEVCLAW_COMPAT_REVISION}.tgz" -print -quit)"
+[[ -n "$compat_tarball" ]] || fail "Compatibility package tarball was not produced."
+compat_manifest="$DEVCLAW_COMPAT_BUILD_DIR/devclaw-compat-build-manifest.json"
+[[ -f "$compat_manifest" ]] || fail "Compatibility build manifest was not produced."
+"$DEVCLAW_COMPAT_VALIDATE_SCRIPT" \
+  --tarball "$compat_tarball" \
+  --overlay "$DEVCLAW_COMPAT_OVERLAY" \
+  --build-manifest "$compat_manifest"
+chown root:devclaw-svc "$compat_tarball" "$compat_manifest"
+chmod 0640 "$compat_tarball" "$compat_manifest"
+
+log "Installing DevClaw compatibility package through OpenClaw npm-pack handling"
+run_as_devclaw openclaw config set plugins.entries.devclaw.enabled false
+run_as_devclaw openclaw plugins install "npm-pack:${compat_tarball}" --force
 normalize_openclaw_prefix
 
 log "Enforcing DevClaw inactive safe-mode configuration"

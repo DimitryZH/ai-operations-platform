@@ -23,13 +23,16 @@ locals {
   }
 
   startup_script = templatefile("${path.module}/startup-script.sh.tftpl", {
-    dotnet_sdk_channel      = var.dotnet_sdk_channel
-    nodejs_major_version    = var.nodejs_major_version
-    runtime_versions_b64    = filebase64("${path.module}/runtime/versions.env")
-    runtime_install_b64     = filebase64("${path.module}/runtime/install-openclaw-devclaw.sh")
-    validation_openclaw_b64 = filebase64("${path.module}/runtime/validate-openclaw-devclaw.sh")
-    validation_runtime_b64  = filebase64("${path.module}/validation/validate-runtime.sh")
-    validation_tools_b64    = filebase64("${path.module}/validation/validate-tools.sh")
+    dotnet_sdk_channel          = var.dotnet_sdk_channel
+    nodejs_major_version        = var.nodejs_major_version
+    devclaw_compat_build_b64    = filebase64("${path.module}/runtime/devclaw-compat/build-devclaw-compat-package.sh")
+    devclaw_compat_overlay_b64  = filebase64("${path.module}/runtime/devclaw-compat/devclaw-manifest-overlay.json")
+    devclaw_compat_validate_b64 = filebase64("${path.module}/runtime/devclaw-compat/validate-devclaw-compat-package.sh")
+    runtime_versions_b64        = filebase64("${path.module}/runtime/versions.env")
+    runtime_install_b64         = filebase64("${path.module}/runtime/install-openclaw-devclaw.sh")
+    validation_openclaw_b64     = filebase64("${path.module}/runtime/validate-openclaw-devclaw.sh")
+    validation_runtime_b64      = filebase64("${path.module}/validation/validate-runtime.sh")
+    validation_tools_b64        = filebase64("${path.module}/validation/validate-tools.sh")
   })
 }
 

@@ -1,0 +1,32 @@
+{
+  "contracts": {
+    "tools": [
+      "task_start",
+      "work_finish",
+      "task_create",
+      "task_edit_body",
+      "task_comment",
+      "task_attach",
+      "task_set_level",
+      "task_owner",
+      "research_task",
+      "task_list",
+      "tasks_status",
+      "project_status",
+      "project_register",
+      "health",
+      "sync_labels",
+      "channel_link",
+      "channel_unlink",
+      "channel_list",
+      "setup",
+      "onboard",
+      "autoconfigure_models",
+      "workflow_guide",
+      "config"
+    ]
+  },
+  "activation": {
+    "onStartup": true
+  }
+}

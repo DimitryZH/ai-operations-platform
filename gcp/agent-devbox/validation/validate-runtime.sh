@@ -102,6 +102,7 @@ for path in \
   /var/cache/devclaw-experiment/docker \
   /var/cache/devclaw-experiment/nuget \
   /var/cache/devclaw-experiment/dotnet \
+  /var/cache/devclaw-experiment/devclaw-compat \
   /run/secrets/devclaw \
   /run/devclaw; do
   require_dir "$path"
@@ -131,6 +132,18 @@ fi
 if [[ -f /opt/devclaw/bin/install-openclaw-devclaw.sh ]]; then
   require_owner_group /opt/devclaw/bin/install-openclaw-devclaw.sh root:devclaw-svc
   require_mode /opt/devclaw/bin/install-openclaw-devclaw.sh 750
+fi
+if [[ -f /opt/devclaw/bin/build-devclaw-compat-package.sh ]]; then
+  require_owner_group /opt/devclaw/bin/build-devclaw-compat-package.sh root:devclaw-svc
+  require_mode /opt/devclaw/bin/build-devclaw-compat-package.sh 750
+fi
+if [[ -f /opt/devclaw/bin/validate-devclaw-compat-package.sh ]]; then
+  require_owner_group /opt/devclaw/bin/validate-devclaw-compat-package.sh root:devclaw-svc
+  require_mode /opt/devclaw/bin/validate-devclaw-compat-package.sh 750
+fi
+if [[ -f /opt/devclaw/config/devclaw-manifest-overlay.json ]]; then
+  require_owner_group /opt/devclaw/config/devclaw-manifest-overlay.json root:devclaw-svc
+  require_mode /opt/devclaw/config/devclaw-manifest-overlay.json 640
 fi
 if [[ -f /opt/devclaw/config/versions.env ]]; then
   require_owner_group /opt/devclaw/config/versions.env root:devclaw-svc

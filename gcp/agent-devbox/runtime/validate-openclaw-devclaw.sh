@@ -57,15 +57,20 @@ source "$VERSION_FILE"
 
 require_value OPENCLAW_VERSION "$OPENCLAW_VERSION" "2026.7.1"
 require_value DEVCLAW_VERSION "$DEVCLAW_VERSION" "1.6.10"
+require_value DEVCLAW_COMPAT_REVISION "$DEVCLAW_COMPAT_REVISION" "aiops-1"
 require_value OPENCLAW_PACKAGE "$OPENCLAW_PACKAGE" "openclaw"
 require_value DEVCLAW_PACKAGE "$DEVCLAW_PACKAGE" "@laurentenhoor/devclaw"
 
 OPENCLAW_NPM_PREFIX=/opt/devclaw/runtime/npm
 OPENCLAW_BIN="$OPENCLAW_NPM_PREFIX/bin/openclaw"
 OPENCLAW_SYMLINK=/usr/local/bin/openclaw
+DEVCLAW_COMPAT_OVERLAY=/opt/devclaw/config/devclaw-manifest-overlay.json
+EXPECTED_DEVCLAW_TOOL_COUNT=23
 
 command -v openclaw >/dev/null 2>&1 || fail "Missing openclaw binary."
 command -v jq >/dev/null 2>&1 || fail "Missing jq."
+command -v node >/dev/null 2>&1 || fail "Missing node."
+[[ -f "$DEVCLAW_COMPAT_OVERLAY" ]] || fail "Missing DevClaw compatibility overlay."
 [[ -L "$OPENCLAW_SYMLINK" ]] || fail "$OPENCLAW_SYMLINK must be a symlink."
 literal_target="$(readlink "$OPENCLAW_SYMLINK")" ||
   fail "Cannot read literal OpenClaw symlink target."
@@ -131,6 +136,30 @@ require_value "DevClaw version" "$devclaw_version" "$DEVCLAW_VERSION"
 devclaw_id="$(plugin_json_value '.id // .manifest.id // .plugin.id // empty')"
 require_value "DevClaw plugin id" "$devclaw_id" "devclaw"
 
+devclaw_root="$(plugin_json_value '.plugin.rootDir // .install.rootDir // .rootDir // empty')"
+if [[ -z "$devclaw_root" ]]; then
+  devclaw_source="$(plugin_json_value '.plugin.source // .install.source // .source // empty')"
+  [[ -n "$devclaw_source" ]] || fail "Cannot determine DevClaw plugin source/root directory."
+  devclaw_root="$(dirname "$(dirname "$devclaw_source")")"
+fi
+devclaw_manifest="$devclaw_root/openclaw.plugin.json"
+[[ -f "$devclaw_manifest" ]] || fail "Missing installed DevClaw manifest: $devclaw_manifest"
+node - "$devclaw_manifest" "$DEVCLAW_COMPAT_OVERLAY" "$EXPECTED_DEVCLAW_TOOL_COUNT" <<'NODE'
+const fs = require("fs");
+const [manifestFile, overlayFile, expectedCount] = process.argv.slice(2);
+const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+const overlay = JSON.parse(fs.readFileSync(overlayFile, "utf8"));
+if (manifest.id !== "devclaw") throw new Error(`unexpected plugin id: ${manifest.id}`);
+if (manifest.activation?.onStartup !== true) throw new Error("activation.onStartup must be true");
+const tools = manifest.contracts?.tools;
+if (!Array.isArray(tools)) throw new Error("contracts.tools must be an array");
+if (tools.length !== Number(expectedCount)) throw new Error(`expected ${expectedCount} tools, found ${tools.length}`);
+if (new Set(tools).size !== tools.length) throw new Error("contracts.tools contains duplicate names");
+if (JSON.stringify(tools) !== JSON.stringify(overlay.contracts.tools)) {
+  throw new Error("installed contracts.tools does not match reviewed overlay");
+}
+NODE
+
 require_value "gateway.bind" "$(config_get gateway.bind)" "loopback"
 require_value "tools.exec.mode" "$(config_get tools.exec.mode)" "deny"
 require_value "plugins.entries.devclaw.enabled" "$(config_get plugins.entries.devclaw.enabled)" "false"
@@ -188,6 +217,8 @@ if [[ "$REQUIRE_INSTALLED_MARKER" == "true" ]]; then
     fail "Installed marker OpenClaw version mismatch."
   grep -q "^devclaw_version=${DEVCLAW_VERSION}$" /var/lib/devclaw/openclaw-devclaw-installed ||
     fail "Installed marker DevClaw version mismatch."
+  grep -q "^devclaw_compat_revision=${DEVCLAW_COMPAT_REVISION}$" /var/lib/devclaw/openclaw-devclaw-installed ||
+    fail "Installed marker DevClaw compatibility revision mismatch."
   grep -q '^activation=disabled$' /var/lib/devclaw/openclaw-devclaw-installed ||
     fail "Installed marker must keep activation disabled."
   grep -q '^credentials=not-configured$' /var/lib/devclaw/openclaw-devclaw-installed ||
