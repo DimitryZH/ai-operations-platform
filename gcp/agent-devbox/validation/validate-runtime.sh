@@ -146,6 +146,30 @@ if [[ -f /opt/devclaw/bin/validate-openclaw-gateway.sh ]]; then
   require_owner_group /opt/devclaw/bin/validate-openclaw-gateway.sh root:devclaw-svc
   require_mode /opt/devclaw/bin/validate-openclaw-gateway.sh 750
 fi
+if [[ -f /opt/devclaw/bin/github-app-token-broker.js ]]; then
+  if [[ -f /var/lib/devclaw/github-app-broker-configured ]]; then
+    require_owner_group /opt/devclaw/bin/github-app-token-broker.js root:devclaw-token
+  else
+    require_owner_group /opt/devclaw/bin/github-app-token-broker.js root:devclaw-svc
+  fi
+  require_mode /opt/devclaw/bin/github-app-token-broker.js 750
+fi
+if [[ -f /opt/devclaw/bin/github-app-git-credential-helper.sh ]]; then
+  if [[ -f /var/lib/devclaw/github-app-broker-configured ]]; then
+    require_owner_group /opt/devclaw/bin/github-app-git-credential-helper.sh root:devclaw-broker
+  else
+    require_owner_group /opt/devclaw/bin/github-app-git-credential-helper.sh root:devclaw-svc
+  fi
+  require_mode /opt/devclaw/bin/github-app-git-credential-helper.sh 750
+fi
+if [[ -f /opt/devclaw/bin/install-github-app-broker.sh ]]; then
+  require_owner_group /opt/devclaw/bin/install-github-app-broker.sh root:devclaw-svc
+  require_mode /opt/devclaw/bin/install-github-app-broker.sh 750
+fi
+if [[ -f /opt/devclaw/bin/validate-github-app-broker.sh ]]; then
+  require_owner_group /opt/devclaw/bin/validate-github-app-broker.sh root:devclaw-svc
+  require_mode /opt/devclaw/bin/validate-github-app-broker.sh 750
+fi
 if [[ -f /opt/devclaw/bin/build-devclaw-compat-package.sh ]]; then
   require_owner_group /opt/devclaw/bin/build-devclaw-compat-package.sh root:devclaw-svc
   require_mode /opt/devclaw/bin/build-devclaw-compat-package.sh 750
@@ -208,6 +232,12 @@ else
     fail "OpenClaw or DevClaw package exists, but the installed marker is absent."
   fi
   check_absent_dir /opt/devclaw/runtime/npm/lib/node_modules/openclaw
+fi
+
+if [[ -f /var/lib/devclaw/github-app-broker-configured ]]; then
+  [[ -x /opt/devclaw/bin/validate-github-app-broker.sh ]] ||
+    fail "GitHub broker marker exists, but validator is missing."
+  /opt/devclaw/bin/validate-github-app-broker.sh --offline
 fi
 
 printf '[validate-runtime] Runtime filesystem validation passed. No secrets were printed.\n'

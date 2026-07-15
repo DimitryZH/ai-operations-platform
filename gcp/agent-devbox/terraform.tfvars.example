@@ -24,8 +24,17 @@ admin_iam_members = [
 # Secret identifiers only. Never place secret payloads, private keys, or tokens here.
 secret_manager_secret_refs = [
   # "github-app-private-key-placeholder",
-  # "projects/example-nonprod-project/secrets/github-app-id-placeholder",
 ]
+
+# Stage 5 GitHub App integration. Keep disabled until the GitHub App is
+# manually created, installed only on the approved disposable repository, and
+# the private key PEM is stored in Secret Manager.
+github_app_integration_enabled    = false
+github_app_id                     = null
+github_app_installation_id        = null
+github_app_private_key_secret_ref = null
+github_repository_owner           = "DimitryZH"
+github_repository_name            = "application-modernization-lab"
 
 artifact_registry_reader_enabled = false
 # artifact_registry_project_id    = "example-nonprod-project"

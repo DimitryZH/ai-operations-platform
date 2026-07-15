@@ -5,7 +5,9 @@ Compose-to-Aspire prototype. It is intentionally limited to infrastructure and
 base runtime prerequisites.
 
 It does not install OpenClaw, DevClaw, GitHub credentials, a token broker, model
-provider clients, or application source repositories.
+provider clients, or application source repositories during the fresh base
+bootstrap. Later stages add guarded runtime components while preserving this
+fresh baseline.
 
 ## Architecture Boundary
 
@@ -57,9 +59,11 @@ The startup script installs and validates only base prerequisites:
 
 - OpenClaw;
 - DevClaw;
-- GitHub credentials;
-- GitHub App private keys;
-- token broker;
+- ambient GitHub credentials such as `GH_TOKEN` or `GITHUB_TOKEN`;
+- GitHub App private keys in files, Terraform state, metadata, OpenClaw config,
+  or workspaces;
+- token broker unless explicitly enabled through the Stage 5 GitHub App
+  integration variables;
 - model-provider clients;
 - source repository clones;
 - systemd units for OpenClaw or DevClaw.
@@ -112,6 +116,41 @@ The bootstrap creates:
 `0750`. A future broker socket should use a group-restricted mode such as
 `0660`.
 
+## Stage 5 GitHub App Boundary
+
+The optional GitHub integration uses a GitHub App installed only on the approved
+disposable experiment repository:
+
+```text
+https://github.com/DimitryZH/application-modernization-lab
+```
+
+The intended GitHub App permissions are limited to:
+
+- repository contents: write;
+- issues: write;
+- pull requests: write;
+- metadata: read.
+
+Do not grant Actions, Workflows, Administration, Secrets, organization, or
+unrelated repository access.
+
+When `github_app_integration_enabled = true`, startup installs
+`devclaw-github-token-broker.service` as `devclaw-token`. The service:
+
+- reads the GitHub App private key only from Secret Manager at token issue time;
+- keeps installation tokens in memory only;
+- exposes a UNIX socket at `/run/devclaw/github-token-broker.sock` with mode
+  `0660` and group `devclaw-broker`;
+- returns tokens only to local users in the broker group, such as
+  `devclaw-svc`;
+- does not export `GH_TOKEN` or `GITHUB_TOKEN` into the OpenClaw environment.
+
+Git transport uses `/opt/devclaw/bin/github-app-git-credential-helper.sh`. The
+helper is repository-scoped and only returns credentials for the configured
+`github.com/<owner>/<repo>` path. Validation uses `git ls-remote` only; it does
+not clone, create branches, create issues, open pull requests, review, or merge.
+
 ## Variables
 
 Start from `terraform.tfvars.example` and replace placeholders in a private
@@ -127,9 +166,18 @@ Important variables:
 - `boot_disk_size_gb`, `boot_disk_type`;
 - `operator_iam_members`;
 - `secret_manager_secret_refs`;
+- `github_app_integration_enabled`;
+- `github_app_id`;
+- `github_app_installation_id`;
+- `github_app_private_key_secret_ref`;
+- `github_repository_owner`, `github_repository_name`;
 - `dotnet_sdk_channel`;
 - `nodejs_major_version`.
 - `observability_iam_enabled`.
+
+`github_app_private_key_secret_ref` is a Secret Manager identifier only. Never
+place the private key PEM, installation token, or GitHub token in Terraform
+variables, repository files, chat, evidence files, or OpenClaw config.
 
 The default `nodejs_major_version` is `22`. The default `dotnet_sdk_channel` is
 `10.0`; startup installs `dotnet-sdk-$DOTNET_SDK_CHANNEL` from the Ubuntu APT
@@ -166,6 +214,10 @@ Runtime validation checks common credential locations for service users:
 These are common-location checks, not a cryptographic proof that no credential
 exists anywhere on the VM. Validation reports only unsafe location or variable
 names, never credential values.
+
+When the Stage 5 broker marker exists, validation also checks the broker service,
+socket ownership, repository-scoped helper, Secret Manager identifier boundary,
+and that no repository has been cloned or registered.
 
 ## Validation
 

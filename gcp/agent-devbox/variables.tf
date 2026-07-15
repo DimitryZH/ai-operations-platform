@@ -128,6 +128,71 @@ variable "secret_manager_secret_refs" {
   }
 }
 
+variable "github_app_integration_enabled" {
+  description = "Enable the scoped GitHub App token broker. Disabled by default until the GitHub App and Secret Manager private key are created manually."
+  type        = bool
+  default     = false
+}
+
+variable "github_app_id" {
+  description = "Numeric GitHub App ID for the scoped disposable-repository integration. Identifier only, not a secret."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.github_app_id == null || can(regex("^[0-9]+$", var.github_app_id))
+    error_message = "github_app_id must be a numeric string."
+  }
+}
+
+variable "github_app_installation_id" {
+  description = "Numeric GitHub App installation ID for the approved disposable experiment repository. Identifier only, not a secret."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.github_app_installation_id == null || can(regex("^[0-9]+$", var.github_app_installation_id))
+    error_message = "github_app_installation_id must be a numeric string."
+  }
+}
+
+variable "github_app_private_key_secret_ref" {
+  description = "Secret Manager secret ID or resource ID containing the GitHub App private key PEM. Identifier only; never the private key payload."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.github_app_private_key_secret_ref == null ||
+      can(regex("^[a-zA-Z0-9_-]+$", var.github_app_private_key_secret_ref)) ||
+      can(regex("^projects/[a-z][a-z0-9-]*/secrets/[a-zA-Z0-9_-]+$", var.github_app_private_key_secret_ref))
+    )
+    error_message = "github_app_private_key_secret_ref must be a simple secret ID or a resource ID like projects/example-project/secrets/example-secret."
+  }
+}
+
+variable "github_repository_owner" {
+  description = "Owner of the single approved disposable experiment repository for the GitHub App installation."
+  type        = string
+  default     = "DimitryZH"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+$", var.github_repository_owner))
+    error_message = "github_repository_owner must be a GitHub owner name."
+  }
+}
+
+variable "github_repository_name" {
+  description = "Name of the single approved disposable experiment repository for the GitHub App installation."
+  type        = string
+  default     = "application-modernization-lab"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+$", var.github_repository_name))
+    error_message = "github_repository_name must be a GitHub repository name."
+  }
+}
+
 variable "artifact_registry_reader_enabled" {
   description = "Grant Artifact Registry reader on an existing repository. Disabled by default."
   type        = bool
