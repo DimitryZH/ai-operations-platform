@@ -2,12 +2,16 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-CONFIG_FILE="${DEVCLAW_GITHUB_BROKER_CONFIG:-/opt/devclaw-broker/config/github-app-broker.env}"
-SOCKET="${DEVCLAW_GITHUB_BROKER_SOCKET:-/run/devclaw/github-token-broker.sock}"
+CONFIG_FILE="${DEVCLAW_GITHUB_HELPER_CONFIG:-/var/lib/devclaw/gateway/github-app-helper.env}"
 
 [[ -f "$CONFIG_FILE" ]] || exit 0
 # shellcheck disable=SC1090
 source "$CONFIG_FILE"
+
+SOCKET="${DEVCLAW_GITHUB_BROKER_SOCKET:-/run/devclaw/github-token-broker.sock}"
+[[ -n "${DEVCLAW_GITHUB_OWNER:-}" ]] || exit 0
+[[ -n "${DEVCLAW_GITHUB_REPO:-}" ]] || exit 0
+[[ -n "$SOCKET" ]] || exit 0
 
 protocol=""
 host=""

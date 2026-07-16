@@ -52,6 +52,7 @@ BROKER_BIN_DIR=$BROKER_ROOT/bin
 BROKER_CONFIG_DIR=$BROKER_ROOT/config
 BROKER_SCRIPT=$BROKER_BIN_DIR/github-app-token-broker.js
 BROKER_CONFIG=$BROKER_CONFIG_DIR/github-app-broker.env
+HELPER_CONFIG=/var/lib/devclaw/gateway/github-app-helper.env
 
 if id -nG devclaw-token | tr ' ' '\n' | grep -qx docker; then
   fail "devclaw-token must not be a member of docker."
@@ -60,6 +61,7 @@ fi
 install -d -o root -g devclaw-svc -m 0750 /opt/devclaw/bin
 install -d -o root -g devclaw-svc -m 0750 /opt/devclaw/config
 install -d -o root -g devclaw-token -m 0750 "$BROKER_ROOT" "$BROKER_BIN_DIR" "$BROKER_CONFIG_DIR"
+install -d -o root -g devclaw-broker -m 0750 /var/lib/devclaw/gateway
 install -d -o devclaw-token -g devclaw-broker -m 0750 /run/devclaw
 install -d -o devclaw-token -g devclaw-token -m 0700 /run/secrets/devclaw
 
@@ -114,6 +116,16 @@ install -o root -g devclaw-token -m 0640 \
   "$BROKER_CONFIG"
 rm -f "$BROKER_CONFIG.tmp"
 
+cat > "$HELPER_CONFIG.tmp" <<EOF
+DEVCLAW_GITHUB_OWNER=${DEVCLAW_GITHUB_OWNER}
+DEVCLAW_GITHUB_REPO=${DEVCLAW_GITHUB_REPO}
+DEVCLAW_GITHUB_BROKER_SOCKET=/run/devclaw/github-token-broker.sock
+EOF
+install -o root -g devclaw-broker -m 0640 \
+  "$HELPER_CONFIG.tmp" \
+  "$HELPER_CONFIG"
+rm -f "$HELPER_CONFIG.tmp"
+
 cat > /etc/systemd/system/devclaw-github-token-broker.service <<'EOF'
 [Unit]
 Description=DevClaw GitHub App installation token broker
@@ -155,6 +167,7 @@ private_key_secret_id=${DEVCLAW_GITHUB_PRIVATE_KEY_SECRET_ID}
 permissions=contents:write,issues:write,pull_requests:write,metadata:read
 token_storage=memory-only
 git_credential_helper=/opt/devclaw/bin/github-app-git-credential-helper.sh
+git_credential_helper_config=/var/lib/devclaw/gateway/github-app-helper.env
 EOF
 chown devclaw-token:devclaw-broker "$marker_tmp"
 chmod 0640 "$marker_tmp"

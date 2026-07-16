@@ -26,6 +26,7 @@ require_absent_env() {
 
 BROKER_SCRIPT=/opt/devclaw-broker/bin/github-app-token-broker.js
 CONFIG_FILE=/opt/devclaw-broker/config/github-app-broker.env
+HELPER_CONFIG=/var/lib/devclaw/gateway/github-app-helper.env
 MARKER_FILE=/var/lib/devclaw/github-app-broker-configured
 SOCKET=/run/devclaw/github-token-broker.sock
 HELPER=/opt/devclaw/bin/github-app-git-credential-helper.sh
@@ -36,12 +37,15 @@ command -v jq >/dev/null 2>&1 || fail "Missing jq."
 command -v git >/dev/null 2>&1 || fail "Missing git."
 
 [[ -f "$CONFIG_FILE" ]] || fail "Missing broker config file."
+[[ -f "$HELPER_CONFIG" ]] || fail "Missing Git credential helper config file."
 [[ -f "$MARKER_FILE" ]] || fail "Missing broker marker."
 [[ -S "$SOCKET" ]] || fail "Missing broker UNIX socket."
 [[ -x "$HELPER" ]] || fail "Missing Git credential helper."
 
 require_value "broker config owner" "$(stat -c '%U:%G' "$CONFIG_FILE")" "root:devclaw-token"
 require_value "broker config mode" "$(stat -c '%a' "$CONFIG_FILE")" "640"
+require_value "helper config owner" "$(stat -c '%U:%G' "$HELPER_CONFIG")" "root:devclaw-broker"
+require_value "helper config mode" "$(stat -c '%a' "$HELPER_CONFIG")" "640"
 require_value "broker script owner" "$(stat -c '%U:%G' "$BROKER_SCRIPT")" "root:devclaw-token"
 require_value "broker script mode" "$(stat -c '%a' "$BROKER_SCRIPT")" "750"
 require_value "broker marker owner" "$(stat -c '%U:%G' "$MARKER_FILE")" "devclaw-token:devclaw-broker"
@@ -74,6 +78,14 @@ grep -q '^permissions=contents:write,issues:write,pull_requests:write,metadata:r
   fail "Broker marker permissions mismatch."
 grep -q '^token_storage=memory-only$' "$MARKER_FILE" ||
   fail "Broker marker must record memory-only token storage."
+grep -q '^git_credential_helper=/opt/devclaw/bin/github-app-git-credential-helper.sh$' "$MARKER_FILE" ||
+  fail "Broker marker credential helper mismatch."
+grep -q '^git_credential_helper_config=/var/lib/devclaw/gateway/github-app-helper.env$' "$MARKER_FILE" ||
+  fail "Broker marker credential helper config mismatch."
+
+if grep -Eq 'APP_ID|INSTALLATION|PRIVATE_KEY|SECRET' "$HELPER_CONFIG"; then
+  fail "Git credential helper config must contain only non-secret repository and socket settings."
+fi
 
 systemctl is-enabled devclaw-github-token-broker.service >/dev/null ||
   fail "devclaw-github-token-broker.service must be enabled."
@@ -123,14 +135,94 @@ token_2="$(printf '%s\n' "$token_json_2" | jq -r '.token // empty')"
 [[ -n "$token_1" && -n "$token_2" ]] || fail "Broker did not return installation tokens."
 [[ "$token_1" == "$token_2" ]] || fail "Broker token cache/refresh returned inconsistent tokens inside the freshness window."
 
-runuser -u devclaw-svc -- env \
-  DEVCLAW_GITHUB_BROKER_CONFIG="$CONFIG_FILE" \
-  DEVCLAW_GITHUB_BROKER_SOCKET="$SOCKET" \
-  git -c credential.helper="$HELPER" \
-    ls-remote --heads "https://github.com/${DEVCLAW_GITHUB_OWNER}/${DEVCLAW_GITHUB_REPO}.git" \
-    >/tmp/devclaw-github-ls-remote.txt
+helper_output="$(
+  runuser -u devclaw-svc -- env -i \
+    HOME=/home/devclaw-svc \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    "$HELPER" <<EOF
+protocol=https
+host=github.com
+path=${DEVCLAW_GITHUB_OWNER}/${DEVCLAW_GITHUB_REPO}.git
 
-[[ -s /tmp/devclaw-github-ls-remote.txt ]] ||
+EOF
+)"
+helper_username="$(printf '%s\n' "$helper_output" | awk -F= '$1 == "username" { print $2; exit }')"
+helper_password="$(printf '%s\n' "$helper_output" | awk -F= '$1 == "password" { print $2; exit }')"
+require_value "credential helper username" "$helper_username" "x-access-token"
+[[ -n "$helper_password" ]] || fail "Credential helper returned an empty password."
+[[ "$helper_password" == "$token_1" ]] ||
+  fail "Credential helper password did not match the broker-issued installation token."
+
+negative_repo_output="$(
+  runuser -u devclaw-svc -- env -i \
+    HOME=/home/devclaw-svc \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    "$HELPER" <<EOF
+protocol=https
+host=github.com
+path=${DEVCLAW_GITHUB_OWNER}/not-${DEVCLAW_GITHUB_REPO}.git
+
+EOF
+)"
+[[ -z "$negative_repo_output" ]] ||
+  fail "Credential helper returned credentials for an unapproved repository."
+
+negative_host_output="$(
+  runuser -u devclaw-svc -- env -i \
+    HOME=/home/devclaw-svc \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    "$HELPER" <<EOF
+protocol=https
+host=example.com
+path=${DEVCLAW_GITHUB_OWNER}/${DEVCLAW_GITHUB_REPO}.git
+
+EOF
+)"
+[[ -z "$negative_host_output" ]] ||
+  fail "Credential helper returned credentials for an unapproved host."
+
+check_file_for_sensitive_material() {
+  local path="$1"
+  local token="$2"
+  [[ -f "$path" && -r "$path" ]] || return 0
+  local size
+  size="$(stat -c '%s' "$path" 2>/dev/null || printf 0)"
+  [[ "$size" -le 10485760 ]] || return 0
+
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" != *"$token"* ]] ||
+      fail "Installation token appeared in $path."
+    case "$line" in
+      "-----BEGIN RSA PRIVATE KEY-----"|"-----BEGIN PRIVATE KEY-----"|"-----BEGIN OPENSSH PRIVATE KEY-----")
+        fail "Private key material appeared in $path."
+        ;;
+    esac
+  done < "$path"
+}
+
+while IFS= read -r -d '' candidate; do
+  check_file_for_sensitive_material "$candidate" "$helper_password"
+done < <(
+  find /opt/devclaw/bin /opt/devclaw/config /opt/devclaw-broker /var/lib/devclaw /workspace \
+    -xdev -type f -size -10M -print0 2>/dev/null
+  find /var/log \
+    -xdev -type f \( -name 'cloud-init*.log' -o -name 'syslog' -o -name 'auth.log' \) \
+    -size -10M -print0 2>/dev/null
+)
+
+ls_remote_output="$(
+  runuser -u devclaw-svc -- env -i \
+    HOME=/home/devclaw-svc \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    GIT_TERMINAL_PROMPT=0 \
+    git -c credential.helper= \
+      -c credential.helper="$HELPER" \
+      -c credential.useHttpPath=true \
+      ls-remote --heads "https://github.com/${DEVCLAW_GITHUB_OWNER}/${DEVCLAW_GITHUB_REPO}.git"
+)"
+
+[[ -n "$ls_remote_output" ]] ||
   fail "Git transport ls-remote returned no refs."
 
 printf '[validate-github-app-broker] Live GitHub broker validation passed. No repository clone or mutation was performed.\n'
