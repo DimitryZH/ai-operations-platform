@@ -134,6 +134,12 @@ variable "github_app_integration_enabled" {
   default     = false
 }
 
+variable "github_app_live_validation_enabled" {
+  description = "Run live non-mutating GitHub App broker validation from startup after the broker is installed. Keep disabled outside explicit validation windows."
+  type        = bool
+  default     = false
+}
+
 variable "github_app_id" {
   description = "Numeric GitHub App ID for the scoped disposable-repository integration. Identifier only, not a secret."
   type        = string

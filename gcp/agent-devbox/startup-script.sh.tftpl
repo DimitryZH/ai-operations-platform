@@ -36,8 +36,11 @@ apt-get install -y --no-install-recommends \
   gnupg \
   jq \
   lsb-release \
+  openssh-server \
   software-properties-common \
   unzip
+
+systemctl enable --now ssh.service
 
 install -m 0755 -d /etc/apt/keyrings
 . /etc/os-release
@@ -181,6 +184,10 @@ chmod 0750 \
   /opt/devclaw/bin/validate-github-app-broker.sh \
   /opt/devclaw/bin/build-devclaw-compat-package.sh \
   /opt/devclaw/bin/validate-devclaw-compat-package.sh
+if [[ "${github_app_enabled}" == "true" && -f /var/lib/devclaw/github-app-broker-configured ]]; then
+  chown root:devclaw-token /opt/devclaw/bin/github-app-token-broker.js
+  chown root:devclaw-broker /opt/devclaw/bin/github-app-git-credential-helper.sh
+fi
 chown root:devclaw-svc \
   /opt/devclaw/config/versions.env \
   /opt/devclaw/config/devclaw-manifest-overlay.json
@@ -189,7 +196,7 @@ chmod 0640 \
   /opt/devclaw/config/devclaw-manifest-overlay.json
 
 /opt/devclaw/bin/validate-tools.sh
-REQUIRE_BOOTSTRAP_MARKER=false /opt/devclaw/bin/validate-runtime.sh
+REQUIRE_BOOTSTRAP_MARKER=false REQUIRE_GITHUB_APP_BROKER=false /opt/devclaw/bin/validate-runtime.sh
 
 if [[ "${github_app_enabled}" == "true" ]]; then
   log "Installing scoped GitHub App token broker"
@@ -199,7 +206,12 @@ if [[ "${github_app_enabled}" == "true" ]]; then
   DEVCLAW_GITHUB_REPO='${github_repository_name}' \
   DEVCLAW_GITHUB_PRIVATE_KEY_SECRET_PROJECT='${github_secret_project_id}' \
   DEVCLAW_GITHUB_PRIVATE_KEY_SECRET_ID='${github_private_key_secret_id}' \
+  DEVCLAW_GITHUB_BROKER_SOURCE_B64='${github_app_broker_b64}' \
+  DEVCLAW_GITHUB_CREDENTIAL_HELPER_SOURCE_B64='${github_app_credential_b64}' \
     /opt/devclaw/bin/install-github-app-broker.sh
+  if [[ "${github_app_live_validation}" == "true" ]]; then
+    /opt/devclaw/bin/validate-github-app-broker.sh
+  fi
 fi
 
 marker_tmp="$(mktemp /var/lib/devclaw/.bootstrap-ready.XXXXXX)"

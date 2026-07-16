@@ -77,6 +77,7 @@ check_user_credentials() {
 }
 
 REQUIRE_BOOTSTRAP_MARKER="${REQUIRE_BOOTSTRAP_MARKER:-true}"
+REQUIRE_GITHUB_APP_BROKER="${REQUIRE_GITHUB_APP_BROKER:-true}"
 
 if [[ -n "${GH_TOKEN:-}" ]]; then
   fail "Unsafe credential environment variable is set: GH_TOKEN"
@@ -234,7 +235,7 @@ else
   check_absent_dir /opt/devclaw/runtime/npm/lib/node_modules/openclaw
 fi
 
-if [[ -f /var/lib/devclaw/github-app-broker-configured ]]; then
+if [[ "$REQUIRE_GITHUB_APP_BROKER" == "true" && -f /var/lib/devclaw/github-app-broker-configured ]]; then
   [[ -x /opt/devclaw/bin/validate-github-app-broker.sh ]] ||
     fail "GitHub broker marker exists, but validator is missing."
   /opt/devclaw/bin/validate-github-app-broker.sh --offline

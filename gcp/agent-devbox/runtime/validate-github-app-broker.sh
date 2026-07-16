@@ -24,7 +24,8 @@ require_absent_env() {
   [[ -z "${!name:-}" ]] || fail "Unsafe credential environment variable is set: $name"
 }
 
-CONFIG_FILE=/opt/devclaw/config/github-app-broker.env
+BROKER_SCRIPT=/opt/devclaw-broker/bin/github-app-token-broker.js
+CONFIG_FILE=/opt/devclaw-broker/config/github-app-broker.env
 MARKER_FILE=/var/lib/devclaw/github-app-broker-configured
 SOCKET=/run/devclaw/github-token-broker.sock
 HELPER=/opt/devclaw/bin/github-app-git-credential-helper.sh
@@ -41,6 +42,8 @@ command -v git >/dev/null 2>&1 || fail "Missing git."
 
 require_value "broker config owner" "$(stat -c '%U:%G' "$CONFIG_FILE")" "root:devclaw-token"
 require_value "broker config mode" "$(stat -c '%a' "$CONFIG_FILE")" "640"
+require_value "broker script owner" "$(stat -c '%U:%G' "$BROKER_SCRIPT")" "root:devclaw-token"
+require_value "broker script mode" "$(stat -c '%a' "$BROKER_SCRIPT")" "750"
 require_value "broker marker owner" "$(stat -c '%U:%G' "$MARKER_FILE")" "devclaw-token:devclaw-broker"
 require_value "broker marker mode" "$(stat -c '%a' "$MARKER_FILE")" "640"
 require_value "broker socket owner" "$(stat -c '%U:%G' "$SOCKET")" "devclaw-token:devclaw-broker"

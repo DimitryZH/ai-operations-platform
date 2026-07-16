@@ -2,7 +2,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-CONFIG_FILE="${DEVCLAW_GITHUB_BROKER_CONFIG:-/opt/devclaw/config/github-app-broker.env}"
+CONFIG_FILE="${DEVCLAW_GITHUB_BROKER_CONFIG:-/opt/devclaw-broker/config/github-app-broker.env}"
 SOCKET="${DEVCLAW_GITHUB_BROKER_SOCKET:-/run/devclaw/github-token-broker.sock}"
 
 [[ -f "$CONFIG_FILE" ]] || exit 0

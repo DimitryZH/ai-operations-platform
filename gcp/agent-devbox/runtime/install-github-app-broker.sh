@@ -47,12 +47,19 @@ id devclaw-token >/dev/null 2>&1 || fail "Missing devclaw-token user."
 id devclaw-svc >/dev/null 2>&1 || fail "Missing devclaw-svc user."
 getent group devclaw-broker >/dev/null || fail "Missing devclaw-broker group."
 
+BROKER_ROOT=/opt/devclaw-broker
+BROKER_BIN_DIR=$BROKER_ROOT/bin
+BROKER_CONFIG_DIR=$BROKER_ROOT/config
+BROKER_SCRIPT=$BROKER_BIN_DIR/github-app-token-broker.js
+BROKER_CONFIG=$BROKER_CONFIG_DIR/github-app-broker.env
+
 if id -nG devclaw-token | tr ' ' '\n' | grep -qx docker; then
   fail "devclaw-token must not be a member of docker."
 fi
 
 install -d -o root -g devclaw-svc -m 0750 /opt/devclaw/bin
-install -d -o root -g devclaw-token -m 0750 /opt/devclaw/config
+install -d -o root -g devclaw-svc -m 0750 /opt/devclaw/config
+install -d -o root -g devclaw-token -m 0750 "$BROKER_ROOT" "$BROKER_BIN_DIR" "$BROKER_CONFIG_DIR"
 install -d -o devclaw-token -g devclaw-broker -m 0750 /run/devclaw
 install -d -o devclaw-token -g devclaw-token -m 0700 /run/secrets/devclaw
 
@@ -60,21 +67,40 @@ if [[ -f /tmp/github-app-token-broker.js ]]; then
   install -o root -g devclaw-token -m 0750 \
     /tmp/github-app-token-broker.js \
     /opt/devclaw/bin/github-app-token-broker.js
+elif [[ -n "${DEVCLAW_GITHUB_BROKER_SOURCE_B64:-}" ]]; then
+  printf '%s' "$DEVCLAW_GITHUB_BROKER_SOURCE_B64" | base64 -d > /opt/devclaw/bin/github-app-token-broker.js.tmp
+  install -o root -g devclaw-token -m 0750 \
+    /opt/devclaw/bin/github-app-token-broker.js.tmp \
+    /opt/devclaw/bin/github-app-token-broker.js
+  rm -f /opt/devclaw/bin/github-app-token-broker.js.tmp
 else
   chown root:devclaw-token /opt/devclaw/bin/github-app-token-broker.js
   chmod 0750 /opt/devclaw/bin/github-app-token-broker.js
 fi
+[[ -s /opt/devclaw/bin/github-app-token-broker.js ]] ||
+  fail "GitHub broker script is missing or empty."
+install -o root -g devclaw-token -m 0750 \
+  /opt/devclaw/bin/github-app-token-broker.js \
+  "$BROKER_SCRIPT"
 
 if [[ -f /tmp/github-app-git-credential-helper.sh ]]; then
   install -o root -g devclaw-broker -m 0750 \
     /tmp/github-app-git-credential-helper.sh \
     /opt/devclaw/bin/github-app-git-credential-helper.sh
+elif [[ -n "${DEVCLAW_GITHUB_CREDENTIAL_HELPER_SOURCE_B64:-}" ]]; then
+  printf '%s' "$DEVCLAW_GITHUB_CREDENTIAL_HELPER_SOURCE_B64" | base64 -d > /opt/devclaw/bin/github-app-git-credential-helper.sh.tmp
+  install -o root -g devclaw-broker -m 0750 \
+    /opt/devclaw/bin/github-app-git-credential-helper.sh.tmp \
+    /opt/devclaw/bin/github-app-git-credential-helper.sh
+  rm -f /opt/devclaw/bin/github-app-git-credential-helper.sh.tmp
 else
   chown root:devclaw-broker /opt/devclaw/bin/github-app-git-credential-helper.sh
   chmod 0750 /opt/devclaw/bin/github-app-git-credential-helper.sh
 fi
+[[ -s /opt/devclaw/bin/github-app-git-credential-helper.sh ]] ||
+  fail "GitHub credential helper is missing or empty."
 
-cat > /opt/devclaw/config/github-app-broker.env.tmp <<EOF
+cat > "$BROKER_CONFIG.tmp" <<EOF
 DEVCLAW_GITHUB_APP_ID=${DEVCLAW_GITHUB_APP_ID}
 DEVCLAW_GITHUB_INSTALLATION_ID=${DEVCLAW_GITHUB_INSTALLATION_ID}
 DEVCLAW_GITHUB_OWNER=${DEVCLAW_GITHUB_OWNER}
@@ -84,9 +110,9 @@ DEVCLAW_GITHUB_PRIVATE_KEY_SECRET_ID=${DEVCLAW_GITHUB_PRIVATE_KEY_SECRET_ID}
 DEVCLAW_GITHUB_BROKER_SOCKET=/run/devclaw/github-token-broker.sock
 EOF
 install -o root -g devclaw-token -m 0640 \
-  /opt/devclaw/config/github-app-broker.env.tmp \
-  /opt/devclaw/config/github-app-broker.env
-rm -f /opt/devclaw/config/github-app-broker.env.tmp
+  "$BROKER_CONFIG.tmp" \
+  "$BROKER_CONFIG"
+rm -f "$BROKER_CONFIG.tmp"
 
 cat > /etc/systemd/system/devclaw-github-token-broker.service <<'EOF'
 [Unit]
@@ -99,8 +125,8 @@ Type=simple
 User=devclaw-token
 Group=devclaw-broker
 SupplementaryGroups=devclaw-token
-EnvironmentFile=/opt/devclaw/config/github-app-broker.env
-ExecStart=/usr/bin/node /opt/devclaw/bin/github-app-token-broker.js
+EnvironmentFile=/opt/devclaw-broker/config/github-app-broker.env
+ExecStart=/usr/bin/node /opt/devclaw-broker/bin/github-app-token-broker.js
 Restart=on-failure
 RestartSec=5s
 UMask=0077
@@ -135,6 +161,8 @@ chmod 0640 "$marker_tmp"
 mv -f "$marker_tmp" /var/lib/devclaw/github-app-broker-configured
 
 systemctl daemon-reload
+systemctl stop devclaw-github-token-broker.service >/dev/null 2>&1 || true
+systemctl reset-failed devclaw-github-token-broker.service >/dev/null 2>&1 || true
 systemctl enable devclaw-github-token-broker.service >/dev/null
 systemctl restart devclaw-github-token-broker.service
 sleep 3

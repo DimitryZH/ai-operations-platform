@@ -42,6 +42,7 @@ locals {
     github_app_install_b64      = filebase64("${path.module}/runtime/install-github-app-broker.sh")
     github_app_validate_b64     = filebase64("${path.module}/runtime/validate-github-app-broker.sh")
     github_app_enabled          = var.github_app_integration_enabled
+    github_app_live_validation  = var.github_app_live_validation_enabled
     github_app_id               = var.github_app_id == null ? "" : var.github_app_id
     github_installation_id      = var.github_app_installation_id == null ? "" : var.github_app_installation_id
     github_repository_owner     = var.github_repository_owner
