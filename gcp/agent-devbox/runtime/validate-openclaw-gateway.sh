@@ -193,11 +193,22 @@ grep -q 'No plugin issues detected' /tmp/openclaw-plugins-doctor.txt ||
 for name in GH_TOKEN GITHUB_TOKEN OPENAI_API_KEY ANTHROPIC_API_KEY GOOGLE_API_KEY SLACK_BOT_TOKEN DISCORD_TOKEN TELEGRAM_BOT_TOKEN; do
   require_absent_env "$name"
 done
-if find /workspace/repos -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
-  fail "/workspace/repos must remain empty."
-fi
-if find /var/lib/devclaw/projects -mindepth 1 -print -quit | grep -q .; then
-  fail "No DevClaw projects may be registered."
+stage6_marker=/var/lib/devclaw/stage6-compose-to-aspire-project-registered
+if [[ -f "$stage6_marker" ]]; then
+  grep -q '^stage6_project_registered=true$' "$stage6_marker" ||
+    fail "Stage 6 marker exists but does not confirm project registration."
+  grep -q '^repository=DimitryZH/application-modernization-lab$' "$stage6_marker" ||
+    fail "Stage 6 marker references an unexpected repository."
+  mapfile -t repo_entries < <(find /workspace/repos -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
+  [[ "${#repo_entries[@]}" -eq 1 && "${repo_entries[0]}" == "application-modernization-lab" ]] ||
+    fail "/workspace/repos must contain only application-modernization-lab after Stage 6."
+else
+  if find /workspace/repos -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+    fail "/workspace/repos must remain empty."
+  fi
+  if find /var/lib/devclaw/projects -mindepth 1 -print -quit | grep -q .; then
+    fail "No DevClaw projects may be registered."
+  fi
 fi
 if find /var/lib/devclaw/sessions -mindepth 1 -print -quit | grep -q .; then
   fail "No DevClaw worker sessions may exist."

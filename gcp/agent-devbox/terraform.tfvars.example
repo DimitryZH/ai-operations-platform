@@ -36,6 +36,14 @@ github_app_private_key_secret_ref = null
 github_repository_owner           = "DimitryZH"
 github_repository_name            = "application-modernization-lab"
 
+# Stage 6 project registration. Enable only after the managed Gateway,
+# OpenAI OAuth model access, and scoped GitHub App broker have passed validation.
+stage6_project_registration_enabled = false
+stage6_project_name                 = "application-modernization-lab"
+stage6_project_slug                 = "application-modernization-lab"
+stage6_base_branch                  = "main"
+stage6_channel_id                   = "openclaw-control-ui-main"
+
 artifact_registry_reader_enabled = false
 # artifact_registry_project_id    = "example-nonprod-project"
 # artifact_registry_location      = "us-central1"

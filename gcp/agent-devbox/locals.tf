@@ -41,6 +41,13 @@ locals {
     github_app_credential_b64   = filebase64("${path.module}/runtime/github-app-git-credential-helper.sh")
     github_app_install_b64      = filebase64("${path.module}/runtime/install-github-app-broker.sh")
     github_app_validate_b64     = filebase64("${path.module}/runtime/validate-github-app-broker.sh")
+    stage6_prepare_b64          = filebase64("${path.module}/runtime/prepare-compose-to-aspire-project.sh")
+    stage6_validate_b64         = filebase64("${path.module}/runtime/validate-compose-to-aspire-project.sh")
+    stage6_enabled              = var.stage6_project_registration_enabled
+    stage6_project_name         = var.stage6_project_name
+    stage6_project_slug         = var.stage6_project_slug
+    stage6_base_branch          = var.stage6_base_branch
+    stage6_channel_id           = var.stage6_channel_id
     github_app_enabled          = var.github_app_integration_enabled
     github_app_live_validation  = var.github_app_live_validation_enabled
     github_app_id               = var.github_app_id == null ? "" : var.github_app_id

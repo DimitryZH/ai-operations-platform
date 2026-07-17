@@ -199,6 +199,51 @@ variable "github_repository_name" {
   }
 }
 
+variable "stage6_project_registration_enabled" {
+  description = "Enable Stage 6 Compose-to-Aspire project registration and workflow preparation. Requires the managed Gateway, OpenAI OAuth, and GitHub App broker stages to be configured first."
+  type        = bool
+  default     = false
+}
+
+variable "stage6_project_name" {
+  description = "DevClaw project name for the approved disposable Compose-to-Aspire experiment repository."
+  type        = string
+  default     = "application-modernization-lab"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_. -]+$", var.stage6_project_name))
+    error_message = "stage6_project_name must be a simple DevClaw project display name."
+  }
+}
+
+variable "stage6_project_slug" {
+  description = "DevClaw project slug for the approved disposable Compose-to-Aspire experiment repository."
+  type        = string
+  default     = "application-modernization-lab"
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9_.-]*$", var.stage6_project_slug))
+    error_message = "stage6_project_slug must be a lowercase slug."
+  }
+}
+
+variable "stage6_base_branch" {
+  description = "Base branch for the controlled Compose-to-Aspire experiment."
+  type        = string
+  default     = "main"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.stage6_base_branch))
+    error_message = "stage6_base_branch must be a valid simple branch name."
+  }
+}
+
+variable "stage6_channel_id" {
+  description = "Synthetic foreground-orchestrator channel ID used by DevClaw project registration. It is not a chat credential."
+  type        = string
+  default     = "openclaw-control-ui-main"
+}
+
 variable "artifact_registry_reader_enabled" {
   description = "Grant Artifact Registry reader on an existing repository. Disabled by default."
   type        = bool

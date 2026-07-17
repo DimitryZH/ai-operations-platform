@@ -238,16 +238,29 @@ if run_as_devclaw gh auth status >/dev/null 2>&1; then
   fail "GitHub CLI is authenticated for devclaw-svc."
 fi
 
-if find /workspace/repos -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
-  fail "/workspace/repos must remain empty."
-fi
+stage6_marker=/var/lib/devclaw/stage6-compose-to-aspire-project-registered
+if [[ -f "$stage6_marker" ]]; then
+  grep -q '^stage6_project_registered=true$' "$stage6_marker" ||
+    fail "Stage 6 marker exists but does not confirm project registration."
+  grep -q '^repository=DimitryZH/application-modernization-lab$' "$stage6_marker" ||
+    fail "Stage 6 marker references an unexpected repository."
+  mapfile -t repo_entries < <(find /workspace/repos -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
+  [[ "${#repo_entries[@]}" -eq 1 && "${repo_entries[0]}" == "application-modernization-lab" ]] ||
+    fail "/workspace/repos must contain only application-modernization-lab after Stage 6."
+  [[ -f /home/devclaw-svc/.openclaw/workspace/devclaw/projects.json ]] ||
+    fail "Stage 6 marker exists but DevClaw projects.json is absent."
+else
+  if find /workspace/repos -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+    fail "/workspace/repos must remain empty."
+  fi
 
-if find /var/lib/devclaw/projects -mindepth 1 -print -quit | grep -q .; then
-  fail "No DevClaw projects may be registered in /var/lib/devclaw/projects."
-fi
+  if find /var/lib/devclaw/projects -mindepth 1 -print -quit | grep -q .; then
+    fail "No DevClaw projects may be registered in /var/lib/devclaw/projects."
+  fi
 
-if find /home/devclaw-svc/.openclaw -type f \( -name '*projects*.json' -o -name 'projects.json' \) -print -quit 2>/dev/null | grep -q .; then
-  fail "No OpenClaw projects.json registration is allowed."
+  if find /home/devclaw-svc/.openclaw -type f \( -name '*projects*.json' -o -name 'projects.json' \) -print -quit 2>/dev/null | grep -q .; then
+    fail "No OpenClaw projects.json registration is allowed."
+  fi
 fi
 
 REQUIRE_INSTALLED_MARKER="${REQUIRE_INSTALLED_MARKER:-true}"

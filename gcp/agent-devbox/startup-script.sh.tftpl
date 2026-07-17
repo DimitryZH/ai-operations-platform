@@ -154,6 +154,8 @@ printf '%s' '${github_app_broker_b64}' | base64 -d > /opt/devclaw/bin/github-app
 printf '%s' '${github_app_credential_b64}' | base64 -d > /opt/devclaw/bin/github-app-git-credential-helper.sh
 printf '%s' '${github_app_install_b64}' | base64 -d > /opt/devclaw/bin/install-github-app-broker.sh
 printf '%s' '${github_app_validate_b64}' | base64 -d > /opt/devclaw/bin/validate-github-app-broker.sh
+printf '%s' '${stage6_prepare_b64}' | base64 -d > /opt/devclaw/bin/prepare-compose-to-aspire-project.sh
+printf '%s' '${stage6_validate_b64}' | base64 -d > /opt/devclaw/bin/validate-compose-to-aspire-project.sh
 printf '%s' '${devclaw_compat_build_b64}' | base64 -d > /opt/devclaw/bin/build-devclaw-compat-package.sh
 printf '%s' '${devclaw_compat_validate_b64}' | base64 -d > /opt/devclaw/bin/validate-devclaw-compat-package.sh
 printf '%s' '${runtime_versions_b64}' | base64 -d > /opt/devclaw/config/versions.env
@@ -169,6 +171,8 @@ chown root:devclaw-svc \
   /opt/devclaw/bin/github-app-git-credential-helper.sh \
   /opt/devclaw/bin/install-github-app-broker.sh \
   /opt/devclaw/bin/validate-github-app-broker.sh \
+  /opt/devclaw/bin/prepare-compose-to-aspire-project.sh \
+  /opt/devclaw/bin/validate-compose-to-aspire-project.sh \
   /opt/devclaw/bin/build-devclaw-compat-package.sh \
   /opt/devclaw/bin/validate-devclaw-compat-package.sh
 chmod 0750 \
@@ -182,6 +186,8 @@ chmod 0750 \
   /opt/devclaw/bin/github-app-git-credential-helper.sh \
   /opt/devclaw/bin/install-github-app-broker.sh \
   /opt/devclaw/bin/validate-github-app-broker.sh \
+  /opt/devclaw/bin/prepare-compose-to-aspire-project.sh \
+  /opt/devclaw/bin/validate-compose-to-aspire-project.sh \
   /opt/devclaw/bin/build-devclaw-compat-package.sh \
   /opt/devclaw/bin/validate-devclaw-compat-package.sh
 if [[ "${github_app_enabled}" == "true" && -f /var/lib/devclaw/github-app-broker-configured ]]; then
@@ -212,6 +218,18 @@ if [[ "${github_app_enabled}" == "true" ]]; then
   if [[ "${github_app_live_validation}" == "true" ]]; then
     /opt/devclaw/bin/validate-github-app-broker.sh
   fi
+fi
+
+if [[ "${stage6_enabled}" == "true" ]]; then
+  log "Preparing Stage 6 Compose-to-Aspire project registration"
+  DEVCLAW_STAGE6_GITHUB_OWNER='${github_repository_owner}' \
+  DEVCLAW_STAGE6_GITHUB_REPO='${github_repository_name}' \
+  DEVCLAW_STAGE6_PROJECT_NAME='${stage6_project_name}' \
+  DEVCLAW_STAGE6_PROJECT_SLUG='${stage6_project_slug}' \
+  DEVCLAW_STAGE6_BASE_BRANCH='${stage6_base_branch}' \
+  DEVCLAW_STAGE6_CHANNEL_ID='${stage6_channel_id}' \
+    /opt/devclaw/bin/prepare-compose-to-aspire-project.sh
+  /opt/devclaw/bin/validate-compose-to-aspire-project.sh
 fi
 
 marker_tmp="$(mktemp /var/lib/devclaw/.bootstrap-ready.XXXXXX)"
