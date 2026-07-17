@@ -170,6 +170,103 @@ fs.writeFileSync(indexFile, source);
 console.log(JSON.stringify({ jsonResultImportCount: aliases.length, aliases }));
 NODE
 
+log "Applying workflow-aware research_task queue-label compatibility patch"
+node - "$WORK_DIR/patched/package/dist/index.js" <<'NODE'
+const fs = require("fs");
+const [indexFile] = process.argv.slice(2);
+let source = fs.readFileSync(indexFile, "utf8");
+
+function replaceOnce(search, replacement, description) {
+  const count = source.split(search).length - 1;
+  if (count !== 1) {
+    throw new Error(`${description}: expected one match, found ${count}`);
+  }
+  source = source.replace(search, replacement);
+}
+
+replaceOnce(
+  'var TO_RESEARCH_LABEL = "To Research";\nfunction createResearchTaskTool(ctx) {',
+  `function __devclawAiopsTransitionTargetKey(transition) {\n  return typeof transition === "string" ? transition : transition?.target;\n}\nfunction __devclawAiopsResolveArchitectQueue(workflow, role) {\n  const activeEntry = Object.entries(workflow.states).find(\n    ([, state]) => state.type === StateType.ACTIVE && state.role === role\n  );\n  if (!activeEntry) {\n    throw new Error(\`No active state for role "\${role}".\`);\n  }\n  const [activeStateKey, activeState] = activeEntry;\n  const queueEntry = Object.entries(workflow.states).find(([, state]) => {\n    if (state.type !== StateType.QUEUE || state.role !== role) return false;\n    return __devclawAiopsTransitionTargetKey(state.on?.[WorkflowEvent.PICKUP]) === activeStateKey;\n  });\n  if (!queueEntry) {\n    throw new Error(\`No queue state for role "\${role}" has a PICKUP transition to active state "\${activeStateKey}".\`);\n  }\n  const [queueStateKey, queueState] = queueEntry;\n  return {\n    queueStateKey,\n    queueLabel: queueState.label,\n    activeStateKey,\n    activeLabel: activeState.label\n  };\n}\nfunction createResearchTaskTool(ctx) {`,
+  "research_task queue helper insertion"
+);
+replaceOnce(
+  'description: `Spawn an architect to research a design/architecture problem. Creates a "To Research" issue and dispatches an architect worker.',
+  'description: `Spawn an architect to research a design/architecture problem. Creates an issue in the configured architect queue state and dispatches an architect worker.',
+  "research_task tool description queue label"
+);
+replaceOnce(
+  "3. Create implementation tasks via task_create (land in Planning for operator review)",
+  "3. Post development-ready findings and follow project-specific role instructions for any follow-up task boundaries",
+  "research_task tool description task_create boundary"
+);
+replaceOnce(
+  '      const resolvedRole = resolvedConfig.roles[role];\n      const model = resolveModel(role, level, resolvedRole);\n      if (dryRun) {',
+  '      const resolvedRole = resolvedConfig.roles[role];\n      const model = resolveModel(role, level, resolvedRole);\n      const researchQueue = __devclawAiopsResolveArchitectQueue(resolvedConfig.workflow, role);\n      const queueLabel = researchQueue.queueLabel;\n      const activeLabel = getActiveLabel(resolvedConfig.workflow, role);\n      if (activeLabel !== researchQueue.activeLabel) {\n        throw new Error(`Architect active label mismatch: query resolved "${activeLabel}", queue resolver resolved "${researchQueue.activeLabel}".`);\n      }\n      if (dryRun) {',
+  "research_task queue resolution before dry-run"
+);
+replaceOnce(
+  '          issue: { title, label: TO_RESEARCH_LABEL },\n          research: { level, model, status: "dry_run" },\n          announcement: `\\u{1F4D0} [DRY RUN] Would create research ticket and dispatch ${role} (${level}) for: ${title}`',
+  '          issue: { title, label: queueLabel },\n          research: {\n            level,\n            model,\n            status: "dry_run",\n            queueLabel,\n            activeLabel,\n            queueState: researchQueue.queueStateKey,\n            activeState: researchQueue.activeStateKey\n          },\n          announcement: `\\u{1F4D0} [DRY RUN] Would create research ticket in ${queueLabel} and dispatch ${role} (${level}) to ${activeLabel} for: ${title}`',
+  "research_task dry-run queue metadata"
+);
+replaceOnce(
+  "      const issue2 = await provider.createIssue(title, issueBody, TO_RESEARCH_LABEL);",
+  "      const issue2 = await provider.createIssue(title, issueBody, queueLabel);",
+  "research_task live issue queue label"
+);
+replaceOnce(
+  "          issue: { id: issue2.iid, title: issue2.title, url: issue2.web_url, label: TO_RESEARCH_LABEL },",
+  "          issue: { id: issue2.iid, title: issue2.title, url: issue2.web_url, label: queueLabel },",
+  "research_task queued response queue label"
+);
+replaceOnce(
+  "            level,\n            status: \"queued\",",
+  "            level,\n            model,\n            queueLabel,\n            activeLabel,\n            queueState: researchQueue.queueStateKey,\n            activeState: researchQueue.activeStateKey,\n            status: \"queued\",",
+  "research_task busy queue metadata"
+);
+replaceOnce(
+  "      const toLabel = getActiveLabel(resolvedConfig.workflow, role);",
+  "      const toLabel = activeLabel;",
+  "research_task active label reuse"
+);
+replaceOnce(
+  "        fromLabel: TO_RESEARCH_LABEL,",
+  "        fromLabel: queueLabel,",
+  "research_task dispatch from label"
+);
+
+if (/\bTO_RESEARCH_LABEL\b/.test(source)) {
+  throw new Error("legacy TO_RESEARCH_LABEL runtime path remains");
+}
+if (/provider\.createIssue\(title,\s*issueBody,\s*["']To Research["']\)/.test(source)) {
+  throw new Error("legacy hard-coded To Research issue creation remains");
+}
+if (/fromLabel:\s*["']To Research["']/.test(source)) {
+  throw new Error("legacy hard-coded To Research dispatch fromLabel remains");
+}
+if (source.includes('Architecture Research')) {
+  throw new Error("research_task patch must not hard-code the project-specific Architecture Research label");
+}
+fs.writeFileSync(indexFile, source);
+NODE
+
+log "Applying OpenClaw 2026.7.1 subagent parameter compatibility patch"
+node - "$WORK_DIR/patched/package/dist/index.js" <<'NODE'
+const fs = require("fs");
+const [indexFile] = process.argv.slice(2);
+let source = fs.readFileSync(indexFile, "utf8");
+const before = '    deliver: false,\n    lane: "subagent",\n    ...opts.orchestratorSessionKey ? { spawnedBy: opts.orchestratorSessionKey } : {},\n    ...opts.extraSystemPrompt ? { extraSystemPrompt: opts.extraSystemPrompt } : {}\n';
+const after = '    deliver: false,\n    lane: "subagent",\n    ...opts.extraSystemPrompt ? { extraSystemPrompt: opts.extraSystemPrompt } : {}\n';
+if (!source.includes(before)) {
+  throw new Error("expected unsupported spawnedBy subagent parameter path was not found");
+}
+source = source.replace(before, after);
+if (/\bspawnedBy\b/.test(source)) {
+  throw new Error("unsupported spawnedBy subagent parameter remains");
+}
+fs.writeFileSync(indexFile, source);
+NODE
+
 node - "$PLUGIN_JSON" "$OVERLAY_FILE" "$EXPECTED_PLUGIN_ID" "$EXPECTED_TOOL_COUNT" <<'NODE'
 const fs = require("fs");
 const [manifestFile, overlayFile, expectedId, expectedCount] = process.argv.slice(2);
@@ -229,6 +326,44 @@ if (new Set(aliases).size !== aliases.length) {
 }
 NODE
 
+node - "$WORK_DIR/patched/package/dist/index.js" <<'NODE'
+const fs = require("fs");
+const [indexFile] = process.argv.slice(2);
+const source = fs.readFileSync(indexFile, "utf8");
+if (/\bspawnedBy\b/.test(source)) {
+  throw new Error("unsupported spawnedBy subagent parameter remains");
+}
+if (!/lane:\s*"subagent",\n\s*\.\.\.opts\.extraSystemPrompt \? \{ extraSystemPrompt: opts\.extraSystemPrompt \} : \{\}/.test(source)) {
+  throw new Error("subagent params compatibility patch proof missing");
+}
+NODE
+
+node - "$WORK_DIR/patched/package/dist/index.js" <<'NODE'
+const fs = require("fs");
+const [indexFile] = process.argv.slice(2);
+const source = fs.readFileSync(indexFile, "utf8");
+function requireMatch(pattern, description) {
+  if (!pattern.test(source)) throw new Error(`missing research_task compatibility proof: ${description}`);
+}
+if (/\bTO_RESEARCH_LABEL\b/.test(source)) {
+  throw new Error("legacy TO_RESEARCH_LABEL runtime path remains");
+}
+requireMatch(/function __devclawAiopsResolveArchitectQueue\(workflow,\s*role\)/, "queue resolver helper");
+requireMatch(/state\.type !== StateType\.QUEUE \|\| state\.role !== role/, "queue resolver filters architect queue states");
+requireMatch(/state\.on\?\.\[WorkflowEvent\.PICKUP\]\) === activeStateKey/, "queue resolver follows PICKUP to active state");
+requireMatch(/const queueLabel = researchQueue\.queueLabel;/, "single queue label binding");
+requireMatch(/issue:\s*\{\s*title,\s*label:\s*queueLabel\s*\}/, "dry-run issue uses workflow queue label");
+requireMatch(/provider\.createIssue\(title,\s*issueBody,\s*queueLabel\)/, "live issue creation uses workflow queue label");
+requireMatch(/fromLabel:\s*queueLabel/, "dispatch fromLabel uses workflow queue label");
+requireMatch(/const toLabel = activeLabel;/, "dispatch active label uses resolved active label");
+if (/provider\.createIssue\(title,\s*issueBody,\s*["']To Research["']\)/.test(source) || /fromLabel:\s*["']To Research["']/.test(source)) {
+  throw new Error("legacy hard-coded To Research dispatch path remains");
+}
+if (source.includes("Architecture Research")) {
+  throw new Error("research_task patch must not hard-code the project-specific Architecture Research label");
+}
+NODE
+
 BUILD_CHECK_STATUS="not_available"
 BUILD_CHECK_OUTPUT="$OUTPUT_DIR/openclaw-plugins-build-check.txt"
 if command -v openclaw >/dev/null 2>&1; then
@@ -270,6 +405,8 @@ jq -n \
   --arg buildCheckStatus "$BUILD_CHECK_STATUS" \
   --argjson toolCount "$EXPECTED_TOOL_COUNT" \
   --argjson jsonResultImportCount "$EXPECTED_JSON_RESULT_IMPORT_COUNT" \
+  --arg researchTaskQueuePatch "workflow-aware-architect-queue" \
+  --arg subagentParamsPatch "omit-unsupported-spawnedBy" \
   '{
     packageName: $packageName,
     packageVersion: $packageVersion,
@@ -280,6 +417,8 @@ jq -n \
     patchedTarballSha256: $patchedSha256,
     toolCount: $toolCount,
     jsonResultImportCount: $jsonResultImportCount,
+    researchTaskQueuePatch: $researchTaskQueuePatch,
+    subagentParamsPatch: $subagentParamsPatch,
     openclawPluginsBuildCheck: $buildCheckStatus
   }' > "$BUILD_MANIFEST"
 

@@ -76,6 +76,10 @@ if [[ -n "$BUILD_MANIFEST" ]]; then
     fail "build manifest patched tarball SHA-256 mismatch."
   [[ "$(jq -r '.jsonResultImportCount // empty' "$BUILD_MANIFEST")" == "$EXPECTED_JSON_RESULT_IMPORT_COUNT" ]] ||
     fail "build manifest jsonResult import count mismatch."
+  [[ "$(jq -r '.researchTaskQueuePatch // empty' "$BUILD_MANIFEST")" == "workflow-aware-architect-queue" ]] ||
+    fail "build manifest research_task queue patch marker mismatch."
+  [[ "$(jq -r '.subagentParamsPatch // empty' "$BUILD_MANIFEST")" == "omit-unsupported-spawnedBy" ]] ||
+    fail "build manifest subagent params patch marker mismatch."
 fi
 
 npm view "${EXPECTED_PACKAGE}@${EXPECTED_VERSION}" \
@@ -175,6 +179,44 @@ for (const alias of aliases) {
   if (!aliasPattern.test(source)) {
     throw new Error(`jsonResult alias is not used after compatibility patch: ${alias}`);
   }
+}
+NODE
+
+node - "$WORK_DIR/patched/package/dist/index.js" <<'NODE'
+const fs = require("fs");
+const [indexFile] = process.argv.slice(2);
+const source = fs.readFileSync(indexFile, "utf8");
+if (/\bspawnedBy\b/.test(source)) {
+  throw new Error("unsupported spawnedBy subagent parameter remains");
+}
+if (!/lane:\s*"subagent",\n\s*\.\.\.opts\.extraSystemPrompt \? \{ extraSystemPrompt: opts\.extraSystemPrompt \} : \{\}/.test(source)) {
+  throw new Error("subagent params compatibility patch proof missing");
+}
+NODE
+
+node - "$WORK_DIR/patched/package/dist/index.js" <<'NODE'
+const fs = require("fs");
+const [indexFile] = process.argv.slice(2);
+const source = fs.readFileSync(indexFile, "utf8");
+function requireMatch(pattern, description) {
+  if (!pattern.test(source)) throw new Error(`missing research_task compatibility proof: ${description}`);
+}
+if (/\bTO_RESEARCH_LABEL\b/.test(source)) {
+  throw new Error("legacy TO_RESEARCH_LABEL runtime path remains");
+}
+requireMatch(/function __devclawAiopsResolveArchitectQueue\(workflow,\s*role\)/, "queue resolver helper");
+requireMatch(/state\.type !== StateType\.QUEUE \|\| state\.role !== role/, "queue resolver filters architect queue states");
+requireMatch(/state\.on\?\.\[WorkflowEvent\.PICKUP\]\) === activeStateKey/, "queue resolver follows PICKUP to active state");
+requireMatch(/const queueLabel = researchQueue\.queueLabel;/, "single queue label binding");
+requireMatch(/issue:\s*\{\s*title,\s*label:\s*queueLabel\s*\}/, "dry-run issue uses workflow queue label");
+requireMatch(/provider\.createIssue\(title,\s*issueBody,\s*queueLabel\)/, "live issue creation uses workflow queue label");
+requireMatch(/fromLabel:\s*queueLabel/, "dispatch fromLabel uses workflow queue label");
+requireMatch(/const toLabel = activeLabel;/, "dispatch active label uses resolved active label");
+if (/provider\.createIssue\(title,\s*issueBody,\s*["']To Research["']\)/.test(source) || /fromLabel:\s*["']To Research["']/.test(source)) {
+  throw new Error("legacy hard-coded To Research dispatch path remains");
+}
+if (source.includes("Architecture Research")) {
+  throw new Error("research_task patch must not hard-code the project-specific Architecture Research label");
 }
 NODE
 
