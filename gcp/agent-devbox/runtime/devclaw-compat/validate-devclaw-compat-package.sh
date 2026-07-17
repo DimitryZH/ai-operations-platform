@@ -7,6 +7,7 @@ EXPECTED_VERSION="1.6.10"
 EXPECTED_INTEGRITY="sha512-XSzsSi52hFZjj+y+Iww9P5s28NmCNQBvGOZzQRBUvbOzEJM+R4S+EcpdqxPzbFmS66X6KjMEqf3wSR/WeMFkdg=="
 EXPECTED_PLUGIN_ID="devclaw"
 EXPECTED_TOOL_COUNT="23"
+EXPECTED_JSON_RESULT_IMPORT_COUNT="23"
 COMPAT_REVISION="${DEVCLAW_COMPAT_REVISION:-aiops-1}"
 
 fail() {
@@ -73,6 +74,8 @@ if [[ -n "$BUILD_MANIFEST" ]]; then
     fail "build manifest compatibility revision mismatch."
   [[ "$(jq -r '.patchedTarballSha256' "$BUILD_MANIFEST")" == "$PATCHED_SHA256" ]] ||
     fail "build manifest patched tarball SHA-256 mismatch."
+  [[ "$(jq -r '.jsonResultImportCount // empty' "$BUILD_MANIFEST")" == "$EXPECTED_JSON_RESULT_IMPORT_COUNT" ]] ||
+    fail "build manifest jsonResult import count mismatch."
 fi
 
 npm view "${EXPECTED_PACKAGE}@${EXPECTED_VERSION}" \
@@ -135,7 +138,7 @@ diff -u "$WORK_DIR/upstream-files.txt" "$WORK_DIR/patched-files.txt" >/dev/null 
 
 while IFS= read -r relative_path; do
   relative_path="${relative_path#./}"
-  if [[ "$relative_path" == "openclaw.plugin.json" ]]; then
+  if [[ "$relative_path" == "openclaw.plugin.json" || "$relative_path" == "dist/index.js" ]]; then
     continue
   fi
   upstream_hash="$(sha256sum "$WORK_DIR/upstream/package/$relative_path" | awk '{print $1}')"
@@ -143,6 +146,37 @@ while IFS= read -r relative_path; do
   [[ "$upstream_hash" == "$patched_hash" ]] ||
     fail "unexpected source/package modification: $relative_path"
 done < "$WORK_DIR/upstream-files.txt"
+
+node - "$WORK_DIR/patched/package/dist/index.js" "$EXPECTED_JSON_RESULT_IMPORT_COUNT" <<'NODE'
+const fs = require("fs");
+const [indexFile, expectedImportCount] = process.argv.slice(2);
+const source = fs.readFileSync(indexFile, "utf8");
+if (!source.includes("function __devclawAiopsJsonResult(payload)")) {
+  throw new Error("missing aiops-1 jsonResult compatibility shim");
+}
+if (/import\s+\{\s*jsonResult(?:\s+as\s+jsonResult\d+)?\s*\}\s+from\s+["']openclaw\/plugin-sdk["'];/.test(source)) {
+  throw new Error("unavailable openclaw/plugin-sdk jsonResult import remains");
+}
+if (!/content:\s*\[\{\s*type:\s*"text",\s*text:\s*JSON\.stringify\(payload,\s*null,\s*2\)\s*\}\]/s.test(source)) {
+  throw new Error("jsonResult shim does not return OpenClaw text content");
+}
+if (!/details:\s*payload/.test(source)) {
+  throw new Error("jsonResult shim does not return structured details payload");
+}
+const aliases = Array.from(source.matchAll(/\bconst\s+(jsonResult\d*)\s*=\s*__devclawAiopsJsonResult;/g), (match) => match[1]);
+if (aliases.length !== Number(expectedImportCount)) {
+  throw new Error(`expected ${expectedImportCount} jsonResult aliases, found ${aliases.length}`);
+}
+if (new Set(aliases).size !== aliases.length) {
+  throw new Error("duplicate jsonResult compatibility aliases found");
+}
+for (const alias of aliases) {
+  const aliasPattern = new RegExp(`\\breturn\\s+${alias}\\s*\\(|\\b${alias}\\s*\\(`);
+  if (!aliasPattern.test(source)) {
+    throw new Error(`jsonResult alias is not used after compatibility patch: ${alias}`);
+  }
+}
+NODE
 
 if find "$WORK_DIR/patched/package" -path '*/node_modules/*' -o -path '*/.git/*' -o -path '*/.openclaw/*' -o -path '*/workspace/*' | grep -q .; then
   fail "patched package contains bundled runtime, repo, or dependency state."

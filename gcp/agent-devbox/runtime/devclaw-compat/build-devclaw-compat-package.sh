@@ -7,6 +7,7 @@ EXPECTED_VERSION="1.6.10"
 EXPECTED_INTEGRITY="sha512-XSzsSi52hFZjj+y+Iww9P5s28NmCNQBvGOZzQRBUvbOzEJM+R4S+EcpdqxPzbFmS66X6KjMEqf3wSR/WeMFkdg=="
 EXPECTED_PLUGIN_ID="devclaw"
 EXPECTED_TOOL_COUNT="23"
+EXPECTED_JSON_RESULT_IMPORT_COUNT="23"
 COMPAT_REVISION="${DEVCLAW_COMPAT_REVISION:-aiops-1}"
 
 fail() {
@@ -135,6 +136,40 @@ log "Applying reviewed manifest overlay"
 jq -s '.[0] * .[1]' "$ORIGINAL_PLUGIN_JSON" "$OVERLAY_FILE" > "$PLUGIN_JSON.tmp"
 mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
 
+log "Applying OpenClaw 2026.7.1 tool-result compatibility shim"
+node - "$WORK_DIR/patched/package/dist/index.js" "$EXPECTED_JSON_RESULT_IMPORT_COUNT" <<'NODE'
+const fs = require("fs");
+const [indexFile, expectedImportCount] = process.argv.slice(2);
+let source = fs.readFileSync(indexFile, "utf8");
+const importPattern = /^import\s+\{\s*jsonResult(?:\s+as\s+(jsonResult\d+))?\s*\}\s+from\s+["']openclaw\/plugin-sdk["'];\r?\n?/gm;
+const aliases = [];
+source = source.replace(importPattern, (_match, alias) => {
+  const name = alias || "jsonResult";
+  aliases.push(name);
+  return `const ${name} = __devclawAiopsJsonResult;\n`;
+});
+if (aliases.length !== Number(expectedImportCount)) {
+  throw new Error(`expected ${expectedImportCount} jsonResult imports, found ${aliases.length}`);
+}
+if (new Set(aliases).size !== aliases.length) {
+  throw new Error("duplicate jsonResult compatibility aliases found");
+}
+if (/import\s+\{\s*jsonResult(?:\s+as\s+jsonResult\d+)?\s*\}\s+from\s+["']openclaw\/plugin-sdk["'];/.test(source)) {
+  throw new Error("unpatched jsonResult import remains");
+}
+const helper = `\n// aiops-1 compatibility shim: OpenClaw 2026.7.1 does not export jsonResult from openclaw/plugin-sdk.\nfunction __devclawAiopsJsonResult(payload) {\n  return {\n    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],\n    details: payload\n  };\n}\n\n`;
+const firstAlias = `const ${aliases[0]} = __devclawAiopsJsonResult;\n`;
+source = source.replace(firstAlias, `${helper}${firstAlias}`);
+for (const alias of aliases) {
+  const aliasPattern = new RegExp(`\\b${alias}\\s*\\(`);
+  if (!aliasPattern.test(source)) {
+    throw new Error(`jsonResult alias is not used after compatibility patch: ${alias}`);
+  }
+}
+fs.writeFileSync(indexFile, source);
+console.log(JSON.stringify({ jsonResultImportCount: aliases.length, aliases }));
+NODE
+
 node - "$PLUGIN_JSON" "$OVERLAY_FILE" "$EXPECTED_PLUGIN_ID" "$EXPECTED_TOOL_COUNT" <<'NODE'
 const fs = require("fs");
 const [manifestFile, overlayFile, expectedId, expectedCount] = process.argv.slice(2);
@@ -152,7 +187,7 @@ if (JSON.stringify(tools) !== JSON.stringify(overlay.contracts.tools)) {
 }
 NODE
 
-log "Verifying only openclaw.plugin.json changed"
+log "Verifying only reviewed compatibility files changed"
 (
   cd "$WORK_DIR/original/package"
   find . -type f -print | sort
@@ -166,7 +201,7 @@ diff -u "$WORK_DIR/original-files.txt" "$WORK_DIR/patched-files.txt" >/dev/null 
 
 while IFS= read -r relative_path; do
   relative_path="${relative_path#./}"
-  if [[ "$relative_path" == "openclaw.plugin.json" ]]; then
+  if [[ "$relative_path" == "openclaw.plugin.json" || "$relative_path" == "dist/index.js" ]]; then
     continue
   fi
   original_hash="$(sha256sum "$WORK_DIR/original/package/$relative_path" | awk '{print $1}')"
@@ -174,6 +209,25 @@ while IFS= read -r relative_path; do
   [[ "$original_hash" == "$patched_hash" ]] ||
     fail "unexpected source/package modification: $relative_path"
 done < "$WORK_DIR/original-files.txt"
+
+node - "$WORK_DIR/patched/package/dist/index.js" "$EXPECTED_JSON_RESULT_IMPORT_COUNT" <<'NODE'
+const fs = require("fs");
+const [indexFile, expectedImportCount] = process.argv.slice(2);
+const source = fs.readFileSync(indexFile, "utf8");
+if (!source.includes("function __devclawAiopsJsonResult(payload)")) {
+  throw new Error("missing aiops-1 jsonResult compatibility shim");
+}
+if (/import\s+\{\s*jsonResult(?:\s+as\s+jsonResult\d+)?\s*\}\s+from\s+["']openclaw\/plugin-sdk["'];/.test(source)) {
+  throw new Error("unavailable openclaw/plugin-sdk jsonResult import remains");
+}
+const aliases = Array.from(source.matchAll(/\bconst\s+(jsonResult\d*)\s*=\s*__devclawAiopsJsonResult;/g), (match) => match[1]);
+if (aliases.length !== Number(expectedImportCount)) {
+  throw new Error(`expected ${expectedImportCount} jsonResult aliases, found ${aliases.length}`);
+}
+if (new Set(aliases).size !== aliases.length) {
+  throw new Error("duplicate jsonResult compatibility aliases found");
+}
+NODE
 
 BUILD_CHECK_STATUS="not_available"
 BUILD_CHECK_OUTPUT="$OUTPUT_DIR/openclaw-plugins-build-check.txt"
@@ -215,6 +269,7 @@ jq -n \
   --arg patchedSha256 "$PATCHED_SHA256" \
   --arg buildCheckStatus "$BUILD_CHECK_STATUS" \
   --argjson toolCount "$EXPECTED_TOOL_COUNT" \
+  --argjson jsonResultImportCount "$EXPECTED_JSON_RESULT_IMPORT_COUNT" \
   '{
     packageName: $packageName,
     packageVersion: $packageVersion,
@@ -224,6 +279,7 @@ jq -n \
     patchedTarball: $patchedTarball,
     patchedTarballSha256: $patchedSha256,
     toolCount: $toolCount,
+    jsonResultImportCount: $jsonResultImportCount,
     openclawPluginsBuildCheck: $buildCheckStatus
   }' > "$BUILD_MANIFEST"
 
