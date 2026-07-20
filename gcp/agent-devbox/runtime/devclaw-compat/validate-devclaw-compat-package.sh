@@ -78,6 +78,8 @@ if [[ -n "$BUILD_MANIFEST" ]]; then
     fail "build manifest jsonResult import count mismatch."
   [[ "$(jq -r '.researchTaskQueuePatch // empty' "$BUILD_MANIFEST")" == "workflow-aware-architect-queue" ]] ||
     fail "build manifest research_task queue patch marker mismatch."
+  [[ "$(jq -r '.researchTaskExistingIssuePatch // empty' "$BUILD_MANIFEST")" == "existing-issue-dispatch" ]] ||
+    fail "build manifest research_task existing issue patch marker mismatch."
   [[ "$(jq -r '.subagentParamsPatch // empty' "$BUILD_MANIFEST")" == "omit-unsupported-spawnedBy" ]] ||
     fail "build manifest subagent params patch marker mismatch."
 fi
@@ -212,6 +214,11 @@ requireMatch(/issue:\s*\{\s*title,\s*label:\s*queueLabel\s*\}/, "dry-run issue u
 requireMatch(/provider\.createIssue\(title,\s*issueBody,\s*queueLabel\)/, "live issue creation uses workflow queue label");
 requireMatch(/fromLabel:\s*queueLabel/, "dispatch fromLabel uses workflow queue label");
 requireMatch(/const toLabel = activeLabel;/, "dispatch active label uses resolved active label");
+requireMatch(/existingIssueId:\s*\{\s*type:\s*"number"/, "existing issue parameter");
+requireMatch(/function __devclawAiopsValidateExistingResearchIssue\(\{ issue, issueId, project, workflow, queueLabel, activeLabel \}\)/, "existing issue validator");
+requireMatch(/noIssueCreation:\s*true/, "existing issue dry-run no issue creation marker");
+requireMatch(/const issue2 = existingIssue \?\? await provider\.createIssue\(title,\s*issueBody,\s*queueLabel\);/, "conditional issue creation");
+requireMatch(/countActiveSlots\(activeRoleWorker\)/, "active worker refusal");
 if (/provider\.createIssue\(title,\s*issueBody,\s*["']To Research["']\)/.test(source) || /fromLabel:\s*["']To Research["']/.test(source)) {
   throw new Error("legacy hard-coded To Research dispatch path remains");
 }

@@ -250,6 +250,128 @@ if (source.includes('Architecture Research')) {
 fs.writeFileSync(indexFile, source);
 NODE
 
+log "Applying research_task existing-issue dispatch compatibility patch"
+node - "$WORK_DIR/patched/package/dist/index.js" <<'NODE'
+const fs = require("fs");
+const [indexFile] = process.argv.slice(2);
+let source = fs.readFileSync(indexFile, "utf8");
+
+function replaceOnce(search, replacement, description) {
+  const count = source.split(search).length - 1;
+  if (count !== 1) {
+    throw new Error(`${description}: expected one match, found ${count}`);
+  }
+  source = source.replace(search, replacement);
+}
+
+replaceOnce(
+  "function createResearchTaskTool(ctx) {",
+  `function __devclawAiopsNormalizeExistingIssueId(value) {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("existingIssueId must be a positive integer when provided.");
+  }
+  return parsed;
+}
+function __devclawAiopsIssueLabels(issue) {
+  return (issue.labels ?? []).map((label) => typeof label === "string" ? label : label?.name).filter(Boolean);
+}
+function __devclawAiopsIssueAuthor(issue) {
+  return issue.author?.username ?? issue.author?.login ?? issue.user?.username ?? issue.user?.login ?? "";
+}
+function __devclawAiopsIssueAssignees(issue) {
+  return (issue.assignees ?? []).map((assignee) => assignee?.username ?? assignee?.login ?? assignee?.name).filter(Boolean);
+}
+function __devclawAiopsProjectRepoSlug(project) {
+  const source = project.repoRemote ?? project.remote ?? project.repository ?? "";
+  const match = String(source).match(/github\\.com[:/]([^/]+\\/[^/.]+)(?:\\.git)?$/i);
+  return match?.[1] ?? null;
+}
+function __devclawAiopsValidateExistingResearchIssue({ issue, issueId, project, workflow, queueLabel, activeLabel }) {
+  const actualIssueId = issue.iid ?? issue.number ?? issue.id;
+  if (String(actualIssueId) !== String(issueId)) {
+    throw new Error(\`Existing issue lookup returned #\${actualIssueId}, expected #\${issueId}.\`);
+  }
+  const state = String(issue.state ?? issue.status ?? "").toLowerCase();
+  if (state && state !== "opened" && state !== "open") {
+    throw new Error(\`Existing issue #\${issueId} is not open; state is "\${state}".\`);
+  }
+  const repoSlug = __devclawAiopsProjectRepoSlug(project);
+  const issueUrl = issue.web_url ?? issue.html_url ?? issue.url ?? "";
+  if (repoSlug && issueUrl && !String(issueUrl).includes(\`/\${repoSlug}/issues/\${issueId}\`)) {
+    throw new Error(\`Existing issue #\${issueId} does not belong to repository \${repoSlug}.\`);
+  }
+  const labels = __devclawAiopsIssueLabels(issue);
+  const stateLabels = getStateLabels(workflow);
+  const currentStateLabels = labels.filter((label) => stateLabels.includes(label));
+  if (currentStateLabels.length > 1) {
+    throw new Error(\`Existing issue #\${issueId} has conflicting workflow state labels: \${currentStateLabels.join(", ")}.\`);
+  }
+  if (currentStateLabels.length === 1 && currentStateLabels[0] !== queueLabel) {
+    if (currentStateLabels[0] === activeLabel) {
+      throw new Error(\`Existing issue #\${issueId} is already active in \${activeLabel}.\`);
+    }
+    throw new Error(\`Existing issue #\${issueId} is in workflow state "\${currentStateLabels[0]}", expected no state label or "\${queueLabel}".\`);
+  }
+  return {
+    labels,
+    stateLabels: currentStateLabels,
+    author: __devclawAiopsIssueAuthor(issue),
+    assignees: __devclawAiopsIssueAssignees(issue)
+  };
+}
+function __devclawAiopsDescriptionForExistingIssue(issue, issueBody) {
+  const existingBody = issue.description ?? issue.body ?? "";
+  return [existingBody, "## Additional Architect Instructions", issueBody].filter(Boolean).join("\\n\\n");
+}
+function createResearchTaskTool(ctx) {`,
+  "research_task existing issue helper insertion"
+);
+replaceOnce(
+  '        dryRun: {\n          type: "boolean",\n          description: "Preview without executing. Defaults to false."\n        }',
+  '        dryRun: {\n          type: "boolean",\n          description: "Preview without executing. Defaults to false."\n        },\n        existingIssueId: {\n          type: "number",\n          description: "Optional existing issue number to validate and dispatch without creating a duplicate issue."\n        }',
+  "research_task existingIssueId parameter"
+);
+replaceOnce(
+  "      const dryRun = params.dryRun ?? false;",
+  "      const dryRun = params.dryRun ?? false;\n      const existingIssueId = __devclawAiopsNormalizeExistingIssueId(params.existingIssueId);",
+  "research_task existingIssueId param read"
+);
+replaceOnce(
+  '      if (activeLabel !== researchQueue.activeLabel) {\n        throw new Error(`Architect active label mismatch: query resolved "${activeLabel}", queue resolver resolved "${researchQueue.activeLabel}".`);\n      }\n      if (dryRun) {',
+  '      if (activeLabel !== researchQueue.activeLabel) {\n        throw new Error(`Architect active label mismatch: query resolved "${activeLabel}", queue resolver resolved "${researchQueue.activeLabel}".`);\n      }\n      let existingIssue = null;\n      let existingIssueValidation = null;\n      if (existingIssueId != null) {\n        existingIssue = await provider.getIssue(existingIssueId);\n        existingIssueValidation = __devclawAiopsValidateExistingResearchIssue({\n          issue: existingIssue,\n          issueId: existingIssueId,\n          project,\n          workflow: resolvedConfig.workflow,\n          queueLabel,\n          activeLabel\n        });\n        const activeRoleWorker = getRoleWorker(project, role);\n        const activeSlotCount = countActiveSlots(activeRoleWorker);\n        if (activeSlotCount > 0) {\n          throw new Error(`Cannot dispatch existing issue #${existingIssueId}; ${role} has ${activeSlotCount} active worker slot(s).`);\n        }\n      }\n      if (dryRun && existingIssue) {\n        return jsonResult9({\n          success: true,\n          dryRun: true,\n          issue: {\n            id: existingIssue.iid ?? existingIssue.number ?? existingIssueId,\n            title: existingIssue.title,\n            url: existingIssue.web_url ?? existingIssue.html_url,\n            label: queueLabel,\n            existing: true,\n            author: existingIssueValidation.author,\n            assignees: existingIssueValidation.assignees\n          },\n          research: {\n            level,\n            model,\n            status: "dry_run",\n            queueLabel,\n            activeLabel,\n            queueState: researchQueue.queueStateKey,\n            activeState: researchQueue.activeStateKey,\n            noIssueCreation: true\n          },\n          announcement: `[DRY RUN] Would dispatch existing issue #${existingIssueId} from ${queueLabel} to ${activeLabel} as ${role} (${level}) without creating a new issue.`\n        });\n      }\n      if (dryRun) {',
+  "research_task existing issue validation and dry-run"
+);
+replaceOnce(
+  '      const issue2 = await provider.createIssue(title, issueBody, queueLabel);\n      provider.reactToIssue(issue2.iid, "eyes").catch(() => {\n      });\n      applyNotifyLabel(provider, issue2.iid, project, channelId, issue2.labels);\n      autoAssignOwnerLabel(workspaceDir, provider, issue2.iid, project).catch(() => {\n      });',
+  '      const issue2 = existingIssue ?? await provider.createIssue(title, issueBody, queueLabel);\n      if (!existingIssue) {\n        provider.reactToIssue(issue2.iid, "eyes").catch(() => {\n        });\n        applyNotifyLabel(provider, issue2.iid, project, channelId, issue2.labels);\n        autoAssignOwnerLabel(workspaceDir, provider, issue2.iid, project).catch(() => {\n        });\n      }',
+  "research_task conditional issue creation"
+);
+replaceOnce(
+  "        issueDescription: issueBody,",
+  "        issueDescription: existingIssue ? __devclawAiopsDescriptionForExistingIssue(existingIssue, issueBody) : issueBody,",
+  "research_task existing issue description preservation"
+);
+
+if (!/existingIssueId:\s*\{\s*type:\s*"number"/.test(source)) {
+  throw new Error("research_task existingIssueId parameter proof missing");
+}
+if (!/function __devclawAiopsValidateExistingResearchIssue\(\{ issue, issueId, project, workflow, queueLabel, activeLabel \}\)/.test(source)) {
+  throw new Error("research_task existing issue validator helper missing");
+}
+if (!/noIssueCreation:\s*true/.test(source)) {
+  throw new Error("research_task existing issue dry-run noIssueCreation proof missing");
+}
+if (!/const issue2 = existingIssue \?\? await provider\.createIssue\(title,\s*issueBody,\s*queueLabel\);/.test(source)) {
+  throw new Error("research_task conditional issue creation proof missing");
+}
+if (!/countActiveSlots\(activeRoleWorker\)/.test(source)) {
+  throw new Error("research_task active worker refusal proof missing");
+}
+fs.writeFileSync(indexFile, source);
+NODE
+
 log "Applying OpenClaw 2026.7.1 subagent parameter compatibility patch"
 node - "$WORK_DIR/patched/package/dist/index.js" <<'NODE'
 const fs = require("fs");
@@ -356,6 +478,11 @@ requireMatch(/issue:\s*\{\s*title,\s*label:\s*queueLabel\s*\}/, "dry-run issue u
 requireMatch(/provider\.createIssue\(title,\s*issueBody,\s*queueLabel\)/, "live issue creation uses workflow queue label");
 requireMatch(/fromLabel:\s*queueLabel/, "dispatch fromLabel uses workflow queue label");
 requireMatch(/const toLabel = activeLabel;/, "dispatch active label uses resolved active label");
+requireMatch(/existingIssueId:\s*\{\s*type:\s*"number"/, "existing issue parameter");
+requireMatch(/function __devclawAiopsValidateExistingResearchIssue\(\{ issue, issueId, project, workflow, queueLabel, activeLabel \}\)/, "existing issue validator");
+requireMatch(/noIssueCreation:\s*true/, "existing issue dry-run no issue creation marker");
+requireMatch(/const issue2 = existingIssue \?\? await provider\.createIssue\(title,\s*issueBody,\s*queueLabel\);/, "conditional issue creation");
+requireMatch(/countActiveSlots\(activeRoleWorker\)/, "active worker refusal");
 if (/provider\.createIssue\(title,\s*issueBody,\s*["']To Research["']\)/.test(source) || /fromLabel:\s*["']To Research["']/.test(source)) {
   throw new Error("legacy hard-coded To Research dispatch path remains");
 }
@@ -406,6 +533,7 @@ jq -n \
   --argjson toolCount "$EXPECTED_TOOL_COUNT" \
   --argjson jsonResultImportCount "$EXPECTED_JSON_RESULT_IMPORT_COUNT" \
   --arg researchTaskQueuePatch "workflow-aware-architect-queue" \
+  --arg researchTaskExistingIssuePatch "existing-issue-dispatch" \
   --arg subagentParamsPatch "omit-unsupported-spawnedBy" \
   '{
     packageName: $packageName,
@@ -418,6 +546,7 @@ jq -n \
     toolCount: $toolCount,
     jsonResultImportCount: $jsonResultImportCount,
     researchTaskQueuePatch: $researchTaskQueuePatch,
+    researchTaskExistingIssuePatch: $researchTaskExistingIssuePatch,
     subagentParamsPatch: $subagentParamsPatch,
     openclawPluginsBuildCheck: $buildCheckStatus
   }' > "$BUILD_MANIFEST"
