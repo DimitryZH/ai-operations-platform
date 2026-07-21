@@ -7,6 +7,10 @@ The current foundation starts with a private Stateful VM runtime, service-state
 monitoring, a status-only Telegram operator channel, and explicit context
 lifecycle boundaries.
 
+## Recent Validation
+
+Experiment 06 validated a governed multi-agent migration workflow by moving Google Cloud Online Boutique from a Docker Compose baseline to .NET Aspire in [Application Modernization Lab](https://github.com/DimitryZH/application-modernization-lab), with independent defect detection, corrective validation, human-controlled merge, and operator-approved skill promotion documented in the [case study](docs/case-studies/experiment-06-online-boutique-compose-to-aspire.md).
+
 ## Current Foundation
 
 - GCP private Stateful VM runtime under `gcp/stateful-agent-runtime/`
