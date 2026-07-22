@@ -16,6 +16,31 @@ operational boundaries.
 - context lifecycle foundation
 - removal of the legacy container-service scaffold
 
+## Validated Workflow Status
+
+Experiment 06 validated a bounded OpenClaw and DevClaw delivery workflow for
+an application migration. See the
+[Online Boutique Compose-to-Aspire case study](case-studies/experiment-06-online-boutique-compose-to-aspire.md)
+for evidence and scope boundaries.
+
+| Capability | Status |
+|---|---|
+| Governed multi-agent migration workflow | VALIDATED |
+| Independent defect detection and correction loop | VALIDATED |
+| Human-controlled GitHub delivery workflow | VALIDATED |
+| Governed knowledge promotion through Skill Workshop | VALIDATED |
+| Cross-project skill reuse | PENDING VALIDATION |
+
+The next proof is to reuse `compose-to-aspire-migration` in a fresh project or
+session boundary, then evaluate whether it reduces unnecessary rediscovery or
+improves consistency while preserving functional, negative, isolation, and
+independent-review rigor.
+
+The validated result does not mark parallel multi-agent execution, unattended
+heartbeat-driven delivery, automatic merge, production remediation, destructive
+infrastructure execution, universal autonomous software engineering, or
+production readiness as complete.
+
 ## Near-Term Next Steps
 
 - validate the imported runtime from this target repository

@@ -37,6 +37,34 @@ It provides:
 - optional service-state exporter wiring
 - optional Telegram status-only adapter wiring
 
+## Validated Agent Delivery Workflow
+
+Experiment 06 validated a bounded delivery workflow layered on top of the
+runtime foundation. The workflow is documented in the
+[Online Boutique Compose-to-Aspire case study](case-studies/experiment-06-online-boutique-compose-to-aspire.md).
+
+The validated reference workflow used:
+
+- a human operator for scope, architecture approval, merge approval, and skill
+  application decisions
+- OpenClaw as the operator-facing control surface and agent runtime
+- DevClaw for workflow, role dispatch, and task-state orchestration
+- separated architect, developer, and independent tester roles
+- controlled Agent DevBox execution for repository work and validation
+- GitHub issues, labels, branches, pull requests, comments, and merge history
+  as durable delivery state
+- foreground Knowledge Review after merge
+- Skill Workshop proposal review followed by explicit human Apply
+
+This capability is separate from the core GCP runtime foundation. It validates
+one sequential, human-reviewed migration workflow, not unattended production
+remediation or universal autonomous delivery. Cross-project reuse value for the
+applied migration skill remains unvalidated.
+
+Hermes Agent remains historical candidate research. It was not the
+implementation workflow used for Experiment 06; the validated workflow used
+OpenClaw and DevClaw.
+
 ## Context Layer
 
 The context lifecycle foundation lives in `platform/context/`.

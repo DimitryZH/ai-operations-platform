@@ -36,6 +36,25 @@ and explicit approval records. It must not store secrets, raw credentials, real
 Telegram chat IDs, Terraform state, local tfvars, raw plans, or private
 operator notes.
 
+## Delivery Safeguards
+
+Experiment 06 validated durable safeguards for a reviewable application
+migration workflow. The public evidence is summarized in the
+[Online Boutique Compose-to-Aspire case study](case-studies/experiment-06-online-boutique-compose-to-aspire.md).
+
+- GitHub access was repository-scoped for reviewable delivery work.
+- Issues, branches, pull requests, comments, and merge history provided durable
+  delivery state.
+- Automatic merge remained disabled.
+- Architecture approval, merge approval, and skill application required
+  explicit human decisions.
+- Credentials and tokens were excluded from source, documentation, evidence,
+  and reusable skill content.
+- Skill Workshop used a proposal-first lifecycle before human Apply.
+- The application migration did not mutate GCP or Terraform resources.
+- Validation was designed to prevent unrelated runtime resources from
+  producing false-positive evidence.
+
 ## Telegram Boundary
 
 The Telegram operator channel is status-only. Supported commands are `/status`,
