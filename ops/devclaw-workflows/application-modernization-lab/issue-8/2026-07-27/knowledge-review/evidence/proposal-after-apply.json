@@ -1,0 +1,44 @@
+{
+  "schema": "openclaw.skill-workshop.proposal.v1",
+  "id": "kubernetes-to-compose-migration-20260727-ddcee90daa",
+  "kind": "create",
+  "status": "applied",
+  "title": "Create kubernetes-to-compose-migration",
+  "description": "Reusable Kubernetes-to-Docker-Compose migration procedure.",
+  "createdAt": "2026-07-27T17:52:59.615Z",
+  "updatedAt": "2026-07-27T19:58:28.292Z",
+  "createdBy": "skill-workshop",
+  "origin": {
+    "agentId": "main",
+    "sessionKey": "agent:main:knowledge-review-issue-8",
+    "runId": "71c04dc1-690a-456c-8753-bd11cbc4afb4"
+  },
+  "proposedVersion": "v2",
+  "draftFile": "PROPOSAL.md",
+  "draftHash": "b6d66b4f7bfa53626bf593841f49c41be7384664e1fdad6f4a3e26c8cb011c2a",
+  "target": {
+    "skillName": "kubernetes-to-compose-migration",
+    "skillKey": "kubernetes-to-compose-migration",
+    "skillDir": "/home/devclaw-svc/.openclaw/workspace/skills/kubernetes-to-compose-migration",
+    "skillFile": "/home/devclaw-svc/.openclaw/workspace/skills/kubernetes-to-compose-migration/SKILL.md",
+    "source": "openclaw-workspace"
+  },
+  "scan": {
+    "state": "clean",
+    "scannedAt": "2026-07-27T18:30:58.712Z",
+    "critical": 0,
+    "warn": 0,
+    "info": 0,
+    "findings": []
+  },
+  "supportFiles": [
+    {
+      "path": "references/validation-checklist.md",
+      "sizeBytes": 5976,
+      "hash": "f200520c2c6a6e9c1b001ca7b7bf2b4813a7723414c79c15a0fb528e9177bb0e"
+    }
+  ],
+  "goal": "Revise pending proposal with stricter transaction markers, manifest inventory coverage, Compose service identity rules, volume cleanup semantics, and no-source-change baseline rule.",
+  "evidence": "Requested corrections for the existing pending Skill Workshop proposal kubernetes-to-compose-migration-20260727-ddcee90daa. No active skill files, source repositories, GitHub, infrastructure, runtime configuration, DevClaw package code, or Experiment 07B work should be modified.",
+  "appliedAt": "2026-07-27T19:58:28.292Z"
+}

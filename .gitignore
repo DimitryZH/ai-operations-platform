@@ -1,0 +1,49 @@
+# Local agent workspace state
+.agents/
+.codex/
+
+# Internal project notes and evidence
+AI/
+ops/*
+!ops/devclaw-workflows/
+!ops/devclaw-workflows/**
+# Keep this ignore policy local unless it is explicitly force-added.
+.gitignore
+
+# Terraform local state and plans
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+terraform.tfvars
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+crash.log
+crash.*.log
+
+# Local environment and secret material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+*.kubeconfig
+secrets/
+*.secret
+*.secrets
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
