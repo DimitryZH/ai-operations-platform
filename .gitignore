@@ -7,8 +7,6 @@ AI/
 ops/*
 !ops/devclaw-workflows/
 !ops/devclaw-workflows/**
-# Keep this ignore policy local unless it is explicitly force-added.
-.gitignore
 
 # Terraform local state and plans
 .terraform/
