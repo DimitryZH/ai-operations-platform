@@ -1,0 +1,6 @@
+dispatch-result.json
+developer-dispatch-result.json
+tester-dispatch-result.json
+*-dispatch-result.json
+*-status.json
+*.tmp
