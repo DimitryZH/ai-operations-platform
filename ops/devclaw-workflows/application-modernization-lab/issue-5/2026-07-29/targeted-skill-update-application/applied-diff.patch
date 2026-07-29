@@ -1,0 +1,60 @@
+diff --git active/compose-to-aspire-migration/references/aspire-modeling.md proposed/compose-to-aspire-migration/references/aspire-modeling.md
+index 1fed0f0..892e023 100644
+--- active/compose-to-aspire-migration/references/aspire-modeling.md
++++ proposed/compose-to-aspire-migration/references/aspire-modeling.md
+@@ -28,6 +28,7 @@ Avoid introducing ServiceDefaults unless the service is a locally built .NET pro
+ - Keep resource declarations readable and grouped by concern.
+ - Centralize repeated configuration only when it removes meaningful duplication.
+ - Preserve required environment variable names, endpoint names, and service discovery assumptions.
++- Preserve application-visible runtime assumptions such as hostname, command and entrypoint behavior, working directory, user or group identity, container identity values, and language or runtime flags, or explicitly validate an approved difference.
+ - Express startup dependencies explicitly instead of relying on incidental ordering.
+ - Model optional services behind documented switches or profile-like configuration.
+ - Document intentional differences from Compose near the relevant resource or in migration notes.
+diff --git active/compose-to-aspire-migration/references/compose-inventory.md proposed/compose-to-aspire-migration/references/compose-inventory.md
+index d2cafb0..11c1acc 100644
+--- active/compose-to-aspire-migration/references/compose-inventory.md
++++ proposed/compose-to-aspire-migration/references/compose-inventory.md
+@@ -6,6 +6,7 @@ Use this reference to freeze and inventory the Docker Compose baseline before an
+
+ - Record the Compose baseline commit, tag, release artifact, or other immutable reference.
+ - Record the exact Compose files and override files included in the baseline.
++- Record the original Compose project directory used to resolve relative paths.
+ - Record the command used to start the baseline.
+ - Confirm the baseline has already been validated through the approved local workflows.
+ - Confirm the migration scope and excluded paths before changing AppHost code.
+@@ -20,12 +21,13 @@ Capture one row per service or optional service group.
+ | Service identifier | Compose service name and any aliases used by other services. |
+ | Image or build source | Image reference, build context, Dockerfile, target, and build args. |
+ | Command and entrypoint | Explicit command, entrypoint, arguments, and startup assumptions. |
++| Application-visible runtime assumptions | Hostname, working directory, user or group identity, container identity values, environment-derived identity, and language or runtime flags that may affect startup or behavior. |
+ | Ports and host bindings | Container ports, host bindings, protocols, and whether user-facing. |
+ | Environment variables | Names, required values, default behavior, and source of values. Do not record real secrets. |
+ | Dependency declarations | `depends_on`, health requirements, implicit startup ordering, and retry expectations. |
+ | Health checks | Test command, interval, timeout, retries, and startup period. |
+ | Networks | Network names, aliases, and cross-service hostname expectations. |
+-| Volumes | Named volumes, bind mounts, persistence expectations, and cleanup behavior. |
++| Volumes | Named volumes, bind mounts, relative bind-mount source paths and project-directory resolution, persistence expectations, and cleanup behavior. |
+ | Profiles or optional services | Compose profiles, feature switches, and default inclusion rules. |
+ | Secrets and config files | Secret or config names, mount locations, and external source. Do not copy secret values. |
+ | Stateful behavior | Databases, queues, object stores, caches, migrations, seed data, and persistence requirements. |
+diff --git active/compose-to-aspire-migration/references/validation-checklist.md proposed/compose-to-aspire-migration/references/validation-checklist.md
+index 418d10e..cc1845a 100644
+--- active/compose-to-aspire-migration/references/validation-checklist.md
++++ proposed/compose-to-aspire-migration/references/validation-checklist.md
+@@ -39,6 +39,9 @@ Use this checklist to prove the Aspire topology preserves the validated Compose
+
+ - Validate databases, queues, object stores, caches, migrations, seed data, and persistence behavior as applicable.
+ - Confirm volume or storage behavior remains equivalent unless a difference was explicitly approved.
++- When persistence is in scope, create current-run application data, stop the AppHost in a controlled manner while preserving configured durable storage, restart the AppHost, and verify the same application-level evidence after restart.
++- Do not treat volume existence, seeded data, or container restart status alone as sufficient persistence evidence.
++- Document full reset behavior separately from preserved-storage restart behavior.
+ - Confirm cleanup behavior is understood and documented.
+
+ ## Cleanup Validation
+@@ -56,6 +59,7 @@ Compare the Compose baseline and Aspire model for:
+ - Configuration and environment variable names.
+ - Exposed host endpoints.
+ - Stateful resources and volume behavior.
++- Relative bind-mount resolution when temporary Compose files, overrides, copied configurations, or concurrent comparison runs are used. Confirm relative bind mounts still resolve against the intended original Compose project directory or are replaced by explicitly equivalent paths.
+ - Optional services and profile behavior.
+ - Cleanup expectations.

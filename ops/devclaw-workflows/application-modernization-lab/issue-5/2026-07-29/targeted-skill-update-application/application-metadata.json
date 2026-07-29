@@ -1,0 +1,74 @@
+{
+  "schema": "ai-operations-platform.skill-application-validation.v1",
+  "repository": "DimitryZH/ai-operations-platform",
+  "trackingIssue": "DimitryZH/ai-operations-platform#5",
+  "issueCloseActionPerformed": false,
+  "proposalPullRequest": "DimitryZH/ai-operations-platform#6",
+  "proposalCommit": "116587ff38d75b35cce7b8c5bb25ed7687eda82c",
+  "proposalMergeCommit": "777f933fcf8ac4095974029a51b0194cef6b6c72",
+  "approvedProposalIdentifier": "compose-to-aspire-migration-targeted-update-20260729",
+  "approvedProposalPackage": "ops/devclaw-workflows/application-modernization-lab/issue-5/2026-07-29/targeted-skill-update-proposal/",
+  "applicationPackage": "ops/devclaw-workflows/application-modernization-lab/issue-5/2026-07-29/targeted-skill-update-application/",
+  "activeSkill": {
+    "name": "compose-to-aspire-migration",
+    "directory": "/home/devclaw-svc/.openclaw/workspace/skills/compose-to-aspire-migration"
+  },
+  "application": {
+    "operationId": "compose-to-aspire-migration-targeted-update-20260729-application-20260729T192551Z",
+    "appliedAt": "2026-07-29T19:25:51Z",
+    "mechanism": "controlled active-skill governance script via agent-devbox gcloud SSH as devclaw-svc",
+    "rollbackSnapshotId": "compose-to-aspire-migration-before-compose-to-aspire-migration-targeted-update-20260729-20260729T192551Z",
+    "protectedSnapshotLocation": "/home/devclaw-svc/.openclaw/skill-governance/rollback-snapshots/compose-to-aspire-migration-before-compose-to-aspire-migration-targeted-update-20260729-20260729T192551Z",
+    "operationDirectory": "/home/devclaw-svc/.openclaw/skill-governance/applications/compose-to-aspire-migration-targeted-update-20260729-application-20260729T192551Z",
+    "rollbackRequired": false
+  },
+  "beforeChecksums": {
+    "SKILL.md": "d4631c7a987092f9247a615d4917cbd55fb453f543ca93273b506c35ffb6469f",
+    "references/aspire-modeling.md": "97f0077d386f5ecae055428fae9961a33e3e8f247a3ee346eb6606b1ea02fe03",
+    "references/compose-inventory.md": "832c0ae2f89403d8e87a48753888c46a44f36b642246a19dc78fd5c35aedd11d",
+    "references/failure-modes.md": "0eca396d7834146c57c3651f6d433160ed2c15c8870753232f7adf18ad44ed77",
+    "references/validation-checklist.md": "e0e66de52684c02128414b2eb9544a6e25438324c0c04174326afafd20420fb3"
+  },
+  "afterChecksums": {
+    "SKILL.md": "d4631c7a987092f9247a615d4917cbd55fb453f543ca93273b506c35ffb6469f",
+    "references/aspire-modeling.md": "7efba9137e79800ce52544d0f4a2346dc2721384e3a30a7d916ebb95af57acda",
+    "references/compose-inventory.md": "b06db062dfda05871f653df588ec142ad2f68df2a9c158d417c705d84861b6fc",
+    "references/failure-modes.md": "0eca396d7834146c57c3651f6d433160ed2c15c8870753232f7adf18ad44ed77",
+    "references/validation-checklist.md": "d5c9696448e243acfaa941a5eb274af80f730d4ae3b6ecf6216babe90f85ddb7"
+  },
+  "changedActiveFiles": [
+    "references/aspire-modeling.md",
+    "references/compose-inventory.md",
+    "references/validation-checklist.md"
+  ],
+  "unchangedActiveFiles": [
+    "SKILL.md",
+    "references/failure-modes.md"
+  ],
+  "validationSessions": [
+    {
+      "scenario": "A",
+      "sessionKey": "agent:main:issue-5-behavioral-scenario-a-20260729T192953Z",
+      "sessionId": "514a7866-ed86-4e94-ba17-f015c2c47bcb",
+      "result": "pass"
+    },
+    {
+      "scenario": "B",
+      "sessionKey": "agent:main:issue-5-behavioral-scenario-b-20260729T192953Z",
+      "sessionId": "423fbafd-0eb4-4009-b1e7-77ea730da4a0",
+      "result": "pass"
+    },
+    {
+      "scenario": "C",
+      "sessionKey": "agent:main:issue-5-behavioral-scenario-c-20260729T192953Z",
+      "sessionId": "545400b8-86f1-40e7-b849-bc5cea421399",
+      "result": "pass"
+    }
+  ],
+  "knownLimitations": [
+    "No full Experiment 07 rerun was performed.",
+    "Behavioral validation used isolated read-only planning scenarios rather than mutating application repositories or infrastructure.",
+    "Future live reuse validation remains pending on the next real Compose-to-Aspire migration."
+  ],
+  "finalStatus": "APPLIED AND VALIDATED - PENDING OPERATOR ACCEPTANCE"
+}
