@@ -1,0 +1,30 @@
+{
+  "schema": "ai-operations-platform.skill-update-proposal.v1",
+  "status": "pending",
+  "proposalId": "compose-to-aspire-migration-targeted-update-20260729",
+  "skillName": "compose-to-aspire-migration",
+  "sourceIssue": "DimitryZH/ai-operations-platform#5",
+  "sourceKnowledgeReview": {
+    "repository": "DimitryZH/application-modernization-lab",
+    "path": "experiments/07-bank-of-anthos/compose-to-aspire-skill-knowledge-review.md",
+    "blobSha": "9755b1505f236d9b200c301dbc9aeb769c0fb187",
+    "pullRequest": 13,
+    "mergedAt": "2026-07-29T15:43:17Z",
+    "mergeCommit": "31c40544f984ca241448ec3188de614c2fa63059",
+    "decision": "TARGETED SKILL UPDATE RECOMMENDED"
+  },
+  "activeBaseline": {
+    "skillDir": "/home/devclaw-svc/.openclaw/workspace/skills/compose-to-aspire-migration",
+    "skillChecksum": "d4631c7a987092f9247a615d4917cbd55fb453f543ca93273b506c35ffb6469f",
+    "originalAppliedProposal": "compose-to-aspire-migration-20260721-25daeaebee"
+  },
+  "proposedAffectedFiles": [
+    "references/compose-inventory.md",
+    "references/aspire-modeling.md",
+    "references/validation-checklist.md"
+  ],
+  "applicationRequiresSeparateApproval": true,
+  "activeSkillModified": false,
+  "devclawStateModified": false,
+  "openclawStateModified": false
+}
