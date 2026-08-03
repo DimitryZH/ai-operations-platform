@@ -100,6 +100,8 @@ durable task state.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | INFRA-01 | Runtime foundation | AI Operations Platform | Committed docs and IaC paths | `gcp/stateful-agent-runtime/`; `docs/migration-closeout.md`; `docs/security-model.md` | Direct evidence | Public | The imported runtime foundation uses private VM, preserved disk, IAP-only access, Secret Manager, and systemd boundaries. | It does not prove current VM health on any later date. |
 | INFRA-02 | Operator channel | AI Operations Platform | Committed docs | `gcp/stateful-agent-runtime/docs/telegram-status-only-operator-channel.md` | Direct evidence | Public | Telegram was status-only and explicitly had no approval or execution authority. | It does not prove Telegram was enabled in a specific environment. |
+| INFRA-03 | Managed-service restart model | AI Operations Platform | Committed runtime notes | `gcp/stateful-agent-runtime/docs/implementation-notes.md`; `gcp/stateful-agent-runtime/docs/operations-runbook.md` | Direct evidence | Public | The Stateful Agent Runtime design makes systemd responsible for OpenClaw container restarts and documents restart/health validation as an operational step. | It does not prove a managed-service restart validation actually passed. |
+| INFRA-04 | VM reboot state model | AI Operations Platform | Committed runtime docs | `gcp/agent-devbox/README.md`; `gcp/stateful-agent-runtime/docs/implementation-notes.md` | Direct evidence | Public | The Agent DevBox and Stateful Runtime documentation state that disk-backed runtime/workspace state is expected to survive VM reboot or instance recreation. | It does not prove a VM reboot persistence validation actually passed. |
 
 ### OpenClaw Runtime
 
@@ -212,6 +214,8 @@ durable task state.
 | Skill reuse value vs completeness | KNOWLEDGE-01, KNOWLEDGE-02, EXP07-02 | The Compose-to-Aspire skill provided useful method structure but still required target-specific inspection and did not guarantee success for Experiment 08. |
 | Experiment result vs orchestration result | EXP08-02, CODEX-02, DECISION-INPUT-01 | Experiment 08B's Aspire migration was accepted as valid even though the worker orchestration model became too costly and unreliable for the remaining work. |
 | Sandbox recovery scope | RECOVERY-01, RECOVERY-02, SECURITY-01 | A post-fix minimal command could run, but that did not prove full filesystem, Git, Docker, push, PR, and validation capability for a senior developer workflow. |
+| Managed-service restart validation | INFRA-03 | The repository contains design/runbook evidence for systemd-managed restart behavior, but no committed or GitHub-linked direct PASS artifact was found for a successful managed-service restart persistence validation. |
+| VM reboot persistence validation | INFRA-04 | The repository contains design evidence that disk-backed state should survive reboot, but no committed or GitHub-linked direct PASS artifact was found for a successful VM reboot persistence validation. |
 
 ## Publication Boundary
 

@@ -13,8 +13,8 @@ dates only where supported by GitHub or committed evidence.
 | 2 | GCP DevBox preparation | The repository retained runtime foundation and Agent DevBox validation paths for OpenClaw/DevClaw installation and checks. | INFRA-01, RUNTIME-01 |
 | 3 | Persistent OpenClaw Gateway | Managed Gateway validation required systemd ownership, loopback-only listener, RPC health, restricted token files, and plugin health checks. | RUNTIME-01, AUTH-01 |
 | 4 | Managed-service operation | The runtime model used systemd-managed services and preserved disk state for the private VM foundation. | INFRA-01, RUNTIME-01 |
-| 5 | Service restart persistence | Platform docs and runtime checks separated service process availability from durable runtime state and context storage. | VISION-01, INFRA-01 |
-| 6 | VM reboot persistence | Runtime artifacts later captured reboot-era diagnostics for the Agent DevBox recovery VM, but reboot alone did not resolve the worker sandbox failure. | RECOVERY-01 |
+| 5 | Managed-service restart model | Runtime documentation shows a systemd-owned restart model and runbook validation expectations for the OpenClaw service, but no direct successful restart-persistence PASS artifact was found in the reviewed repository or GitHub evidence. | INFRA-03 |
+| 6 | VM reboot state model | Runtime documentation states that disk-backed Agent DevBox and Stateful Runtime state should survive VM reboot or instance recreation, but no direct successful reboot-persistence PASS artifact was found in the reviewed repository or GitHub evidence. Later reboot diagnostics instead captured a worker sandbox failure boundary. | INFRA-04, RECOVERY-01 |
 | 7 | OpenAI OAuth and model validation | Gateway validation expected OpenAI OAuth mode, `openai/gpt-5.5`, no OpenAI API-key profile, and no unsafe credential environment variables when model provider mode was enabled. | AUTH-01, RUNTIME-01 |
 | 8 | DevClaw installation | DevClaw validation pinned OpenClaw `2026.7.1`, DevClaw `1.6.10`, compatibility revision `aiops-1`, and a 23-tool plugin contract. | RUNTIME-01, COMPAT-01 |
 | 9 | Compatibility overlay development | The DevClaw compatibility overlay became part of the controlled runtime contract and was validated against the installed plugin manifest. | COMPAT-01 |
@@ -34,7 +34,7 @@ dates only where supported by GitHub or committed evidence.
 | 23 | Human review | Human closeout for issue #16 accepted the final Experiment 08B result and documented the residual ownership-guardrail limitation as non-blocking. | CODEX-02 |
 | 24 | Manual PR merge | PR #17 merged into `main` on 2026-08-02 with merge commit `fe23e445c39ce0b7636641a14bacef671482fad5`; issue #16 closeout recorded final COMPLETE status. | EXP08-02, CODEX-02 |
 | 25 | Final issue closeout | The Application Modernization Lab retained the valid Aspire migration result while recording worker orchestration reliability and cost concerns. | CODEX-02, DECISION-INPUT-01 |
-| 26 | Architecture decision point | AI Operations Platform issue #8 and downstream issue #10 remain the location for the final orchestration evaluation and platform decision. This chronology stops before that decision. | VISION-03, DECISION-INPUT-01 |
+| 26 | Architecture decision point | AI Operations Platform issue #8 coordinates the documentation closeout, while downstream issue #10 produces the evidence-backed orchestration evaluation and recommendation for a later Architecture Decision Record. This chronology stops before both the evaluation conclusion and the formal architecture decision. | VISION-03, DECISION-INPUT-01 |
 
 ## Readiness Lessons Preserved by the Chronology
 
