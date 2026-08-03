@@ -1,0 +1,88 @@
+checkedAt=2026-08-01T02:28:12Z
+
+=== openclaw-gateway-status ===
+● openclaw-gateway.service - OpenClaw Gateway for Agent DevBox
+     Loaded: loaded (/etc/systemd/system/openclaw-gateway.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2026-07-30 19:53:41 UTC; 1 day 6h ago
+   Main PID: 625 (openclaw-gatewa)
+      Tasks: 33 (limit: 9466)
+     Memory: 975.6M (peak: 5.2G)
+        CPU: 2h 2min 370ms
+     CGroup: /system.slice/openclaw-gateway.service
+             ├─  625 openclaw-gateway
+             ├─ 2922 node /home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/.bin/codex app-server --listen stdio://
+             ├─ 2929 /home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex app-server --listen stdio://
+             └─67807 /home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex-code-mode-host
+
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.902+00:00 [agent/embedded] embedded run done: runId=issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z sessionId=78c623b3-bff8-4c62-91a5-c41e0c7e78b2 durationMs=13725 aborted=false
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.935+00:00 [diagnostic] lane task done: lane=subagent durationMs=13758 active=0 queued=0
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.936+00:00 [diagnostic] lane task done: lane=session:agent:main:subagent:issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z durationMs=13761 active=0 queued=0
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.969+00:00 SMOKE_FAILED bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.977+00:00 [agents/agent-command] [agent] run issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z ended with stopReason=stop
+Aug 01 02:26:06 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:06.004+00:00 [ws] ⇄ res ✓ agent runId=issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z id=cba5dba1…4e6f
+Aug 01 02:26:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:33.074+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:27:03 agent-devbox-recovery openclaw[625]: 2026-08-01T02:27:03.074+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:27:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:27:33.074+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:28:03 agent-devbox-recovery openclaw[625]: 2026-08-01T02:28:03.075+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+
+=== github-token-broker-status ===
+● devclaw-github-token-broker.service - DevClaw GitHub App installation token broker
+     Loaded: loaded (/etc/systemd/system/devclaw-github-token-broker.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2026-07-30 20:20:42 UTC; 1 day 6h ago
+   Main PID: 4744 (node)
+      Tasks: 11 (limit: 9466)
+     Memory: 26.2M (peak: 28.3M)
+        CPU: 2.519s
+     CGroup: /system.slice/devclaw-github-token-broker.service
+             └─4744 /usr/bin/node /opt/devclaw-broker/bin/github-app-token-broker.js
+
+Jul 30 20:20:42 agent-devbox-recovery systemd[1]: Started devclaw-github-token-broker.service - DevClaw GitHub App installation token broker.
+Jul 30 20:20:43 agent-devbox-recovery node[4744]: GitHub token broker listening on /run/devclaw/github-token-broker.sock
+
+=== openclaw-config ===
+{
+  "codex": {
+    "appServer": null,
+    "model": null,
+    "approvalPolicy": null,
+    "policyMode": null,
+    "approvalsReviewer": null
+  },
+  "devclaw": {
+    "workHeartbeat": {
+      "enabled": false
+    },
+    "projectExecution": "sequential"
+  },
+  "tools": {
+    "exec": {
+      "mode": "auto",
+      "strictInlineEval": true,
+      "commandHighlighting": true
+    }
+  },
+  "skills": {
+    "workshop": {
+      "autonomous": {
+        "enabled": false
+      },
+      "approvalPolicy": "pending"
+    }
+  }
+}
+
+=== codex-config ===
+[projects."/home/devclaw-svc/.openclaw/workspace"]
+trust_level = "trusted"
+
+=== gateway-status ===
+Gateway call failed: GatewayCredentialsRequiredError: gateway status requires credentials before opening a websocket
+Fix: configure gateway.auth token/password, pair this device, or pass --token/--password.
+Config: /home/devclaw-svc/.openclaw/openclaw.json
+[exit=1]
+
+=== gateway-health ===
+Gateway call failed: GatewayCredentialsRequiredError: gateway health requires credentials before opening a websocket
+Fix: configure gateway.auth token/password, pair this device, or pass --token/--password.
+Config: /home/devclaw-svc/.openclaw/openclaw.json
+[exit=1]

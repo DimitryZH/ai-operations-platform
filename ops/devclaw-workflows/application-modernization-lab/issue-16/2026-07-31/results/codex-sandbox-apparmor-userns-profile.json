@@ -1,0 +1,19 @@
+{
+  "appliedAt": "2026-07-31T22:13:17Z",
+  "change": "Added narrow AppArmor userns allow profile for OpenClaw-bundled Codex Linux sandbox helper",
+  "reason": "Ubuntu AppArmor restricts unprivileged user namespace uid_map writes unless the executable profile grants userns",
+  "profile": {
+    "name": "openclaw-codex-linux-sandbox",
+    "file": "/etc/apparmor.d/openclaw-codex-linux-sandbox",
+    "loaded": true
+  },
+  "executable": {
+    "symlink": "/home/devclaw-svc/.openclaw/agents/main/agent/codex-home/tmp/arg0/codex-arg0yl2y5v/codex-linux-sandbox",
+    "target": "/home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex"
+  },
+  "backupFile": "/var/lib/devclaw/recovery/issue-16-codex-apparmor-userns/openclaw-codex-linux-sandbox.20260731T221317Z.bak",
+  "validation": {
+    "aaExecUsernsOk": true,
+    "aaExecUsernsOutput": ""
+  }
+}

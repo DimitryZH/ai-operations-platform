@@ -1,0 +1,48 @@
+checkedAt=2026-08-01T02:31:25Z
+
+=== passwd_groups ===
+devclaw-svc:x:999:987::/home/devclaw-svc:/bin/bash
+uid=999(devclaw-svc) gid=987(devclaw-svc) groups=987(devclaw-svc),988(docker),984(devclaw-broker)
+devclaw-svc : devclaw-svc docker devclaw-broker
+
+=== subuid_subgid ===
+
+=== namespace_sysctls ===
+kernel.unprivileged_userns_clone = 1
+user.max_user_namespaces = 31555
+user.max_net_namespaces = 31555
+kernel.apparmor_restrict_unprivileged_userns = 1
+
+=== sandbox_binary_candidates ===
+/home/devclaw-svc/.openclaw/agents/main/agent/codex-home/.tmp/plugins/plugins/boltz-api-cli/skills/boltz-cli-setup/references/sandbox.md
+/home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/dist/sandbox-guard-DA2TQfZW.js
+/home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/doctor-sandbox-C-pE881u.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/plugin-sdk/sandbox.d.ts
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/plugin-sdk/sandbox.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-BMYGaWSS.d.ts
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-BVVgDSdq.d.ts
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-CmDmoBDS.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-cli-B0Is4BeU.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-guard-Co94cXMb.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-haNhAzHG.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-info-Bt_MtfWP.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-media-paths-CNe-BSMJ.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-paths-BM7tDEKD.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-paths-DAVxv7sM.d.ts
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-skills-Dbzyw-Jk.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-tool-policy-BYrqJkRT.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/sandbox-tool-policy-ClB7s2K0.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/stage-sandbox-media-DUiXds-U.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/stage-sandbox-media.runtime-CqAWp3yu.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/stage-sandbox-media.runtime.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/dist/validate-sandbox-security-DQe7hw6K.js
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/docs/cli/sandbox.md
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/docs/gateway/sandbox-vs-tool-policy-vs-elevated.md
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/docs/gateway/sandboxing.md
+/opt/devclaw/runtime/npm/lib/node_modules/openclaw/docs/tools/multi-agent-sandbox-tools.md
+
+=== sandbox_binary_file_info ===
+-rwxrwxr-x 1 devclaw-svc devclaw-svc 529776 Jul 15 19:00 /home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap
+/home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), static-pie linked, stripped
+bubblewrap built for Codex

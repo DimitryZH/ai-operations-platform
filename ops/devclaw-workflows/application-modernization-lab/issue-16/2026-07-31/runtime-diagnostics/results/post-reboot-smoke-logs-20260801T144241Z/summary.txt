@@ -1,0 +1,7 @@
+collectedAt=2026-08-01T14:42:41Z
+statusFile=/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/runtime-diagnostics/results/post-reboot-minimal-smoke-status.json
+sessionKey=agent:main:subagent:issue-16-post-reboot-runtime-smoke-20260801t144143z
+sessionId=f6f66f0a-1776-4c8d-a3d8-49dfde3b3d45
+bootId=288b6e02-bc84-4dac-87c3-ae93ede21410
+kernel=Linux agent-devbox-recovery 6.17.0-1021-gcp #24~24.04.1-Ubuntu SMP Tue Jul  7 14:58:58 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+apparmorRestrictUserns=1

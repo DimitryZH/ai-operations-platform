@@ -1,0 +1,246 @@
+checkedAt=2026-08-01T02:28:12Z
+
+=== hostname ===
+agent-devbox-recovery
+
+=== whoami ===
+root
+
+=== id-root ===
+uid=0(root) gid=0(root) groups=0(root)
+
+=== id-devclaw-svc ===
+uid=999(devclaw-svc) gid=987(devclaw-svc) groups=987(devclaw-svc),988(docker),984(devclaw-broker)
+
+=== groups-devclaw-svc ===
+devclaw-svc : devclaw-svc docker devclaw-broker
+
+=== uname ===
+Linux agent-devbox-recovery 6.17.0-1021-gcp #24~24.04.1-Ubuntu SMP Tue Jul  7 14:58:58 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+
+=== os-release ===
+PRETTY_NAME="Ubuntu 24.04.4 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.4 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+
+=== lsb-release ===
+Distributor ID:	Ubuntu
+Description:	Ubuntu 24.04.4 LTS
+Release:	24.04
+Codename:	noble
+
+=== bubblewrap-version ===
+/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/runtime-diagnostics/scripts/collect-runtime-readonly-evidence.sh: line 39: bwrap: command not found
+[exit=127]
+
+=== unshare-version ===
+unshare from util-linux 2.39.3
+
+=== sysctl-userns ===
+kernel.unprivileged_userns_clone = 1
+user.max_user_namespaces = 31555
+user.max_net_namespaces = 31555
+kernel.apparmor_restrict_unprivileged_userns = 1
+
+=== proc-userns ===
+1
+
+=== proc-user-max-user-ns ===
+31555
+
+=== proc-user-max-net-ns ===
+31555
+
+=== devclaw-unshare-user ===
+unshare: write failed /proc/self/uid_map: Operation not permitted
+[exit=1]
+
+=== devclaw-unshare-user-net ===
+unshare: write failed /proc/self/uid_map: Operation not permitted
+[exit=1]
+
+=== apparmor-status ===
+apparmor module is loaded.
+127 profiles are loaded.
+28 profiles are in enforce mode.
+   /snap/snapd/27406/usr/lib/snapd/snap-confine
+   /snap/snapd/27591/usr/lib/snapd/snap-confine
+   /usr/bin/man
+   /usr/lib/snapd/snap-confine
+   /usr/sbin/chronyd
+   docker-default
+   lsb_release
+   man_filter
+   man_groff
+   nvidia_modprobe
+   nvidia_modprobe//kmod
+   plasmashell
+   plasmashell//QtWebEngineProcess
+   rsyslogd
+   snap-update-ns.google-cloud-cli
+   tcpdump
+   ubuntu_pro_apt_news
+   ubuntu_pro_esm_cache
+   ubuntu_pro_esm_cache//apt_methods
+   ubuntu_pro_esm_cache//apt_methods_gpgv
+   ubuntu_pro_esm_cache//cloud_id
+   ubuntu_pro_esm_cache//dpkg
+   ubuntu_pro_esm_cache//ps
+   ubuntu_pro_esm_cache//ubuntu_distro_info
+   ubuntu_pro_esm_cache_systemctl
+   ubuntu_pro_esm_cache_systemd_detect_virt
+   unix-chkpwd
+   unprivileged_userns
+9 profiles are in complain mode.
+   snap.google-cloud-cli.bq
+   snap.google-cloud-cli.docker-credential-gcloud
+   snap.google-cloud-cli.gcloud
+   snap.google-cloud-cli.gsutil
+   snap.google-cloud-cli.kubectl
+   transmission-cli
+   transmission-daemon
+   transmission-gtk
+   transmission-qt
+0 profiles are in prompt mode.
+0 profiles are in kill mode.
+90 profiles are in unconfined mode.
+   1password
+   Discord
+   MongoDB Compass
+   QtWebEngineProcess
+   balena-etcher
+   brave
+   buildah
+   cam
+   ch-checkns
+   ch-run
+   chrome
+   crun
+   devhelp
+   element-desktop
+   epiphany
+   evolution
+   firefox
+   flatpak
+   foliate
+   geary
+   github-desktop
+   goldendict
+   ipa_verify
+   kchmviewer
+   keybase
+   lc-compliance
+   libcamerify
+   linux-sandbox
+   loupe
+   lxc-attach
+   lxc-create
+   lxc-destroy
+   lxc-execute
+   lxc-stop
+   lxc-unshare
+   lxc-usernsexec
+   mmdebstrap
+   msedge
+   nautilus
+   notepadqq
+   obsidian
+   opam
+   opera
+   pageedit
+   podman
+   polypane
+   privacybrowser
+   qcam
+   qmapshack
+   qutebrowser
+   rootlesskit
+   rpm
+   rssguard
+   runc
+   sbuild
+   sbuild-abort
+   sbuild-adduser
+   sbuild-apt
+   sbuild-checkpackages
+   sbuild-clean
+   sbuild-createchroot
+   sbuild-destroychroot
+   sbuild-distupgrade
+   sbuild-hold
+   sbuild-shell
+   sbuild-unhold
+   sbuild-update
+   sbuild-upgrade
+   scide
+   signal-desktop
+   slack
+   slirp4netns
+   steam
+   stress-ng
+   surfshark
+   systemd-coredump
+   thunderbird
+   toybox
+   trinity
+   tup
+   tuxedo-control-center
+   userbindmount
+   uwsgi-core
+   vdens
+   virtiofsd
+   vivaldi-bin
+   vpnns
+   vscode
+   wike
+   wpcom
+3 processes have profiles defined.
+3 processes are in enforce mode.
+   /usr/sbin/chronyd (1133) 
+   /usr/sbin/chronyd (1135) 
+   /usr/sbin/rsyslogd (744) rsyslogd
+0 processes are in complain mode.
+0 processes are in prompt mode.
+0 processes are in kill mode.
+0 processes are unconfined but have a profile defined.
+0 processes are in mixed mode.
+
+=== apparmor-profiles ===
+lxc-usernsexec
+unprivileged_userns
+
+=== seccomp-self ===
+Uid:	0	0	0	0
+Gid:	0	0	0	0
+CapInh:	0000000000000000
+CapPrm:	000001ffffffffff
+CapEff:	000001ffffffffff
+CapBnd:	000001ffffffffff
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	0
+Seccomp_filters:	0
+
+=== devclaw-svc-limits ===
+time(seconds)        unlimited
+file(blocks)         unlimited
+data(kbytes)         unlimited
+stack(kbytes)        8192
+coredump(blocks)     0
+memory(kbytes)       unlimited
+locked memory(kbytes) 1015836
+process              31555
+nofiles              1024
+vmemory(kbytes)      unlimited
+locks                unlimited
+rtprio               0

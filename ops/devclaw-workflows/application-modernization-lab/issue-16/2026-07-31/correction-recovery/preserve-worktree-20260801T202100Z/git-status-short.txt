@@ -1,0 +1,11 @@
+ M experiments/08-aks-store-demo/02-compose-to-aspire/README.md
+ M experiments/08-aks-store-demo/02-compose-to-aspire/docs/developer-validation.md
+ M experiments/08-aks-store-demo/02-compose-to-aspire/docs/migration-assessment.md
+ M experiments/08-aks-store-demo/02-compose-to-aspire/docs/validation-plan.md
+ M experiments/08-aks-store-demo/02-compose-to-aspire/scripts/cleanup-aspire.sh
+ M experiments/08-aks-store-demo/02-compose-to-aspire/scripts/start-aspire.sh
+ M experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-aspire.sh
+ M experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-negative.sh
+?? experiments/08-aks-store-demo/02-compose-to-aspire/scripts/aspire-run-state.sh
+?? experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-cleanup-isolation.sh
+?? experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-failure-cleanup.sh

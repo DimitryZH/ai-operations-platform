@@ -1,0 +1,26 @@
+checkedAt=2026-07-31T22:02:33Z
+
+=== binaries ===
+/usr/bin/unshare
+/usr/sbin/ip
+-rwxr-xr-x 1 root root 43624 Mar  6 16:00 /usr/bin/unshare
+lrwxrwxrwx 1 root root     7 Apr 15 06:53 /usr/sbin/ip -> /bin/ip
+
+=== subuid_subgid ===
+
+=== unshare_user ===
+unshare: write failed /proc/self/uid_map: Operation not permitted
+
+=== unshare_user_net_true ===
+unshare: write failed /proc/self/uid_map: Operation not permitted
+
+=== unshare_user_net_loopback ===
+unshare: write failed /proc/self/uid_map: Operation not permitted
+
+=== root_unshare_user_net_loopback ===
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever

@@ -1,0 +1,52 @@
+{
+  "checkedAt": "2026-07-31T20:36:47Z",
+  "configGet": {
+    "toolsExecMode": "auto",
+    "strictInlineEval": "true",
+    "codexEnabled": "true",
+    "heartbeat": "false",
+    "projectExecution": "sequential",
+    "skillAutonomous": "false",
+    "skillApprovalPolicy": "pending"
+  },
+  "openclawConfig": {
+    "tools": {
+      "exec": {
+        "mode": "auto",
+        "strictInlineEval": true,
+        "commandHighlighting": true
+      }
+    },
+    "gateway": {
+      "mode": "local",
+      "bind": "loopback"
+    },
+    "plugins": {
+      "codex": {
+        "enabled": true
+      },
+      "devclaw": {
+        "enabled": true,
+        "config": {
+          "work_heartbeat": {
+            "enabled": false
+          },
+          "projectExecution": "sequential"
+        }
+      }
+    },
+    "skills": {
+      "workshop": {
+        "autonomous": {
+          "enabled": false
+        },
+        "approvalPolicy": "pending"
+      }
+    }
+  },
+  "approvalFiles": [
+    "/home/devclaw-svc/.openclaw/exec-approvals.json",
+    "/home/devclaw-svc/.openclaw/openclaw.json.codex-exec-auto.20260715T192833Z.bak",
+    "/home/devclaw-svc/.openclaw/openclaw.json.codex-plugin.20260715T191912Z.bak"
+  ]
+}

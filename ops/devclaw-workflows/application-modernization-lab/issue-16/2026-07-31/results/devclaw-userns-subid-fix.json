@@ -1,0 +1,24 @@
+{
+  "appliedAt": "2026-07-31T22:05:43Z",
+  "change": "Configured subordinate UID/GID mappings for DevClaw service user",
+  "reason": "Codex Linux sandbox requires user namespace UID/GID mapping; devclaw-svc unshare failed at uid_map",
+  "user": "devclaw-svc",
+  "backups": {
+    "subuid": "/var/lib/devclaw/recovery/issue-16-userns-subid-fix/subuid.20260731T220528Z.bak",
+    "subgid": "/var/lib/devclaw/recovery/issue-16-userns-subid-fix/subgid.20260731T220528Z.bak"
+  },
+  "entries": {
+    "subuid": "devclaw-svc:200000:65536",
+    "subgid": "devclaw-svc:200000:65536"
+  },
+  "binaries": {
+    "newuidmap": "/usr/bin/newuidmap",
+    "newgidmap": "/usr/bin/newgidmap"
+  },
+  "validation": {
+    "unshareUserOk": false,
+    "unshareNetLoopbackOk": false,
+    "unshareUserOutput": "unshare: write failed /proc/self/uid_map: Operation not permitted",
+    "unshareNetOutput": "unshare: write failed /proc/self/uid_map: Operation not permitted"
+  }
+}

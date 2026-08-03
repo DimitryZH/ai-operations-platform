@@ -1,0 +1,20 @@
+checkedAt=2026-07-31T21:53:55Z
+sandbox=/home/devclaw-svc/.openclaw/agents/main/agent/codex-home/tmp/arg0/codex-arg0yl2y5v/codex-linux-sandbox
+
+=== true ===
+
+thread 'main' (24561) panicked at linux-sandbox/src/linux_run_main.rs:168:77:
+missing permission profile configuration
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+=== echo ===
+
+thread 'main' (24563) panicked at linux-sandbox/src/linux_run_main.rs:168:77:
+missing permission profile configuration
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+=== true_no_proc ===
+
+thread 'main' (24565) panicked at linux-sandbox/src/linux_run_main.rs:168:77:
+missing permission profile configuration
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

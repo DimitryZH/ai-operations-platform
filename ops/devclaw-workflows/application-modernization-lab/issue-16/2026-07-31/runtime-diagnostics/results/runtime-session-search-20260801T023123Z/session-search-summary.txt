@@ -1,0 +1,131 @@
+checkedAt=2026-08-01T02:31:23Z
+
+=== explicit_failed_key_lookup ===
+null
+
+=== sessions_keys_matching_issue16_or_ara_or_zandra ===
+agent:main:subagent:application-modernization-lab-developer-senior-ara	done	Application Modernization Lab - Developer Ara (Senior)	d76ec597-8257-4772-92e0-85ce199c6e9f
+agent:main:subagent:application-modernization-lab-tester-senior-sukey	done	Application Modernization Lab - Tester Sukey (Senior)	ff0171f5-8d0d-471b-870e-a722ebd7c5d4
+agent:main:subagent:application-modernization-lab-architect-senior-zandra	running	Application Modernization Lab - Architect Zandra (Senior)	b32af6f4-334f-4abf-bdc9-9404f21d36f0
+agent:main:subagent:application-modernization-lab-architect-senior-zandra-recovery-20260730t203339z	done	Application Modernization Lab - Architect Zandra (Senior Recovery 20260730T203339Z)	54db9402-67d1-4740-9419-06c2fd9c0686
+agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-14-20260730t212250z	done	Application Modernization Lab - Developer Ara (Senior Issue 14 Refinement)	f1a798c1-1b55-4dd7-8f1a-a48d7e9922d2
+agent:main:subagent:application-modernization-lab-tester-senior-issue-14-pr-15-20260731t014546z	done	Application Modernization Lab - Tester Senior Issue 14 PR 15 20260731t014546z	7d6119b7-94e4-4407-96a6-013c60c4c76e
+agent:main:subagent:application-modernization-lab-developer-senior-correction-issue-14-pr-15-20260731t025157z	failed	Application Modernization Lab - Developer Senior Correction Issue 14 PR 15 20260731t025157z	50d07053-70ee-43a3-aeaf-d650ba2efcc1
+agent:main:subagent:application-modernization-lab-tester-senior-targeted-correction-issue-14-pr-15-20260731t141251z	failed	Application Modernization Lab - Targeted Tester Senior Issue 14 PR 15 20260731t141251z	60363b4e-8835-4ddd-adb8-d5d791ef12f6
+agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260801t012303z	failed	Application Modernization Lab - Developer Ara (Senior Issue 16 Context Recovery 20260801t012303z)	445f00b0-e318-449d-9886-608c07ffbd03
+agent:main:subagent:codex-agent-param-cwd-smoke-issue-16-20260801t021730z		Codex agent-param cwd smoke issue 16 20260801t021730z	eaba7376-d305-4d80-8c01-2d6877382a3b
+agent:main:subagent:codex-agent-param-cwd-smoke-issue-16-20260801t021853z		Codex agent-param cwd smoke issue 16 20260801t021853z	382d30a6-ef08-4c30-a3b9-0964351d997b
+agent:main:subagent:issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z	done	Issue 16 runtime diagnostic minimal smoke 20260801t022537z	78c623b3-bff8-4c62-91a5-c41e0c7e78b2
+
+=== transcript_files_matching_explicit_failed_key ===
+
+=== transcript_files_matching_issue16 ===
+/home/devclaw-svc/.openclaw/agents/main/sessions/06ee6b12-ce12-4388-9a8d-ed18328025e9.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/06ee6b12-ce12-4388-9a8d-ed18328025e9.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/1f93b5f4-2363-4083-9158-2290e44f907f.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/1f93b5f4-2363-4083-9158-2290e44f907f.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/2416dfc4-a03e-486d-b05b-4f96d383c5be.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/2416dfc4-a03e-486d-b05b-4f96d383c5be.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/36759884-04f5-4878-89d2-6995d981f863.jsonl.deleted.2026-07-21T16-23-04.937Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/36759884-04f5-4878-89d2-6995d981f863.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/423fbafd-0eb4-4009-b1e7-77ea730da4a0.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/423fbafd-0eb4-4009-b1e7-77ea730da4a0.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/445f00b0-e318-449d-9886-608c07ffbd03.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/445f00b0-e318-449d-9886-608c07ffbd03.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/50d07053-70ee-43a3-aeaf-d650ba2efcc1.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/50d07053-70ee-43a3-aeaf-d650ba2efcc1.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/514a7866-ed86-4e94-ba17-f015c2c47bcb.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/514a7866-ed86-4e94-ba17-f015c2c47bcb.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/545400b8-86f1-40e7-b849-bc5cea421399.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/545400b8-86f1-40e7-b849-bc5cea421399.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/54db9402-67d1-4740-9419-06c2fd9c0686.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/54db9402-67d1-4740-9419-06c2fd9c0686.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/5bf07b5a-f3a7-4511-909b-a94f434bf506.jsonl.deleted.2026-07-28T15-56-51.632Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/5bf07b5a-f3a7-4511-909b-a94f434bf506.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/60363b4e-8835-4ddd-adb8-d5d791ef12f6.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/6bbc181e-60d9-49f7-8cbd-68653657576a.jsonl.deleted.2026-07-30T17-08-22.768Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/6bbc181e-60d9-49f7-8cbd-68653657576a.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/731fd5ea-afb8-49a9-8c98-a4065f7916f8.jsonl.reset.2026-07-21T18-57-58.015Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/731fd5ea-afb8-49a9-8c98-a4065f7916f8.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/73d623bf-b29e-49ae-b377-9f152c304cf3.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/73d623bf-b29e-49ae-b377-9f152c304cf3.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/754d251d-f60e-4fa2-b24a-ff16a68c02c8.jsonl.deleted.2026-07-21T17-12-56.086Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/754d251d-f60e-4fa2-b24a-ff16a68c02c8.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/78c623b3-bff8-4c62-91a5-c41e0c7e78b2.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/7d6119b7-94e4-4407-96a6-013c60c4c76e.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/7d6119b7-94e4-4407-96a6-013c60c4c76e.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/859b0a87-9345-4ced-a910-6a4f407cbe12.jsonl.deleted.2026-07-28T16-47-58.295Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/859b0a87-9345-4ced-a910-6a4f407cbe12.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/87d82d73-f8b2-4a4b-8d50-e47283b3d581.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/87d82d73-f8b2-4a4b-8d50-e47283b3d581.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/88ed31ed-9aa3-4338-8b13-15aca8ff28ee.jsonl.deleted.2026-07-22T20-53-35.779Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/88ed31ed-9aa3-4338-8b13-15aca8ff28ee.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/9b48e62c-6f43-40ea-a7e7-f9b2d9208d39.jsonl.deleted.2026-07-20T19-29-56.169Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/9b48e62c-6f43-40ea-a7e7-f9b2d9208d39.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/a27e4c15-6ef8-4b64-9628-8fdeb2b35706.jsonl.deleted.2026-07-27T14-36-00.556Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/a27e4c15-6ef8-4b64-9628-8fdeb2b35706.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/b32af6f4-334f-4abf-bdc9-9404f21d36f0.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/cb2b32c9-e1b8-42a1-9734-e21d76d24c0c.jsonl.deleted.2026-07-28T18-59-56.884Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/cb2b32c9-e1b8-42a1-9734-e21d76d24c0c.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/cf58d7ab-5774-4250-8b9f-7c3147a51a07.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/cf58d7ab-5774-4250-8b9f-7c3147a51a07.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/d07f1ccd-538c-49fe-a092-f623681da343.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/d07f1ccd-538c-49fe-a092-f623681da343.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/d457f00d-a941-412d-91a2-3dd16bf1ef0e.jsonl.deleted.2026-07-22T20-00-12.557Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/d457f00d-a941-412d-91a2-3dd16bf1ef0e.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/d76ec597-8257-4772-92e0-85ce199c6e9f.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/d76ec597-8257-4772-92e0-85ce199c6e9f.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/f1a798c1-1b55-4dd7-8f1a-a48d7e9922d2.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/f1a798c1-1b55-4dd7-8f1a-a48d7e9922d2.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/ff0171f5-8d0d-471b-870e-a722ebd7c5d4.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/ff0171f5-8d0d-471b-870e-a722ebd7c5d4.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/sessions.json
+/home/devclaw-svc/.openclaw/agents/main/sessions/skills-prompts/sha256/54/543c3cddc7a92ba364d1ffbdb00917fc8a309b005b8143d2a4d744257cc18202.txt
+/home/devclaw-svc/.openclaw/agents/main/sessions/skills-prompts/sha256/e3/e3ea8a9474d9325854e9ce3fabee2ea1092f45795d3f679d8df03a224b5060dd.txt
+
+=== transcript_files_matching_bwrap ===
+/home/devclaw-svc/.openclaw/agents/main/sessions/36759884-04f5-4878-89d2-6995d981f863.jsonl.deleted.2026-07-21T16-23-04.937Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/36759884-04f5-4878-89d2-6995d981f863.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/50d07053-70ee-43a3-aeaf-d650ba2efcc1.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/50d07053-70ee-43a3-aeaf-d650ba2efcc1.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/514a7866-ed86-4e94-ba17-f015c2c47bcb.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/514a7866-ed86-4e94-ba17-f015c2c47bcb.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/54db9402-67d1-4740-9419-06c2fd9c0686.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/54db9402-67d1-4740-9419-06c2fd9c0686.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/5bf07b5a-f3a7-4511-909b-a94f434bf506.jsonl.deleted.2026-07-28T15-56-51.632Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/5bf07b5a-f3a7-4511-909b-a94f434bf506.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/60363b4e-8835-4ddd-adb8-d5d791ef12f6.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/60363b4e-8835-4ddd-adb8-d5d791ef12f6.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/6bbc181e-60d9-49f7-8cbd-68653657576a.jsonl.deleted.2026-07-30T17-08-22.768Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/6bbc181e-60d9-49f7-8cbd-68653657576a.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/731fd5ea-afb8-49a9-8c98-a4065f7916f8.jsonl.reset.2026-07-21T18-57-58.015Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/731fd5ea-afb8-49a9-8c98-a4065f7916f8.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/73d623bf-b29e-49ae-b377-9f152c304cf3.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/73d623bf-b29e-49ae-b377-9f152c304cf3.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/754d251d-f60e-4fa2-b24a-ff16a68c02c8.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/78c623b3-bff8-4c62-91a5-c41e0c7e78b2.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/78c623b3-bff8-4c62-91a5-c41e0c7e78b2.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/7d6119b7-94e4-4407-96a6-013c60c4c76e.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/7d6119b7-94e4-4407-96a6-013c60c4c76e.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/859b0a87-9345-4ced-a910-6a4f407cbe12.jsonl.deleted.2026-07-28T16-47-58.295Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/859b0a87-9345-4ced-a910-6a4f407cbe12.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/88ed31ed-9aa3-4338-8b13-15aca8ff28ee.jsonl.deleted.2026-07-22T20-53-35.779Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/88ed31ed-9aa3-4338-8b13-15aca8ff28ee.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/a27e4c15-6ef8-4b64-9628-8fdeb2b35706.jsonl.deleted.2026-07-27T14-36-00.556Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/a27e4c15-6ef8-4b64-9628-8fdeb2b35706.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/b32af6f4-334f-4abf-bdc9-9404f21d36f0.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/cb2b32c9-e1b8-42a1-9734-e21d76d24c0c.jsonl.deleted.2026-07-28T18-59-56.884Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/cb2b32c9-e1b8-42a1-9734-e21d76d24c0c.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/cf58d7ab-5774-4250-8b9f-7c3147a51a07.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/cf58d7ab-5774-4250-8b9f-7c3147a51a07.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/d457f00d-a941-412d-91a2-3dd16bf1ef0e.jsonl.deleted.2026-07-22T20-00-12.557Z
+/home/devclaw-svc/.openclaw/agents/main/sessions/d457f00d-a941-412d-91a2-3dd16bf1ef0e.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/d76ec597-8257-4772-92e0-85ce199c6e9f.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/d76ec597-8257-4772-92e0-85ce199c6e9f.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/f1a798c1-1b55-4dd7-8f1a-a48d7e9922d2.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/f1a798c1-1b55-4dd7-8f1a-a48d7e9922d2.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/ff0171f5-8d0d-471b-870e-a722ebd7c5d4.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/ff0171f5-8d0d-471b-870e-a722ebd7c5d4.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/model-run-c38822bf-629a-4c1f-b566-03d58458f68b.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/probe-openai-28756081-2b37-4339-9586-98b195b203bf.trajectory.jsonl
+/home/devclaw-svc/.openclaw/agents/main/sessions/sessions.json

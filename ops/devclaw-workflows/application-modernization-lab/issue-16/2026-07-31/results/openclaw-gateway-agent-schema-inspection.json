@@ -1,0 +1,190 @@
+{
+  "checkedAt": "2026-07-31T21:58:49Z",
+  "status": {
+    "runtimeVersion": "2026.7.1",
+    "heartbeat": {
+      "defaultAgentId": "main",
+      "agents": [
+        {
+          "agentId": "main",
+          "enabled": true,
+          "every": "30m",
+          "everyMs": 1800000
+        }
+      ]
+    },
+    "channelSummary": [],
+    "queuedSystemEvents": [],
+    "tasks": {
+      "total": 16,
+      "active": 0,
+      "terminal": 16,
+      "failures": 1,
+      "byStatus": {
+        "queued": 0,
+        "running": 0,
+        "succeeded": 15,
+        "failed": 1,
+        "timed_out": 0,
+        "cancelled": 0,
+        "lost": 0
+      },
+      "byRuntime": {
+        "subagent": 0,
+        "acp": 0,
+        "cli": 16,
+        "cron": 0
+      }
+    },
+    "taskAudit": {
+      "total": 0,
+      "warnings": 0,
+      "errors": 0,
+      "byCode": {
+        "stale_queued": 0,
+        "stale_running": 0,
+        "lost": 0,
+        "delivery_failed": 0,
+        "missing_cleanup": 0,
+        "inconsistent_timestamps": 0
+      }
+    },
+    "sessions": {
+      "paths": [],
+      "count": 20,
+      "defaults": {
+        "model": null,
+        "contextTokens": null
+      },
+      "recent": [],
+      "byAgent": [
+        {
+          "agentId": "main",
+          "path": "[redacted]",
+          "count": 20,
+          "recent": []
+        }
+      ]
+    },
+    "eventLoop": {
+      "degraded": false,
+      "reasons": [],
+      "intervalMs": 47576,
+      "delayP99Ms": 21.1,
+      "delayMaxMs": 32.2,
+      "utilization": 0.004,
+      "cpuCoreRatio": 0.007
+    }
+  },
+  "health": {
+    "ok": true,
+    "ts": 1785535129832,
+    "durationMs": 33,
+    "eventLoop": {
+      "degraded": false,
+      "reasons": [],
+      "intervalMs": 7493,
+      "delayP99Ms": 21.9,
+      "delayMaxMs": 73.9,
+      "utilization": 0.029,
+      "cpuCoreRatio": 0.033
+    },
+    "plugins": {
+      "loaded": [
+        "codex",
+        "devclaw",
+        "memory-core",
+        "openai"
+      ],
+      "errors": []
+    },
+    "configReload": {
+      "hotReloadStatus": "active"
+    },
+    "modelPricing": {
+      "state": "ok",
+      "sources": []
+    },
+    "channels": {},
+    "channelOrder": [],
+    "channelLabels": {},
+    "heartbeatSeconds": 1800,
+    "defaultAgentId": "main",
+    "agents": [
+      {
+        "agentId": "main",
+        "isDefault": true,
+        "heartbeat": {
+          "enabled": true,
+          "every": "30m",
+          "everyMs": 1800000,
+          "prompt": "Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.",
+          "target": "none",
+          "ackMaxChars": 300
+        },
+        "sessions": {
+          "path": "/home/devclaw-svc/.openclaw/agents/main/sessions/sessions.json",
+          "count": 20,
+          "recent": [
+            {
+              "key": "agent:main:main",
+              "updatedAt": 1785533768639,
+              "age": 1361160
+            },
+            {
+              "key": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260731t204413z",
+              "updatedAt": 1785530837782,
+              "age": 4292017
+            },
+            {
+              "key": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-recovery-20260731t201011z",
+              "updatedAt": 1785528766881,
+              "age": 6362918
+            },
+            {
+              "key": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-20260731t194406z",
+              "updatedAt": 1785527224606,
+              "age": 7905193
+            },
+            {
+              "key": "agent:main:subagent:application-modernization-lab-architect-senior-zandra",
+              "updatedAt": 1785524579808,
+              "age": 10549991
+            }
+          ]
+        }
+      }
+    ],
+    "sessions": {
+      "path": "/home/devclaw-svc/.openclaw/agents/main/sessions/sessions.json",
+      "count": 20,
+      "recent": [
+        {
+          "key": "agent:main:main",
+          "updatedAt": 1785533768639,
+          "age": 1361160
+        },
+        {
+          "key": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260731t204413z",
+          "updatedAt": 1785530837782,
+          "age": 4292017
+        },
+        {
+          "key": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-recovery-20260731t201011z",
+          "updatedAt": 1785528766881,
+          "age": 6362918
+        },
+        {
+          "key": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-20260731t194406z",
+          "updatedAt": 1785527224606,
+          "age": 7905193
+        },
+        {
+          "key": "agent:main:subagent:application-modernization-lab-architect-senior-zandra",
+          "updatedAt": 1785524579808,
+          "age": 10549991
+        }
+      ]
+    }
+  }
+}

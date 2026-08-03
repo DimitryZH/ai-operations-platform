@@ -1,0 +1,10 @@
+# Managed by issue #16 runtime diagnostic recovery on 20260801T151225Z.
+# Scope: only OpenClaw-bundled Codex Linux sandbox bwrap executables.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile openclaw-codex-bwrap /home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap flags=(unconfined) {
+  userns,
+  include if exists <local/openclaw-codex-bwrap>
+}
+

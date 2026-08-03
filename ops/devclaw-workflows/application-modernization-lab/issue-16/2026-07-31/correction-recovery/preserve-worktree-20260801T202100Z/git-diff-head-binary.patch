@@ -1,0 +1,513 @@
+diff --git a/experiments/08-aks-store-demo/02-compose-to-aspire/README.md b/experiments/08-aks-store-demo/02-compose-to-aspire/README.md
+index 663815b..4f0503d 100644
+--- a/experiments/08-aks-store-demo/02-compose-to-aspire/README.md
++++ b/experiments/08-aks-store-demo/02-compose-to-aspire/README.md
+@@ -45,6 +45,8 @@ Run from this directory:
+ dotnet build src/AppHost/AksStore.AppHost.csproj
+ scripts/validate-aspire.sh --start-apphost
+ scripts/validate-negative.sh
++bash scripts/validate-cleanup-isolation.sh
++bash scripts/validate-failure-cleanup.sh
+ scripts/cleanup-aspire.sh --full-reset
+ ```
+ 
+@@ -54,9 +56,11 @@ Validation evidence is written to `.local/validation/`, which is ignored and mus
+ 
+ The positive validator verifies the pinned versions, the Experiment 08A source hash, AppHost build, current Aspire/DCP resource identity, loopback-only UI exposure, backend internal exposure, required environment values, product proxy workflow, unique current-run order submission, RabbitMQ `orders` queue, makeline consumption, DocumentDB-backed order visibility, makeline restart persistence, cleanup, and untracked local evidence.
+ 
+-The validator selects containers only when they have expected Aspire/DCP labels, expected resource names, and one shared AppHost creator identity. Docker Compose containers with the same images or service names cannot satisfy Aspire validation.
++The validator captures the current AppHost PID and persisted DCP creator identity in `.local/run/apphost-identity.env`. Positive validation and cleanup verify that identity against the stored PID and DCP creator labels before selecting containers. Docker Compose containers with the same images or service names, stale Aspire containers, and unrelated DCP-labeled containers cannot satisfy validation or be removed by cleanup.
+ 
+-The negative validator stops the current-run Aspire `rabbitmq` resource, requires the native validation path to fail non-zero on the RabbitMQ/order workflow, restores RabbitMQ, restarts dependent services, submits a fresh unique order, verifies makeline/DocumentDB recovery, and cleans up only Experiment 08B resources.
++The negative validator always starts a fresh Experiment 08B AppHost instance, stops only that current-run Aspire `rabbitmq` resource, requires the native validation path to fail non-zero on the RabbitMQ/order workflow, restores RabbitMQ, restarts dependent services, submits a fresh unique order, verifies makeline/DocumentDB recovery, and cleans up only Experiment 08B resources.
++
++Cleanup fails safely when the persisted AppHost identity is absent, incomplete, stale, or ambiguous. Failure traps restore paused workload containers and RabbitMQ when required, preserve diagnostic evidence under `.local/validation/`, stop the owned AppHost, and remove only containers matching the persisted Experiment 08B AppHost identity.
+ 
+ ## Persistence
+ 
+diff --git a/experiments/08-aks-store-demo/02-compose-to-aspire/docs/developer-validation.md b/experiments/08-aks-store-demo/02-compose-to-aspire/docs/developer-validation.md
+index 232b170..14868cc 100644
+--- a/experiments/08-aks-store-demo/02-compose-to-aspire/docs/developer-validation.md
++++ b/experiments/08-aks-store-demo/02-compose-to-aspire/docs/developer-validation.md
+@@ -23,7 +23,7 @@ Result: PASS.
+ Evidence summary:
+ 
+ - AppHost built successfully.
+-- All nine required Aspire resources were selected by DCP labels with one shared creator identity.
++- All nine required Aspire resources were selected by DCP labels with one persisted AppHost creator identity.
+ - Compose containers cannot satisfy validation because the validator requires Aspire/DCP labels and a shared current AppHost creator identity.
+ - `store-front` and `store-admin` were reachable on loopback ports `8080` and `8081`.
+ - Backend services had no host-published ports.
+@@ -53,6 +53,40 @@ Evidence summary:
+ - A fresh unique recovery order reached makeline and DocumentDB-backed state.
+ - Cleanup removed Experiment 08B Aspire resources and released ports.
+ 
++## Cleanup Isolation Validation
++
++Command:
++
++```bash
++bash experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-cleanup-isolation.sh
++```
++
++Result: pending rerun after correction.
++
++Evidence target:
++
++- The script starts a fresh current Experiment 08B AppHost and captures its persisted DCP creator identity.
++- It creates an unrelated DCP-labeled container with an overlapping `store-front-*` resource label but a different creator identity.
++- `cleanup-aspire.sh` removes only containers matching the persisted current AppHost identity.
++- The unrelated DCP-labeled container remains present and unchanged until the isolation script removes its own fixture.
++
++## Intentional Failure Cleanup Validation
++
++Command:
++
++```bash
++bash experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-failure-cleanup.sh
++```
++
++Result: pending rerun after correction.
++
++Evidence target:
++
++- The script intentionally points storefront validation at an unreachable loopback endpoint.
++- The positive validator fails non-zero and preserves failure output under `.local/validation/`.
++- Failure handling removes only the owned Experiment 08B resources and stops the owned AppHost.
++- The persisted identity file is removed after cleanup, while diagnostic validation evidence remains.
++
+ ## Compose Isolation Validation
+ 
+ Command:
+@@ -74,7 +108,7 @@ Evidence summary:
+ 
+ ## Cleanup and Hygiene
+ 
+-- `docker ps -a` showed no remaining Experiment 08B Aspire-labeled containers after cleanup.
++- `docker ps -a` showed no remaining owned Experiment 08B Aspire-labeled containers after cleanup.
+ - Ports `8080`, `8081`, and `18888` were clear after cleanup.
+ - Raw logs and local evidence remain under ignored `.local/validation/`.
+ - No named volume or durable persistence claim was added.
+diff --git a/experiments/08-aks-store-demo/02-compose-to-aspire/docs/migration-assessment.md b/experiments/08-aks-store-demo/02-compose-to-aspire/docs/migration-assessment.md
+index 9734840..92a46b4 100644
+--- a/experiments/08-aks-store-demo/02-compose-to-aspire/docs/migration-assessment.md
++++ b/experiments/08-aks-store-demo/02-compose-to-aspire/docs/migration-assessment.md
+@@ -2,7 +2,7 @@
+ 
+ Experiment 08B is a fidelity migration from the accepted Docker Compose baseline to Aspire orchestration. It does not redesign the services, change application source, add cloud resources, or improve persistence semantics.
+ 
+-The main Aspire-specific adaptation is resource identity: Docker container names are Aspire-generated, so validation uses DCP labels, expected resource-name prefixes, and a shared AppHost creator identity to tie evidence to the current run.
++The main Aspire-specific adaptation is resource identity: Docker container names are Aspire-generated, so validation captures and persists the current AppHost DCP creator identity, verifies it against the stored AppHost PID, and uses expected resource-name prefixes plus that exact identity to tie evidence and cleanup to the current run.
+ 
+ Known limitations:
+ 
+diff --git a/experiments/08-aks-store-demo/02-compose-to-aspire/docs/validation-plan.md b/experiments/08-aks-store-demo/02-compose-to-aspire/docs/validation-plan.md
+index e4632b0..640c010 100644
+--- a/experiments/08-aks-store-demo/02-compose-to-aspire/docs/validation-plan.md
++++ b/experiments/08-aks-store-demo/02-compose-to-aspire/docs/validation-plan.md
+@@ -4,6 +4,8 @@ Developer validation uses the committed native scripts:
+ 
+ - `scripts/validate-aspire.sh --start-apphost`
+ - `scripts/validate-negative.sh`
++- `bash scripts/validate-cleanup-isolation.sh`
++- `bash scripts/validate-failure-cleanup.sh`
+ - `scripts/cleanup-aspire.sh --full-reset`
+ 
+ Positive validation checks:
+@@ -13,6 +15,7 @@ Positive validation checks:
+ - AppHost build;
+ - all nine required Aspire resources;
+ - one shared current AppHost creator identity;
++- persisted AppHost PID plus DCP creator identity verification before resource selection;
+ - loopback-only `store-front` and `store-admin`;
+ - internal-only backend services;
+ - required environment values;
+@@ -23,6 +26,10 @@ Positive validation checks:
+ - makeline restart persistence;
+ - cleanup and untracked local evidence.
+ 
+-Negative validation stops only the current-run Aspire RabbitMQ container, requires the native validation path to fail non-zero, restores RabbitMQ, restarts dependent services when needed, proves a fresh unique order reaches makeline/DocumentDB, and then cleans up.
++Negative validation starts a fresh Experiment 08B AppHost, verifies its persisted creator identity, stops only the current-run Aspire RabbitMQ container, requires the native validation path to fail non-zero, restores RabbitMQ, restarts dependent services when needed, proves a fresh unique order reaches makeline/DocumentDB, and then cleans up.
+ 
+-Concurrent Compose isolation is covered by requiring Aspire/DCP labels and a shared creator identity. Compose containers using the same service names or images lack those labels and cannot satisfy validation.
++Cleanup isolation is validated by creating an unrelated DCP-labeled container with an overlapping resource label, cleaning up the current Experiment 08B AppHost identity, and proving the unrelated container is not removed or modified.
++
++Intentional failure cleanup is validated by forcing endpoint validation to fail, then proving diagnostic evidence remains while the owned AppHost and owned Experiment 08B containers are removed.
++
++Concurrent Compose isolation is covered by requiring Aspire/DCP labels and a persisted shared creator identity. Compose containers using the same service names or images lack those labels and cannot satisfy validation.
+diff --git a/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/cleanup-aspire.sh b/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/cleanup-aspire.sh
+index b0f55ec..9a2548c 100755
+--- a/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/cleanup-aspire.sh
++++ b/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/cleanup-aspire.sh
+@@ -5,40 +5,30 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ EXP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ RUN_DIR="${EXP_DIR}/.local/run"
+ PID_FILE="${RUN_DIR}/apphost.pid"
++IDENTITY_FILE="${RUN_DIR}/apphost-identity.env"
++
++# shellcheck source=aspire-run-state.sh
++source "${SCRIPT_DIR}/aspire-run-state.sh"
+ 
+ log() { printf '[cleanup-aspire] %s\n' "$*"; }
++fail() { printf '[cleanup-aspire] ERROR: %s\n' "$*" >&2; exit 1; }
+ 
+-creator_identity=""
+-if [[ -f "${PID_FILE}" ]]; then
+-  pid="$(cat "${PID_FILE}")"
+-  if kill -0 "${pid}" >/dev/null 2>&1; then
+-    log "stopping AppHost PID ${pid}"
+-    kill "${pid}" >/dev/null 2>&1 || true
+-    for _ in {1..30}; do
+-      kill -0 "${pid}" >/dev/null 2>&1 || break
+-      sleep 1
+-    done
+-    kill -9 "${pid}" >/dev/null 2>&1 || true
+-  fi
+-  rm -f "${PID_FILE}"
+-fi
++creator_identity="$(load_verified_apphost_identity)"
++pid="${APPHOST_PID}"
++
++log "stopping AppHost PID ${pid}"
++stop_apphost_pid "${pid}"
+ 
+-for id in $(docker ps -aq); do
+-  name="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.name" }}' "${id}" 2>/dev/null || true)"
+-  group="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.group-version" }}' "${id}" 2>/dev/null || true)"
+-  pid_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessId" }}' "${id}" 2>/dev/null || true)"
+-  start_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessStartTime" }}' "${id}" 2>/dev/null || true)"
+-  [[ "${group}" == "usvc-dev.developer.microsoft.com/v1" ]] || continue
+-  [[ "${name}" =~ ^(documentdb|rabbitmq|order-service|makeline-service|product-service|store-front|store-admin|virtual-customer|virtual-worker|ai-service)-[a-z0-9]+$ ]] || continue
+-  current_identity="${pid_label}|${start_label}"
+-  if [[ -z "${creator_identity}" ]]; then
+-    creator_identity="${current_identity}"
+-  fi
+-  [[ "${current_identity}" == "${creator_identity}" ]] || continue
++unpause_owned_workloads "${creator_identity}"
++
++for id in $(owned_container_ids "${creator_identity}" all); do
++  name="$(dcp_label "${id}" "com.microsoft.developer.usvc-dev.name")"
+   log "removing Aspire container ${id} (${name})"
+   docker rm -f -v "${id}" >/dev/null 2>&1 || true
+ done
+ 
++rm -f "${PID_FILE}" "${IDENTITY_FILE}"
++
+ if [[ "${1:-}" == "--full-reset" ]]; then
+   rm -rf "${EXP_DIR}/.local/validation"
+ fi
+diff --git a/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/start-aspire.sh b/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/start-aspire.sh
+index 439910a..30ff984 100755
+--- a/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/start-aspire.sh
++++ b/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/start-aspire.sh
+@@ -9,6 +9,10 @@ RUN_DIR="${EXP_DIR}/.local/run"
+ PID_FILE="${RUN_DIR}/apphost.pid"
+ LOG_FILE="${RUN_DIR}/apphost.log"
+ ERR_FILE="${RUN_DIR}/apphost.err.log"
++IDENTITY_FILE="${RUN_DIR}/apphost-identity.env"
++
++# shellcheck source=aspire-run-state.sh
++source "${SCRIPT_DIR}/aspire-run-state.sh"
+ 
+ log() { printf '[start-aspire] %s\n' "$*"; }
+ fail() { printf '[start-aspire] ERROR: %s\n' "$*" >&2; exit 1; }
+@@ -30,7 +34,7 @@ sdk="$(dotnet --version)"
+ log "building AppHost with .NET SDK ${sdk}"
+ dotnet build "${APPHOST_PROJECT}"
+ 
+-rm -f "${LOG_FILE}" "${ERR_FILE}"
++rm -f "${LOG_FILE}" "${ERR_FILE}" "${IDENTITY_FILE}"
+ log "starting AppHost"
+ ASPNETCORE_URLS="http://127.0.0.1:18888" \
+ ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
+@@ -46,4 +50,5 @@ if ! kill -0 "${pid}" >/dev/null 2>&1; then
+   fail "AppHost exited during startup"
+ fi
+ 
+-log "AppHost PID ${pid}; logs under ${RUN_DIR}"
++capture_apphost_identity "${pid}"
++log "AppHost PID ${pid}; identity captured in ${IDENTITY_FILE}; logs under ${RUN_DIR}"
+diff --git a/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-aspire.sh b/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-aspire.sh
+index eaddedd..8d580d1 100755
+--- a/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-aspire.sh
++++ b/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-aspire.sh
+@@ -28,8 +28,15 @@ RUN_DIR="${EXP_DIR}/.local/run"
+ PID_FILE="${RUN_DIR}/apphost.pid"
+ LOG_FILE="${RUN_DIR}/apphost.log"
+ ERR_FILE="${RUN_DIR}/apphost.err.log"
++IDENTITY_FILE="${RUN_DIR}/apphost-identity.env"
+ 
+-EXPECTED_SERVICES=(documentdb rabbitmq order-service makeline-service product-service store-front store-admin virtual-customer virtual-worker)
++# shellcheck source=aspire-run-state.sh
++source "${SCRIPT_DIR}/aspire-run-state.sh"
++
++APPHOST_PID=""
++CURRENT_CREATOR=""
++WORKLOAD_PAUSED=0
++RABBITMQ_STOPPED_ID=""
+ 
+ log() { printf '[validate-aspire] %s\n' "$*"; }
+ fail() { printf '[validate-aspire] ERROR: %s\n' "$*" >&2; exit 1; }
+@@ -42,7 +49,7 @@ start_apphost_for_validation() {
+   if [[ -f "${PID_FILE}" ]] && kill -0 "$(cat "${PID_FILE}")" >/dev/null 2>&1; then
+     fail "AppHost already appears to be running as PID $(cat "${PID_FILE}"); run scripts/cleanup-aspire.sh first"
+   fi
+-  rm -f "${LOG_FILE}" "${ERR_FILE}"
++  rm -f "${LOG_FILE}" "${ERR_FILE}" "${IDENTITY_FILE}"
+   log "starting AppHost for validation"
+   ASPNETCORE_URLS="http://127.0.0.1:18888" \
+   ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
+@@ -56,33 +63,19 @@ start_apphost_for_validation() {
+     cat "${ERR_FILE}" >&2 || true
+     fail "AppHost exited during startup"
+   fi
++  capture_apphost_identity "${APPHOST_PID}"
++  CURRENT_CREATOR="$(load_verified_apphost_identity)"
+   record "AppHost started for validation as PID ${APPHOST_PID}; dashboard bound to loopback port 18888."
++  record "Captured and persisted current AppHost DCP creator identity ${CURRENT_CREATOR}."
+ }
+ 
+ container_for() {
+-  local service="$1" creator="${2:-}" matches=()
+-  for id in $(docker ps -q); do
+-    local name group pid_label start_label current
+-    name="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.name" }}' "${id}" 2>/dev/null || true)"
+-    group="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.group-version" }}' "${id}" 2>/dev/null || true)"
+-    pid_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessId" }}' "${id}" 2>/dev/null || true)"
+-    start_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessStartTime" }}' "${id}" 2>/dev/null || true)"
+-    [[ "${group}" == "usvc-dev.developer.microsoft.com/v1" ]] || continue
+-    [[ "${name}" =~ ^${service}-[a-z0-9]+$ ]] || continue
+-    [[ -n "${pid_label}" && -n "${start_label}" ]] || continue
+-    current="${pid_label}|${start_label}"
+-    [[ -z "${creator}" || "${current}" == "${creator}" ]] || continue
+-    matches+=("${id}"$'\t'"${current}"$'\t'"${name}")
+-  done
+-  [[ "${#matches[@]}" -le 1 ]] || fail "multiple Aspire containers matched ${service}: ${matches[*]}"
+-  [[ "${#matches[@]}" -eq 1 ]] || return 1
+-  printf '%s\n' "${matches[0]}"
++  local service="$1" creator="$2"
++  container_for_identity "${service}" "${creator}" 0
+ }
+ 
+ creator_identity() {
+-  local match
+-  match="$(container_for store-front)" || fail "missing running Aspire-managed container for store-front"
+-  printf '%s\n' "${match}" | cut -f2
++  load_verified_apphost_identity
+ }
+ 
+ assert_container_set() {
+@@ -174,12 +167,35 @@ assert_rabbitmq_queue() {
+ pause_workload() {
+   local creator="$1"
+   docker pause "$(id_for virtual-customer "${creator}")" "$(id_for virtual-worker "${creator}")" >/dev/null || true
++  WORKLOAD_PAUSED=1
+   record "Paused virtual-customer and virtual-worker while collecting deterministic order evidence."
+ }
+ 
+ unpause_workload() {
+   local creator="$1"
+   docker unpause "$(id_for virtual-customer "${creator}")" "$(id_for virtual-worker "${creator}")" >/dev/null 2>&1 || true
++  WORKLOAD_PAUSED=0
++}
++
++safe_failure_cleanup() {
++  local status=$?
++  trap - EXIT INT TERM
++  if ((status != 0)); then
++    if [[ -n "${CURRENT_CREATOR}" ]]; then
++      if [[ -n "${RABBITMQ_STOPPED_ID}" ]]; then
++        docker start "${RABBITMQ_STOPPED_ID}" >/dev/null 2>&1 || true
++      fi
++      if ((WORKLOAD_PAUSED == 1)); then
++        unpause_owned_workloads "${CURRENT_CREATOR}"
++      fi
++      if ((SKIP_CLEANUP == 0)); then
++        "${SCRIPT_DIR}/cleanup-aspire.sh" >/dev/null 2>&1 || true
++      fi
++    elif ((START_APPHOST == 1)) && [[ -f "${PID_FILE}" ]]; then
++      stop_apphost_pid "$(cat "${PID_FILE}")"
++    fi
++  fi
++  exit "${status}"
+ }
+ 
+ submit_unique_order() {
+@@ -248,6 +264,7 @@ assert_no_tracked_runtime_artifacts() {
+ }
+ 
+ main() {
++  trap safe_failure_cleanup EXIT INT TERM
+   require_command dotnet
+   require_command docker
+   require_command curl
+@@ -270,22 +287,22 @@ main() {
+   wait_for_http "store-front product proxy" "${FRONTEND_URL}/api/products"
+   wait_for_http "store-admin product proxy" "${ADMIN_URL}/api/products"
+ 
+-  creator="$(assert_container_set)"
+-  assert_endpoint_exposure "${creator}"
+-  assert_service_env "${creator}"
+-  assert_rabbitmq_queue "${creator}"
++  CURRENT_CREATOR="$(assert_container_set)"
++  assert_endpoint_exposure "${CURRENT_CREATOR}"
++  assert_service_env "${CURRENT_CREATOR}"
++  assert_rabbitmq_queue "${CURRENT_CREATOR}"
+ 
+   if (( IDENTITY_ONLY == 1 )); then
+     exit 0
+   fi
+ 
+-  IFS=: read -r order_id customer_id < <(run_current_order_flow "${creator}")
++  IFS=: read -r order_id customer_id < <(run_current_order_flow "${CURRENT_CREATOR}")
+   if (( RECOVERY_ONLY == 1 )); then
+     record "RabbitMQ recovery accepted and stored fresh order ${order_id} for ${customer_id}."
+     exit 0
+   fi
+ 
+-  assert_makeline_restart_persistence "${creator}" "${order_id}" "${customer_id}"
++  assert_makeline_restart_persistence "${CURRENT_CREATOR}" "${order_id}" "${customer_id}"
+   record "DocumentDB restart/AppHost stop-start/container recreation durability are not claimed; no named volume was added."
+ 
+   if (( SKIP_CLEANUP == 0 )); then
+diff --git a/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-negative.sh b/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-negative.sh
+index 7bdef49..c7a5a36 100755
+--- a/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-negative.sh
++++ b/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-negative.sh
+@@ -9,10 +9,17 @@ RUN_DIR="${EXP_DIR}/.local/run"
+ PID_FILE="${RUN_DIR}/apphost.pid"
+ LOG_FILE="${RUN_DIR}/apphost.log"
+ ERR_FILE="${RUN_DIR}/apphost.err.log"
++IDENTITY_FILE="${RUN_DIR}/apphost-identity.env"
+ REPORT_DIR="${EXP_DIR}/.local/validation"
+ FAIL_OUT="${REPORT_DIR}/negative-rabbitmq-stopped.out"
+ RECOVERY_OUT="${REPORT_DIR}/negative-rabbitmq-recovery.out"
+ 
++# shellcheck source=aspire-run-state.sh
++source "${SCRIPT_DIR}/aspire-run-state.sh"
++
++CURRENT_CREATOR=""
++RABBIT_ID=""
++
+ log() { printf '[validate-negative] %s\n' "$*"; }
+ fail() { printf '[validate-negative] ERROR: %s\n' "$*" >&2; exit 1; }
+ 
+@@ -20,7 +27,7 @@ start_apphost() {
+   mkdir -p "${RUN_DIR}"
+   log "building AppHost for negative validation"
+   dotnet build "${APPHOST_PROJECT}" >/dev/null
+-  rm -f "${LOG_FILE}" "${ERR_FILE}"
++  rm -f "${LOG_FILE}" "${ERR_FILE}" "${IDENTITY_FILE}"
+   log "starting AppHost for negative validation"
+   ASPNETCORE_URLS="http://127.0.0.1:18888" \
+   ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
+@@ -34,70 +41,56 @@ start_apphost() {
+     cat "${ERR_FILE}" >&2 || true
+     fail "AppHost exited during negative validation startup"
+   fi
++  capture_apphost_identity "${pid}"
++}
++
++safe_failure_cleanup() {
++  local status=$?
++  trap - EXIT INT TERM
++  if [[ -n "${RABBIT_ID}" ]]; then
++    docker start "${RABBIT_ID}" >/dev/null 2>&1 || true
++  fi
++  if [[ -n "${CURRENT_CREATOR}" ]]; then
++    unpause_owned_workloads "${CURRENT_CREATOR}"
++    "${SCRIPT_DIR}/cleanup-aspire.sh" >/dev/null 2>&1 || true
++  elif [[ -f "${PID_FILE}" ]]; then
++    stop_apphost_pid "$(cat "${PID_FILE}")"
++  fi
++  exit "${status}"
+ }
+ 
+ mkdir -p "${REPORT_DIR}"
+ rm -f "${FAIL_OUT}" "${RECOVERY_OUT}"
++trap safe_failure_cleanup EXIT INT TERM
+ 
+-existing_creator=""
+-for id in $(docker ps -q); do
+-  name="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.name" }}' "${id}" 2>/dev/null || true)"
+-  pid_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessId" }}' "${id}" 2>/dev/null || true)"
+-  start_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessStartTime" }}' "${id}" 2>/dev/null || true)"
+-  [[ "${name}" =~ ^store-front-[a-z0-9]+$ && -n "${pid_label}" && -n "${start_label}" ]] || continue
+-  existing_creator="${pid_label}|${start_label}"
+-done
+-
+-if [[ -z "${existing_creator}" ]]; then
+-  log "starting Aspire stack before negative validation"
+-  start_apphost
+-  "${SCRIPT_DIR}/validate-aspire.sh" --identity-only --skip-cleanup >/dev/null
+-else
+-  "${SCRIPT_DIR}/validate-aspire.sh" --identity-only --skip-cleanup >/dev/null
++if [[ -f "${PID_FILE}" || -f "${IDENTITY_FILE}" ]]; then
++  fail "negative validation requires a fresh Experiment 08B AppHost; run scripts/cleanup-aspire.sh first"
+ fi
+ 
+-creator=""
+-for id in $(docker ps -q); do
+-  name="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.name" }}' "${id}" 2>/dev/null || true)"
+-  pid_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessId" }}' "${id}" 2>/dev/null || true)"
+-  start_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessStartTime" }}' "${id}" 2>/dev/null || true)"
+-  [[ "${name}" =~ ^store-front-[a-z0-9]+$ && -n "${pid_label}" && -n "${start_label}" ]] || continue
+-  creator="${pid_label}|${start_label}"
+-done
+-if [[ -z "${creator}" ]]; then
+-  fail "could not determine current Aspire creator identity"
+-fi
++log "starting fresh Aspire stack before negative validation"
++start_apphost
++"${SCRIPT_DIR}/validate-aspire.sh" --identity-only --skip-cleanup >/dev/null
++CURRENT_CREATOR="$(load_verified_apphost_identity)"
+ 
+-rabbit_id=""
+-for id in $(docker ps -q); do
+-  name="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.name" }}' "${id}" 2>/dev/null || true)"
+-  pid_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessId" }}' "${id}" 2>/dev/null || true)"
+-  start_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessStartTime" }}' "${id}" 2>/dev/null || true)"
+-  [[ "${name}" =~ ^rabbitmq-[a-z0-9]+$ && "${pid_label}|${start_label}" == "${creator}" ]] || continue
+-  rabbit_id="${id}"
+-done
+-[[ -n "${rabbit_id}" ]] || fail "current-run Aspire rabbitmq resource was not found"
++match="$(container_for_identity rabbitmq "${CURRENT_CREATOR}" 0)" || fail "current-run Aspire rabbitmq resource was not found"
++RABBIT_ID="$(printf '%s\n' "${match}" | cut -f1)"
+ 
+-log "stopping current-run Aspire RabbitMQ dependency ${rabbit_id}"
+-docker stop "${rabbit_id}" >/dev/null
++log "stopping current-run Aspire RabbitMQ dependency ${RABBIT_ID}"
++docker stop "${RABBIT_ID}" >/dev/null
+ 
+ if "${SCRIPT_DIR}/validate-aspire.sh" --recovery-order-only --skip-cleanup >"${FAIL_OUT}" 2>&1; then
+-  docker start "${rabbit_id}" >/dev/null || true
++  docker start "${RABBIT_ID}" >/dev/null || true
+   fail "validation unexpectedly passed while the current-run RabbitMQ resource was stopped"
+ fi
+ grep -Eiq 'rabbitmq|order-service|queue|order' "${FAIL_OUT}" || fail "negative failure did not identify RabbitMQ/order workflow failure"
+ 
+ log "restoring RabbitMQ and dependent services"
+-docker start "${rabbit_id}" >/dev/null
++docker start "${RABBIT_ID}" >/dev/null
++RABBIT_ID=""
+ sleep 10
+ for service in order-service makeline-service; do
+-  for id in $(docker ps -q); do
+-    name="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.name" }}' "${id}" 2>/dev/null || true)"
+-    pid_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessId" }}' "${id}" 2>/dev/null || true)"
+-    start_label="$(docker inspect -f '{{ index .Config.Labels "com.microsoft.developer.usvc-dev.creatorProcessStartTime" }}' "${id}" 2>/dev/null || true)"
+-    [[ "${name}" =~ ^${service}-[a-z0-9]+$ && "${pid_label}|${start_label}" == "${creator}" ]] || continue
+-    docker restart "${id}" >/dev/null
+-  done
++  match="$(container_for_identity "${service}" "${CURRENT_CREATOR}" 0)" || continue
++  docker restart "$(printf '%s\n' "${match}" | cut -f1)" >/dev/null
+ done
+ 
+ if ! "${SCRIPT_DIR}/validate-aspire.sh" --recovery-order-only --skip-cleanup >"${RECOVERY_OUT}" 2>&1; then
+@@ -106,4 +99,6 @@ if ! "${SCRIPT_DIR}/validate-aspire.sh" --recovery-order-only --skip-cleanup >"$
+ fi
+ 
+ "${SCRIPT_DIR}/cleanup-aspire.sh"
++CURRENT_CREATOR=""
++trap - EXIT INT TERM
+ log "RabbitMQ negative failure and fresh-order recovery passed"

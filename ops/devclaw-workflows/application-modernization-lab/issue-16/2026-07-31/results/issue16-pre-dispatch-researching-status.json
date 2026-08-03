@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-07-31T18:49:44Z",
+  "issue": {
+    "number": 16,
+    "state": "open",
+    "labels": [
+      "Researching"
+    ],
+    "updatedAt": "2026-07-31T18:35:28Z",
+    "comments": 1
+  },
+  "architectWorker": {
+    "active": false,
+    "issueId": "14",
+    "sessionKey": "agent:main:subagent:application-modernization-lab-architect-senior-zandra",
+    "startTime": "2026-07-30T17:08:03Z",
+    "previousLabel": "Source and Architecture Research",
+    "name": "Zandra",
+    "level": "senior",
+    "recoveredAt": "2026-07-31T18:48:42Z",
+    "recoveryReason": "stale issue #14 architect worker cleared after issue closure and PR merge"
+  },
+  "architectSession": null,
+  "repo": {
+    "branch": "main",
+    "head": "38ab6b49868c8b4e490e2464d749f8b0fa92e905",
+    "clean": true,
+    "status": ""
+  },
+  "openPrs": [],
+  "latestComments": [
+    {
+      "user": "DimitryZH",
+      "createdAt": "2026-07-31T18:35:28Z",
+      "bodyFirstLines": "## Human Architecture Dispatch Approval\n\nApproved to begin Stage 1 — Aspire Architecture Research.\n\nDispatch exactly one fresh senior architect session for Experiment 08B.\n\nThe architect must use the accepted Experiment 08A baseline as immutable input, inspect the active Compose-to-Aspire migration methodology in read-only mode, produce the complete migration architecture report requested by this issue, post it here, and stop for Human Aspire Architecture Approval.\n\nDo not create an implementation branch, commits, pull request, AppHost code, application changes, or skill changes during this stage."
+    }
+  ]
+}

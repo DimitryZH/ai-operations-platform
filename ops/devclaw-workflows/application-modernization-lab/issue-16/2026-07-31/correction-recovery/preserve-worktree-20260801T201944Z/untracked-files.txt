@@ -1,0 +1,3 @@
+experiments/08-aks-store-demo/02-compose-to-aspire/scripts/aspire-run-state.sh
+experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-cleanup-isolation.sh
+experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-failure-cleanup.sh

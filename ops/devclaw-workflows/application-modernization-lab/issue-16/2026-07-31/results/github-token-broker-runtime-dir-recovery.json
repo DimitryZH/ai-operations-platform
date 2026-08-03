@@ -1,0 +1,7 @@
+{
+  "recoveredAt": "2026-08-01T16:18:58Z",
+  "action": "created ephemeral /run/devclaw runtime directory and restarted devclaw-github-token-broker.service",
+  "configChanged": false,
+  "serviceState": "active",
+  "socketState": "devclaw-token:devclaw-broker 660 /run/devclaw/github-token-broker.sock"
+}

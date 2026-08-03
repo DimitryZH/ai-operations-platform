@@ -1,0 +1,9 @@
+{
+  "checkedAt": "2026-08-01T15:15:24Z",
+  "outDir": "/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/runtime-diagnostics/results/narrow-userns-apparmor-inspect-20260801T151524Z",
+  "systemSummary": "checkedAt=2026-08-01T15:15:24Z\nkernel=Linux agent-devbox-recovery 6.17.0-1021-gcp #24~24.04.1-Ubuntu SMP Tue Jul  7 14:58:58 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux\nubuntu=Ubuntu 24.04.4 LTS 24.04\napparmorRestrictUserns=1\nunprivilegedUsernsClone=1\nnewuidmap=/usr/bin/newuidmap\nnewgidmap=/usr/bin/newgidmap\nuidmap=1:4.13+dfsg1-4ubuntu3.2\n",
+  "devclawSubid": "/etc/subuid:devclaw-svc:196608:65536\n/etc/subgid:devclaw-svc:196608:65536\n",
+  "codexBwrapPaths": [
+    "/home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap"
+  ]
+}

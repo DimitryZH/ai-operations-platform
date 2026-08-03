@@ -1,0 +1,283 @@
+checkedAt=2026-07-31T22:08:00Z
+
+=== apparmor_profiles_related ===
+-rw-r--r-- 1 root root   383 Apr 13 22:29 linux-sandbox
+-rw-r--r-- 1 root root   363 Apr 13 22:29 lxc-usernsexec
+-rw-r--r-- 1 root root   699 Apr 13 22:29 unprivileged_userns
+
+=== unprivileged_userns_profile ===
+# Special profile transitioned to by unconfined when creating an unprivileged
+# user namespace.
+#
+abi <abi/4.0>,
+include <tunables/global>
+
+profile unprivileged_userns {
+     audit deny capability,
+     audit deny change_profile,
+
+     # allow block to be replaced by allow when x dominance test is fixed
+     #allow all,
+     allow network,
+     allow signal,
+     allow dbus,
+     allow file rwlkm /**,
+     allow unix,
+     allow mqueue,
+     allow ptrace,
+     allow userns,
+
+     # stack children to strip capabilities
+     allow pix /** -> &unprivileged_userns ,
+
+     # Site-specific additions and overrides. See local/README for details.
+     include if exists <local/unprivileged_userns>
+}
+
+=== userns_references ===
+/etc/apparmor.d/ch-run:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/ch-run:7:profile ch-run /usr/bin/ch-run flags=(unconfined) {
+/etc/apparmor.d/ch-run:8:  userns,
+/etc/apparmor.d/sbuild-update:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-update:7:profile sbuild-update /usr/bin/sbuild-update flags=(unconfined) {
+/etc/apparmor.d/sbuild-update:8:  userns,
+/etc/apparmor.d/abstractions/apache2-common:13:  # Allow unconfined processes to send us signals by default
+/etc/apparmor.d/abstractions/apache2-common:14:  signal (receive) peer=unconfined,
+/etc/apparmor.d/abstractions/ubuntu-helpers:8:# only if the process absolutely must be run (effectively) unconfined.
+/etc/apparmor.d/abstractions/ubuntu-helpers:20:#    and going unconfined as root is not desirable any way.
+/etc/apparmor.d/abstractions/base:142:  # Allow unconfined processes to send us signals by default
+/etc/apparmor.d/abstractions/base:143:  signal (receive) peer=unconfined,
+/etc/apparmor.d/abstractions/base:154:  # Allow unconfined processes to us via unix sockets
+/etc/apparmor.d/abstractions/base:155:  unix (receive) peer=(label=unconfined),
+/etc/apparmor.d/lxc-unshare:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/lxc-unshare:7:profile lxc-unshare /usr/bin/lxc-unshare flags=(unconfined) {
+/etc/apparmor.d/lxc-unshare:8:  userns,
+/etc/apparmor.d/pageedit:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/pageedit:7:profile pageedit /usr/bin/pageedit flags=(unconfined) {
+/etc/apparmor.d/pageedit:8:  userns,
+/etc/apparmor.d/sbuild-unhold:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-unhold:7:profile sbuild-unhold /usr/bin/sbuild-unhold flags=(unconfined) {
+/etc/apparmor.d/sbuild-unhold:8:  userns,
+/etc/apparmor.d/buildah:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/buildah:7:profile buildah /usr/bin/buildah flags=(unconfined) {
+/etc/apparmor.d/buildah:8:  userns,
+/etc/apparmor.d/lxc-create:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/lxc-create:7:profile lxc-create /usr/bin/lxc-create flags=(unconfined) {
+/etc/apparmor.d/lxc-create:8:  userns,
+/etc/apparmor.d/usr.lib.snapd.snap-confine.real:138:    # Don't allow changing profile to unconfined or profiles that start with
+/etc/apparmor.d/usr.lib.snapd.snap-confine.real:160:    change_profile unsafe /** -> unconfined?**,
+/etc/apparmor.d/usr.lib.snapd.snap-confine.real:166:    # deny change_profile unsafe /** -> {unconfined,/**},
+/etc/apparmor.d/usr.lib.snapd.snap-confine.real:499:    ptrace read peer=unconfined,
+/etc/apparmor.d/usr.lib.snapd.snap-confine.real:501:    ptrace trace peer=unconfined,
+/etc/apparmor.d/usr.lib.snapd.snap-confine.real:520:    signal (send) set=(exists) peer=unconfined,
+/etc/apparmor.d/usr.lib.snapd.snap-confine.real:522:    signal (receive) peer=unconfined,
+/etc/apparmor.d/sbuild-upgrade:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-upgrade:7:profile sbuild-upgrade /usr/bin/sbuild-upgrade flags=(unconfined) {
+/etc/apparmor.d/sbuild-upgrade:8:  userns,
+/etc/apparmor.d/scide:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/scide:8:profile scide /usr/bin/scide flags=(unconfined) {
+/etc/apparmor.d/scide:9:  userns,
+/etc/apparmor.d/1password:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/1password:7:profile 1password /opt/1Password/1password flags=(unconfined) {
+/etc/apparmor.d/1password:8:  userns,
+/etc/apparmor.d/brave:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/brave:7:profile brave /opt/brave.com/brave/brave flags=(unconfined) {
+/etc/apparmor.d/brave:8:  userns,
+/etc/apparmor.d/trinity:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/trinity:7:profile trinity /usr/bin/trinity flags=(unconfined) {
+/etc/apparmor.d/trinity:8:  userns,
+/etc/apparmor.d/sbuild-abort:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-abort:7:profile sbuild-abort /usr/bin/sbuild-abort flags=(unconfined) {
+/etc/apparmor.d/sbuild-abort:8:  userns,
+/etc/apparmor.d/abi/4.0:40:namespaces {mask {userns_create
+/etc/apparmor.d/sbuild:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild:7:profile sbuild /usr/bin/sbuild flags=(unconfined) {
+/etc/apparmor.d/sbuild:8:  userns,
+/etc/apparmor.d/lxc-execute:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/lxc-execute:7:profile lxc-execute /usr/bin/lxc-execute flags=(unconfined) {
+/etc/apparmor.d/lxc-execute:8:  userns,
+/etc/apparmor.d/thunderbird:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/thunderbird:7:profile thunderbird /usr/bin/thunderbird flags=(unconfined) {
+/etc/apparmor.d/thunderbird:8:  userns,
+/etc/apparmor.d/keybase:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/keybase:7:profile keybase /opt/keybase/Keybase flags=(unconfined) {
+/etc/apparmor.d/keybase:8:  userns,
+/etc/apparmor.d/privacybrowser:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/privacybrowser:7:profile privacybrowser /usr/bin/privacybrowser flags=(unconfined) {
+/etc/apparmor.d/privacybrowser:8:  userns,
+/etc/apparmor.d/cam:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/cam:7:profile cam /usr/bin/cam flags=(unconfined) {
+/etc/apparmor.d/cam:8:  userns,
+/etc/apparmor.d/kchmviewer:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/kchmviewer:7:profile kchmviewer /usr/bin/kchmviewer flags=(unconfined) {
+/etc/apparmor.d/kchmviewer:8:  userns,
+/etc/apparmor.d/QtWebEngineProcess:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/QtWebEngineProcess:7:profile QtWebEngineProcess /usr/lib/@{multiarch}/qt{5,6}/libexec/QtWebEngineProcess flags=(unconfined) {
+/etc/apparmor.d/QtWebEngineProcess:8:  userns,
+/etc/apparmor.d/runc:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/runc:7:profile runc /usr/sbin/runc flags=(unconfined) {
+/etc/apparmor.d/runc:8:  userns,
+/etc/apparmor.d/rootlesskit:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/rootlesskit:7:profile rootlesskit /usr/bin/rootlesskit flags=(unconfined) {
+/etc/apparmor.d/rootlesskit:8:  userns,
+/etc/apparmor.d/stress-ng:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/stress-ng:7:profile stress-ng /usr/bin/stress-ng flags=(unconfined) {
+/etc/apparmor.d/stress-ng:8:  userns,
+/etc/apparmor.d/libcamerify:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/libcamerify:7:profile libcamerify /usr/bin/libcamerify flags=(unconfined) {
+/etc/apparmor.d/libcamerify:8:  userns,
+/etc/apparmor.d/tup:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/tup:7:profile tup /usr/bin/tup flags=(unconfined) {
+/etc/apparmor.d/tup:8:  userns,
+/etc/apparmor.d/sbuild-destroychroot:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-destroychroot:7:profile sbuild-destroychroot /usr/sbin/sbuild-destroychroot flags=(unconfined) {
+/etc/apparmor.d/sbuild-destroychroot:8:  userns,
+/etc/apparmor.d/vivaldi-bin:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/vivaldi-bin:7:profile vivaldi-bin /opt/vivaldi/vivaldi-bin flags=(unconfined) {
+/etc/apparmor.d/vivaldi-bin:8:  userns,
+/etc/apparmor.d/code:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/code:7:profile vscode /usr/share/code{/bin,}/code flags=(unconfined) {
+/etc/apparmor.d/code:8:  userns,
+/etc/apparmor.d/wike:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/wike:7:profile wike /usr/bin/wike flags=(unconfined) {
+/etc/apparmor.d/wike:8:  userns,
+/etc/apparmor.d/slack:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/slack:7:profile slack /usr/lib/slack/slack flags=(unconfined) {
+/etc/apparmor.d/slack:8:  userns,
+/etc/apparmor.d/lsb_release:5:# in regular (unconfined) shell scripts or run directly by the user.
+/etc/apparmor.d/evolution:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/evolution:7:profile evolution /usr/bin/evolution flags=(unconfined) {
+/etc/apparmor.d/evolution:8:  userns,
+/etc/apparmor.d/sbuild-checkpackages:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-checkpackages:7:profile sbuild-checkpackages /usr/bin/sbuild-checkpackages flags=(unconfined) {
+/etc/apparmor.d/sbuild-checkpackages:8:  userns,
+/etc/apparmor.d/opam:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/opam:7:profile opam /usr/bin/opam flags=(unconfined) {
+/etc/apparmor.d/opam:8:  userns,
+/etc/apparmor.d/firefox:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/firefox:7:profile firefox /{usr/lib/firefox{,-esr,-beta,-devedition,-nightly},opt/firefox}/firefox{,-esr,-bin} flags=(unconfined) {
+/etc/apparmor.d/firefox:8:  userns,
+/etc/apparmor.d/qutebrowser:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/qutebrowser:7:profile qutebrowser /usr/bin/qutebrowser flags=(unconfined) {
+/etc/apparmor.d/qutebrowser:8:  userns,
+/etc/apparmor.d/qmapshack:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/qmapshack:7:profile qmapshack /usr/bin/qmapshack flags=(unconfined) {
+/etc/apparmor.d/qmapshack:8:  userns,
+/etc/apparmor.d/devhelp:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/devhelp:7:profile devhelp /usr/bin/devhelp flags=(unconfined) {
+/etc/apparmor.d/devhelp:8:  userns,
+/etc/apparmor.d/rssguard:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/rssguard:7:profile rssguard /usr/bin/rssguard flags=(unconfined) {
+/etc/apparmor.d/rssguard:8:  userns,
+/etc/apparmor.d/loupe:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/loupe:7:profile loupe /usr/bin/loupe flags=(unconfined) {
+/etc/apparmor.d/loupe:8:  userns,
+/etc/apparmor.d/foliate:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/foliate:7:profile foliate /usr/bin/foliate flags=(unconfined) {
+/etc/apparmor.d/foliate:8:  userns,
+/etc/apparmor.d/virtiofsd:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/virtiofsd:7:profile virtiofsd /usr/libexec/virtiofsd flags=(unconfined) {
+/etc/apparmor.d/virtiofsd:8:  userns,
+/etc/apparmor.d/msedge:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/msedge:7:profile msedge /opt/microsoft/msedge/msedge flags=(unconfined) {
+/etc/apparmor.d/msedge:8:  userns,
+/etc/apparmor.d/nautilus:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/nautilus:7:profile nautilus /usr/bin/nautilus flags=(unconfined) {
+/etc/apparmor.d/nautilus:8:  userns,
+/etc/apparmor.d/epiphany:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/epiphany:7:profile epiphany /usr/bin/epiphany{,-browser} flags=(unconfined) {
+/etc/apparmor.d/epiphany:8:  userns,
+/etc/apparmor.d/linux-sandbox:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/linux-sandbox:7:profile linux-sandbox /usr/libexec/@{multiarch}/bazel/linux-sandbox flags=(unconfined) {
+/etc/apparmor.d/linux-sandbox:8:  userns,
+/etc/apparmor.d/linux-sandbox:11:  include if exists <local/linux-sandbox>
+/etc/apparmor.d/ubuntu_pro_esm_cache:118:    ptrace read peer=unconfined,
+/etc/apparmor.d/ubuntu_pro_esm_cache:263:    ptrace read peer=unconfined,
+/etc/apparmor.d/ubuntu_pro_esm_cache:289:    ptrace read peer=unconfined,
+/etc/apparmor.d/qcam:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/qcam:7:profile qcam /usr/bin/qcam flags=(unconfined) {
+/etc/apparmor.d/qcam:8:  userns,
+/etc/apparmor.d/lxc-attach:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/lxc-attach:7:profile lxc-attach /usr/bin/lxc-attach flags=(unconfined) {
+/etc/apparmor.d/lxc-attach:8:  userns,
+/etc/apparmor.d/sbuild-hold:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-hold:7:profile sbuild-hold /usr/bin/sbuild-hold flags=(unconfined) {
+/etc/apparmor.d/sbuild-hold:8:  userns,
+/etc/apparmor.d/ipa_verify:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/ipa_verify:7:profile ipa_verify /usr/bin/ipa_verify flags=(unconfined) {
+/etc/apparmor.d/ipa_verify:8:  userns,
+/etc/apparmor.d/ch-checkns:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/ch-checkns:7:profile ch-checkns /usr/bin/ch-checkns flags=(unconfined) {
+/etc/apparmor.d/ch-checkns:8:  userns,
+/etc/apparmor.d/sbuild-distupgrade:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-distupgrade:7:profile sbuild-distupgrade /usr/bin/sbuild-distupgrade flags=(unconfined) {
+/etc/apparmor.d/sbuild-distupgrade:8:  userns,
+/etc/apparmor.d/sbuild-clean:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-clean:7:profile sbuild-clean /usr/bin/sbuild-clean flags=(unconfined) {
+/etc/apparmor.d/sbuild-clean:8:  userns,
+/etc/apparmor.d/Discord:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/Discord:7:profile Discord /usr/share/discord/Discord flags=(unconfined) {
+/etc/apparmor.d/Discord:8:  userns,
+/etc/apparmor.d/sbuild-createchroot:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-createchroot:7:profile sbuild-createchroot /usr/bin/sbuild-createchroot flags=(unconfined) {
+/etc/apparmor.d/sbuild-createchroot:8:  userns,
+/etc/apparmor.d/polypane:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/polypane:7:profile polypane /opt/Polypane/polypane flags=(unconfined) {
+/etc/apparmor.d/polypane:8:  userns,
+/etc/apparmor.d/surfshark:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/surfshark:7:profile surfshark /opt/Surfshark/surfshark flags=(unconfined) {
+/etc/apparmor.d/surfshark:8:  userns,
+/etc/apparmor.d/rpm:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/rpm:7:profile rpm /usr/bin/rpm flags=(unconfined) {
+/etc/apparmor.d/rpm:8:  userns,
+/etc/apparmor.d/lxc-stop:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/lxc-stop:7:profile lxc-stop /usr/bin/lxc-stop flags=(unconfined) {
+/etc/apparmor.d/lxc-stop:8:  userns,
+/etc/apparmor.d/mmdebstrap:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/mmdebstrap:7:profile mmdebstrap /usr/bin/mmdebstrap flags=(unconfined) {
+/etc/apparmor.d/mmdebstrap:8:  userns,
+/etc/apparmor.d/notepadqq:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/notepadqq:7:profile notepadqq /{{usr/bin,etc/alternatives}/notepadqq,usr/lib/notepadqq/notepadqq.sh} flags=(unconfined) {
+/etc/apparmor.d/notepadqq:8:  userns,
+/etc/apparmor.d/opera:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/opera:7:profile opera /usr/lib/@{multiarch}/opera/opera flags=(unconfined) {
+/etc/apparmor.d/opera:8:  userns,
+/etc/apparmor.d/sbuild-apt:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/sbuild-apt:7:profile sbuild-apt /usr/bin/sbuild-apt flags=(unconfined) {
+/etc/apparmor.d/sbuild-apt:8:  userns,
+/etc/apparmor.d/geary:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/geary:7:profile geary /usr/bin/geary flags=(unconfined) {
+/etc/apparmor.d/geary:8:  userns,
+/etc/apparmor.d/podman:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/podman:7:profile podman /usr/bin/podman flags=(unconfined) {
+/etc/apparmor.d/podman:8:  userns,
+/etc/apparmor.d/plasmashell:9:  userns,
+/etc/apparmor.d/plasmashell:26:    userns,
+/etc/apparmor.d/wpcom:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/wpcom:7:profile wpcom /opt/WordPress.com/wpcom flags=(unconfined) {
+/etc/apparmor.d/wpcom:8:  userns,
+/etc/apparmor.d/crun:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/crun:7:profile crun /usr/bin/crun flags=(unconfined) {
+/etc/apparmor.d/crun:8:  userns,
+/etc/apparmor.d/obsidian:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/obsidian:7:profile obsidian /opt/Obsidian/obsidian flags=(unconfined) {
+/etc/apparmor.d/obsidian:8:  userns,
+/etc/apparmor.d/signal-desktop:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/signal-desktop:7:profile signal-desktop /opt/Signal/signal-desktop flags=(unconfined) {
+/etc/apparmor.d/signal-desktop:8:  userns,
+/etc/apparmor.d/flatpak:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/flatpak:7:profile flatpak /usr/bin/flatpak flags=(unconfined) {
+/etc/apparmor.d/flatpak:8:  userns,
+/etc/apparmor.d/lxc-usernsexec:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/lxc-usernsexec:7:profile lxc-usernsexec /usr/bin/lxc-usernsexec flags=(unconfined) {
+/etc/apparmor.d/lxc-usernsexec:8:  userns,
+/etc/apparmor.d/lxc-usernsexec:11:  include if exists <local/lxc-usernsexec>
+/etc/apparmor.d/userbindmount:2:# application a name instead of having the label "unconfined"
+/etc/apparmor.d/userbindmount:7:profile userbindmount /usr/bin/userbindmount flags=(unconfined) {
+/etc/apparmor.d/userbindmount:8:  userns,
+
+=== apparmor_features_userns ===
+--- /sys/kernel/security/apparmor/features/namespaces/userns_create
+pciu&
+--- /sys/kernel/security/apparmor/features/policy/unconfined_restrictions/userns
+1

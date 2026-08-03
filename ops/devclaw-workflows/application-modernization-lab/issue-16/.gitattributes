@@ -1,0 +1,18 @@
+/.gitattributes text eol=lf
+*.sh text eol=lf
+*.patch text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.bak text eol=lf
+*.tar binary
+*.tar.gz binary
+*.z binary
+
+# Captured evidence and patch snapshots should stay byte-faithful enough for
+# audit use, even when upstream logs contain trailing whitespace.
+2026-07-31/results/** whitespace=-blank-at-eol,-blank-at-eof
+2026-07-31/runtime-diagnostics/results/** whitespace=-blank-at-eol,-blank-at-eof
+2026-07-31/runtime-diagnostics/backups/** whitespace=-blank-at-eol,-blank-at-eof
+2026-07-31/correction-recovery/** whitespace=-blank-at-eol,-blank-at-eof

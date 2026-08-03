@@ -1,0 +1,13 @@
+{
+  "dispatchedAt": "2026-08-01T14:41:58Z",
+  "sessionKey": "agent:main:subagent:issue-16-post-reboot-runtime-smoke-20260801t144143z",
+  "patch": {
+    "rc": 0,
+    "result": "{\n  \"ok\": true,\n  \"path\": \"/home/devclaw-svc/.openclaw/agents/main/sessions/sessions.json\",\n  \"key\": \"agent:main:subagent:issue-16-post-reboot-runtime-smoke-20260801t144143z\",\n  \"entry\": {\n    \"sessionId\": \"f6f66f0a-1776-4c8d-a3d8-49dfde3b3d45\",\n    \"updatedAt\": 1785595311161,\n    \"label\": \"Issue 16 post reboot runtime smoke 20260801t144143z\"\n  },\n  \"resolved\": {\n    \"modelProvider\": \"openai\",\n    \"model\": \"gpt-5.5\",\n    \"agentRuntime\": {\n      \"id\": \"codex\",\n      \"source\": \"model\"\n    },\n    \"thinkingLevel\": \"medium\",\n    \"thinkingLevels\": [\n      {\n        \"id\": \"off\",\n        \"label\": \"off\"\n      },\n      {\n        \"id\": \"minimal\",\n        \"label\": \"minimal\"\n      },\n      {\n        \"id\": \"low\",\n        \"label\": \"low\"\n      },\n      {\n        \"id\": \"medium\",\n        \"label\": \"medium\"\n      },\n      {\n        \"id\": \"high\",\n        \"label\": \"high\"\n      },\n      {\n        \"id\": \"xhigh\",\n        \"label\": \"xhigh\"\n      }\n    ]\n  }\n}"
+  },
+  "agent": {
+    "rc": 0,
+    "result": "{\n  \"runId\": \"issue-16-post-reboot-runtime-smoke-20260801t144143z\",\n  \"sessionKey\": \"agent:main:subagent:issue-16-post-reboot-runtime-smoke-20260801t144143z\",\n  \"status\": \"accepted\",\n  \"acceptedAt\": 1785595318616\n}"
+  },
+  "dispatchAccepted": true
+}

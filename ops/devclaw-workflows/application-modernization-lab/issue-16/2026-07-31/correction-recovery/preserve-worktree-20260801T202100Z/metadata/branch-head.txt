@@ -1,0 +1,4 @@
+branch=experiment-08/aks-store-aspire-migration
+head=6722ff491c2a9053a9f76b4bb9223b64f3ec6b3b
+headTree=95736dddbf2a6bb93b42c2b433523ebacd1cdb89
+capturedAt=2026-08-01T20:21:08Z

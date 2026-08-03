@@ -1,0 +1,90 @@
+{
+  "checkedAt": "2026-07-31T22:14:37Z",
+  "sessionKey": "agent:main:subagent:codex-shell-smoke-issue-16-20260731t221411z",
+  "session": {
+    "sessionId": "75140e13-992b-442a-a16d-5e2b851ae3a2",
+    "updatedAt": 1785536069196,
+    "label": "Codex shell smoke issue 16 20260731t221411z",
+    "lastInteractionAt": 1785536067124,
+    "sessionStartedAt": 1785536067503,
+    "skillsSnapshot": {
+      "skills": [
+        {
+          "name": "clawhub"
+        },
+        {
+          "name": "compose-to-aspire-migration"
+        },
+        {
+          "name": "diagram-maker"
+        },
+        {
+          "name": "gh-issues",
+          "primaryEnv": "GH_TOKEN",
+          "requiredEnv": []
+        },
+        {
+          "name": "github",
+          "requiredEnv": []
+        },
+        {
+          "name": "healthcheck"
+        },
+        {
+          "name": "kubernetes-to-compose-migration"
+        },
+        {
+          "name": "meme-maker",
+          "requiredEnv": []
+        },
+        {
+          "name": "node-connect"
+        },
+        {
+          "name": "node-inspect-debugger",
+          "requiredEnv": []
+        },
+        {
+          "name": "notion",
+          "primaryEnv": "NOTION_API_TOKEN",
+          "requiredEnv": []
+        },
+        {
+          "name": "python-debugpy",
+          "requiredEnv": []
+        },
+        {
+          "name": "skill-creator"
+        },
+        {
+          "name": "spike"
+        },
+        {
+          "name": "taskflow"
+        },
+        {
+          "name": "taskflow-inbox-triage"
+        },
+        {
+          "name": "tmux",
+          "requiredEnv": []
+        },
+        {
+          "name": "weather"
+        }
+      ],
+      "version": 1785523478694,
+      "promptFormatVersion": 1,
+      "promptRef": {
+        "version": 1,
+        "algorithm": "sha256",
+        "hash": "e3ea8a9474d9325854e9ce3fabee2ea1092f45795d3f679d8df03a224b5060dd",
+        "bytes": 6407
+      }
+    },
+    "sessionFile": "/home/devclaw-svc/.openclaw/agents/main/sessions/75140e13-992b-442a-a16d-5e2b851ae3a2.jsonl",
+    "status": "running",
+    "startedAt": 1785536068154,
+    "abortedLastRun": false
+  }
+}

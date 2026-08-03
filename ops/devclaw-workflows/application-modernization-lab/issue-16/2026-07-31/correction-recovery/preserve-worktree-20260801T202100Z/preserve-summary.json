@@ -1,0 +1,569 @@
+{
+  "capturedAt": "2026-08-01T20:21:08Z",
+  "outDir": "/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/correction-recovery/preserve-worktree-20260801T202100Z",
+  "previousCorrectionSessionNoLongerActive": true,
+  "gatewayTasks": {
+    "total": 24,
+    "active": 0,
+    "terminal": 24,
+    "failures": 3,
+    "byStatus": {
+      "queued": 0,
+      "running": 0,
+      "succeeded": 21,
+      "failed": 3,
+      "timed_out": 0,
+      "cancelled": 0,
+      "lost": 0
+    },
+    "byRuntime": {
+      "subagent": 0,
+      "acp": 0,
+      "cli": 24,
+      "cron": 0
+    }
+  },
+  "developerWorker": {
+    "active": false,
+    "issueId": null,
+    "sessionKey": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-pr17-correction-20260801t195319z",
+    "startTime": null,
+    "previousLabel": null,
+    "name": "Ara",
+    "lastIssueId": "16"
+  },
+  "developerSession": {
+    "sessionId": "2d4833d2-b011-4a2e-9b42-b64133a10a2c",
+    "updatedAt": 1785614784919,
+    "label": "Application Modernization Lab - Developer Ara (Senior Issue 16 PR17 Correction 20260801t195319z)",
+    "lastInteractionAt": 1785614784847,
+    "sessionStartedAt": 1785614035071,
+    "skillsSnapshot": {
+      "skills": [
+        {
+          "name": "clawhub"
+        },
+        {
+          "name": "compose-to-aspire-migration"
+        },
+        {
+          "name": "diagram-maker"
+        },
+        {
+          "name": "gh-issues",
+          "primaryEnv": "GH_TOKEN",
+          "requiredEnv": []
+        },
+        {
+          "name": "github",
+          "requiredEnv": []
+        },
+        {
+          "name": "healthcheck"
+        },
+        {
+          "name": "kubernetes-to-compose-migration"
+        },
+        {
+          "name": "meme-maker",
+          "requiredEnv": []
+        },
+        {
+          "name": "node-connect"
+        },
+        {
+          "name": "node-inspect-debugger",
+          "requiredEnv": []
+        },
+        {
+          "name": "notion",
+          "primaryEnv": "NOTION_API_TOKEN",
+          "requiredEnv": []
+        },
+        {
+          "name": "python-debugpy",
+          "requiredEnv": []
+        },
+        {
+          "name": "skill-creator"
+        },
+        {
+          "name": "spike"
+        },
+        {
+          "name": "taskflow"
+        },
+        {
+          "name": "taskflow-inbox-triage"
+        },
+        {
+          "name": "tmux",
+          "requiredEnv": []
+        },
+        {
+          "name": "weather"
+        }
+      ],
+      "version": 1785597220498,
+      "promptFormatVersion": 1,
+      "promptRef": {
+        "version": 1,
+        "algorithm": "sha256",
+        "hash": "e3ea8a9474d9325854e9ce3fabee2ea1092f45795d3f679d8df03a224b5060dd",
+        "bytes": 6407
+      }
+    },
+    "sessionFile": "/home/devclaw-svc/.openclaw/agents/main/sessions/2d4833d2-b011-4a2e-9b42-b64133a10a2c.jsonl",
+    "status": "done",
+    "startedAt": 1785614035280,
+    "abortedLastRun": false,
+    "model": "gpt-5.5",
+    "modelProvider": "openai",
+    "lastActivityAt": 1785614784847,
+    "contextTokens": 272000,
+    "agentHarnessId": "codex",
+    "systemPromptReport": {
+      "source": "run",
+      "generatedAt": 1785614036270,
+      "sessionId": "2d4833d2-b011-4a2e-9b42-b64133a10a2c",
+      "sessionKey": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-pr17-correction-20260801t195319z",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "workspaceDir": "/home/devclaw-svc/.openclaw/workspace",
+      "systemPrompt": {
+        "chars": 13455,
+        "projectContextChars": 0,
+        "nonProjectContextChars": 13455,
+        "hash": "9af2d30fd52ba36ec8e9eda80197e03c2c4c6143a69922922f95b0a5e7f81699"
+      },
+      "injectedWorkspaceFiles": [
+        {
+          "name": "AGENTS.md",
+          "path": "/home/devclaw-svc/.openclaw/workspace/AGENTS.md",
+          "missing": false,
+          "rawChars": 7914,
+          "injectedChars": 7914,
+          "truncated": false
+        },
+        {
+          "name": "TOOLS.md",
+          "path": "/home/devclaw-svc/.openclaw/workspace/TOOLS.md",
+          "missing": false,
+          "rawChars": 723,
+          "injectedChars": 723,
+          "truncated": false
+        }
+      ],
+      "skills": {
+        "promptChars": 6405,
+        "hash": "1463dc938df5a0f9284956743152dd77153d407d107ce0d27a5cefc008c411f5",
+        "entries": [
+          {
+            "name": "clawhub",
+            "blockChars": 351
+          },
+          {
+            "name": "compose-to-aspire-migration",
+            "blockChars": 295
+          },
+          {
+            "name": "diagram-maker",
+            "blockChars": 324
+          },
+          {
+            "name": "gh-issues",
+            "blockChars": 347
+          },
+          {
+            "name": "github",
+            "blockChars": 318
+          },
+          {
+            "name": "healthcheck",
+            "blockChars": 336
+          },
+          {
+            "name": "kubernetes-to-compose-migration",
+            "blockChars": 299
+          },
+          {
+            "name": "meme-maker",
+            "blockChars": 309
+          },
+          {
+            "name": "node-connect",
+            "blockChars": 339
+          },
+          {
+            "name": "node-inspect-debugger",
+            "blockChars": 335
+          },
+          {
+            "name": "notion",
+            "blockChars": 330
+          },
+          {
+            "name": "python-debugpy",
+            "blockChars": 323
+          },
+          {
+            "name": "skill-creator",
+            "blockChars": 317
+          },
+          {
+            "name": "spike",
+            "blockChars": 309
+          },
+          {
+            "name": "taskflow",
+            "blockChars": 339
+          },
+          {
+            "name": "taskflow-inbox-triage",
+            "blockChars": 349
+          },
+          {
+            "name": "tmux",
+            "blockChars": 327
+          },
+          {
+            "name": "weather",
+            "blockChars": 347
+          }
+        ]
+      },
+      "tools": {
+        "listChars": 0,
+        "schemaChars": 60,
+        "entries": [
+          {
+            "name": "sessions_yield",
+            "summaryChars": 79,
+            "summaryHash": "f3782fc41c1522657e1d3494f486a2df998fed38a6b89dcf7f6934fb41424320",
+            "schemaChars": 60,
+            "schemaHash": "d803b8cd6aef950bd59c7467fe8ce4d612d0730f5b0270a521b792f7ef6e4550",
+            "propertiesCount": 1
+          },
+          {
+            "name": "message",
+            "summaryChars": 60,
+            "summaryHash": "76c05ee1f105661df34669c4e3b9b095dc597e625633abb3fae8f88b9d684681",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "tts",
+            "summaryChars": 217,
+            "summaryHash": "652c1970c199d82b61061a40be2adddfc7e5634df5d896d776a8a0047c8a6b75",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "image_generate",
+            "summaryChars": 468,
+            "summaryHash": "d093313d17509b72795516c6ad7c92a9f1e8c7943239d570fd81347dc2557424",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "video_generate",
+            "summaryChars": 307,
+            "summaryHash": "59fd08c3f2947e0394c7d1aae5219763bf201537bef536228c6c4fd63724e415",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "get_goal",
+            "summaryChars": 71,
+            "summaryHash": "58dea7906d9e17e5f89a75fea24597ee068d8a56af824370dc27f8501374d6e3",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "create_goal",
+            "summaryChars": 155,
+            "summaryHash": "f01e3a63d673a410ba55213ce6bd3fa2b0d2279e8e780c18aa0cb5aa991b29b3",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "update_goal",
+            "summaryChars": 212,
+            "summaryHash": "285201690e5f2456b4cdcd252ff391709b84d69538df61bad694d3c0cfc19958",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "skill_workshop",
+            "summaryChars": 171,
+            "summaryHash": "577c1d2b8f56bf3e9dd5e00463bbce8b8bf4cf201da9b21b588dcaa3bc6ed8cf",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "web_fetch",
+            "summaryChars": 93,
+            "summaryHash": "8875afbb51bd63673e5e6836ca31eeda73914a464862665cd73b346e28d28fd5",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "image",
+            "summaryChars": 169,
+            "summaryHash": "a46820ca8952445d3663a8908bfa5d3adddff5b53d18b9d8e9eed8f9e593b494",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "pdf",
+            "summaryChars": 159,
+            "summaryHash": "9f323da0ccbf37f01fff7374ae5cba64b4c05b5f0fc9d982aee7c64040cc61d5",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "memory_search",
+            "summaryChars": 605,
+            "summaryHash": "0f918d28864d3682ae77731f149273997c84773592a466b18c7cd0121b599a05",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "memory_get",
+            "summaryChars": 239,
+            "summaryHash": "bff1141a3da31a345c550337417efc9ace4da2909004606c727c59ca1a294495",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "task_start",
+            "summaryChars": 585,
+            "summaryHash": "631036a085f751522ce2db6b5ed5fceefbac23b3293d9e8e5867249db3572388",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "work_finish",
+            "summaryChars": 256,
+            "summaryHash": "bfbc7948d6e9139b6a9d9735672134425948bb9ce25b4f5dbc9d02272fc002a7",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "task_create",
+            "summaryChars": 193,
+            "summaryHash": "56651c46bac6d2c9cfbcc039a9ab38ebcf51cae1268463620d2f6d896e03c654",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "task_edit_body",
+            "summaryChars": 513,
+            "summaryHash": "08e8297786cf1614157b576c3ffe34196751e37b0ece0902aecf39813316dfd0",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "task_comment",
+            "summaryChars": 604,
+            "summaryHash": "fbc431a81147123fc9f399cc45dd23cd0a9a9a45f0ea69980279dc790386bf96",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "task_attach",
+            "summaryChars": 314,
+            "summaryHash": "15b2aebc5e2ae2b107bd39a5fb82b5845c0b0736573d729ac5907f7ced930197",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "task_set_level",
+            "summaryChars": 297,
+            "summaryHash": "b6dc6bf7bb2c4f607801175a82733f2da5689c656b1712fce606706f25d055db",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "task_owner",
+            "summaryChars": 208,
+            "summaryHash": "75d602145034ca0dd26f8571088b828b1a8fa3b0cc1aa2e13beaf1a43e40a199",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "research_task",
+            "summaryChars": 1249,
+            "summaryHash": "abea2b112183358f9b35480571ea61570510e251bc17f941db3ad15296fd16d6",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "task_list",
+            "summaryChars": 164,
+            "summaryHash": "1874ff67e92466a70e628a524b0d00d20ee243d3cc44d3b13e0b4d49efb32a67",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "tasks_status",
+            "summaryChars": 236,
+            "summaryHash": "a0736be9bab857b054ab795cdb49796b7128951ce6e272b13acdcee1c58d76a8",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "project_status",
+            "summaryChars": 194,
+            "summaryHash": "6bb593fb36be11f026c918ebe0ea282ae116cdf58a0798c63f8cb044e8683470",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "project_register",
+            "summaryChars": 109,
+            "summaryHash": "064e1b64b8084c333eec04d58ae910080aca95d0a9961f40354e9645d09b37f8",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "health",
+            "summaryChars": 154,
+            "summaryHash": "a77f21c599790bf0ef6998303dc789f930b0a30e82d706d6b2591272a2cb0f42",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "sync_labels",
+            "summaryChars": 214,
+            "summaryHash": "decdc27a2cc7f1aebc17fa125dfc4a294cd015823ec955a31d5a03761d27aa03",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "channel_link",
+            "summaryChars": 177,
+            "summaryHash": "bff91a987e89d88288634a74d50852c61f50b674f3ec5eb42bc3cd036e54239b",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "channel_unlink",
+            "summaryChars": 162,
+            "summaryHash": "94c91ecfe016888e9b1935c5124e6b8e3e757fea3a7129cee944b2e1cbcd2203",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "channel_list",
+            "summaryChars": 99,
+            "summaryHash": "9a08d85d79eb95b8e719003bbd609261658c37e9b499aa1fcff694a672ea32b5",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "setup",
+            "summaryChars": 228,
+            "summaryHash": "fa593ef61ac6c9ae1fcf6fc694aee0542633a3552b0bd2aaa22d4e7b59a4550d",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "onboard",
+            "summaryChars": 126,
+            "summaryHash": "179c7c6521edf578a12f41cf8d449c20071ba0d38237d9480baecc0e909122bf",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "autoconfigure_models",
+            "summaryChars": 116,
+            "summaryHash": "1e387529832a37acef45116c4509e6ea80ac19f68c65eb6ab0834148ba26e116",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "workflow_guide",
+            "summaryChars": 293,
+            "summaryHash": "1423ca75cd6f6d94dc9a667287e7e07cb594c332cda72236e0fe123327bcf2ad",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          },
+          {
+            "name": "config",
+            "summaryChars": 563,
+            "summaryHash": "7611fd8f1cf9250853e97544270e51099cdc30e788380a73a14e04e04eac015b",
+            "schemaChars": 0,
+            "schemaHash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "propertiesCount": null
+          }
+        ]
+      }
+    },
+    "inputTokens": 883,
+    "outputTokens": 226,
+    "totalTokens": 111859,
+    "totalTokensFresh": true,
+    "cacheRead": 110976,
+    "cacheWrite": 0,
+    "endedAt": 1785614784903,
+    "runtimeMs": 749623
+  },
+  "repository": {
+    "branch": "experiment-08/aks-store-aspire-migration",
+    "head": "6722ff491c2a9053a9f76b4bb9223b64f3ec6b3b"
+  },
+  "pullRequest": {
+    "number": 17,
+    "state": "open",
+    "draft": true,
+    "headRef": "experiment-08/aks-store-aspire-migration",
+    "headSha": "6722ff491c2a9053a9f76b4bb9223b64f3ec6b3b",
+    "expectedHead": "6722ff491c2a9053a9f76b4bb9223b64f3ec6b3b"
+  },
+  "artifacts": {
+    "statusShort": "git-status-short.txt",
+    "completeDiff": "git-diff.patch",
+    "binaryPatch": "git-diff-binary.patch",
+    "headBinaryPatch": "git-diff-head-binary.patch",
+    "cachedBinaryPatch": "git-diff-cached-binary.patch",
+    "untrackedList": "untracked-files.txt",
+    "untrackedArchive": "untracked-files.tar",
+    "scriptModes": "script-file-modes.txt"
+  }
+}

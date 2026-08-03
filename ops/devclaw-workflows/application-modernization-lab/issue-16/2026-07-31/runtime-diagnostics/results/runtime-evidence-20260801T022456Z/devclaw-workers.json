@@ -1,0 +1,117 @@
+{
+  "checkedAt": "2026-08-01T02:24:56Z",
+  "activeWorkers": [
+    {
+      "role": "developer",
+      "level": "senior",
+      "worker": {
+        "active": true,
+        "issueId": "16",
+        "sessionKey": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260801t012303z",
+        "startTime": "2026-08-01T01:23:03Z",
+        "previousLabel": "Refining",
+        "name": "Ara",
+        "level": "senior",
+        "recoveryFrom": "blocked developer session",
+        "recoveredAt": "2026-08-01T01:23:03Z"
+      }
+    }
+  ],
+  "allWorkers": {
+    "architect": {
+      "levels": {
+        "junior": [
+          {
+            "active": false,
+            "issueId": null,
+            "sessionKey": null,
+            "startTime": null,
+            "previousLabel": null
+          }
+        ],
+        "senior": [
+          {
+            "active": false,
+            "issueId": null,
+            "sessionKey": "agent:main:subagent:application-modernization-lab-architect-senior-zandra-recovery-20260730t203339z",
+            "startTime": null,
+            "previousLabel": null,
+            "name": "Zandra"
+          }
+        ]
+      }
+    },
+    "developer": {
+      "levels": {
+        "junior": [
+          {
+            "active": false,
+            "issueId": null,
+            "sessionKey": null,
+            "startTime": null,
+            "previousLabel": null
+          }
+        ],
+        "medior": [
+          {
+            "active": false,
+            "issueId": null,
+            "sessionKey": null,
+            "startTime": null,
+            "previousLabel": null
+          }
+        ],
+        "senior": [
+          {
+            "active": true,
+            "issueId": "16",
+            "sessionKey": "agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260801t012303z",
+            "startTime": "2026-08-01T01:23:03Z",
+            "previousLabel": "Refining",
+            "name": "Ara",
+            "level": "senior",
+            "recoveryFrom": "blocked developer session",
+            "recoveredAt": "2026-08-01T01:23:03Z"
+          }
+        ]
+      }
+    },
+    "tester": {
+      "levels": {
+        "junior": [
+          {
+            "active": false,
+            "issueId": null,
+            "sessionKey": null,
+            "startTime": null,
+            "previousLabel": null
+          }
+        ],
+        "medior": [
+          {
+            "active": false,
+            "issueId": null,
+            "sessionKey": null,
+            "startTime": null,
+            "previousLabel": null
+          }
+        ],
+        "senior": [
+          {
+            "active": false,
+            "issueId": null,
+            "sessionKey": "agent:main:subagent:application-modernization-lab-tester-senior-targeted-correction-issue-14-pr-15-20260731t141251z",
+            "startTime": null,
+            "previousLabel": null,
+            "name": "Senior Tester",
+            "level": "senior",
+            "lastIssueId": "14"
+          }
+        ]
+      }
+    },
+    "reviewer": {
+      "levels": {}
+    }
+  }
+}

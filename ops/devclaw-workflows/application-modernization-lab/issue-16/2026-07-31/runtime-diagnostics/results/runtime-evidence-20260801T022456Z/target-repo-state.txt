@@ -1,0 +1,28 @@
+checkedAt=2026-08-01T02:24:56Z
+
+=== git-branch ===
+main
+
+=== git-head ===
+38ab6b49868c8b4e490e2464d749f8b0fa92e905
+
+=== git-status ===
+## main...origin/main
+
+=== git-untracked-08b ===
+
+=== local-implementation-branch ===
+fatal: 'refs/heads/experiment-08/aks-store-aspire-migration' - not a valid ref
+[exit=128]
+
+=== remote-implementation-branch ===
+
+=== recent-local-commits ===
+38ab6b4 (HEAD -> main, origin/main, origin/HEAD) test(experiment-08a): add AKS Store Compose baseline (#15)
+83f1f25 (experiment-08/aks-store-compose-baseline) fix(experiment-08a): address tester validation findings
+9a12357 docs(experiment-08a): restore validation result formatting
+af05fa1 test(experiment-08a): apply persistence classification approval
+5b50502 chore(experiment-08): ignore local validation evidence
+15af474 chore(experiment-08): keep runtime validation artifacts untracked
+1a9bcbf test(experiment-08): add AKS Store Compose baseline
+31c4054 Merge PR #13: document Experiment 07 skill review

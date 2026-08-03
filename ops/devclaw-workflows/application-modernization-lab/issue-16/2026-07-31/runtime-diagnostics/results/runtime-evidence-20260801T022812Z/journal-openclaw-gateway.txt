@@ -1,0 +1,628 @@
+checkedAt=2026-08-01T02:28:12Z
+
+=== gateway-journal-recent ===
+Jul 31 18:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:30.314+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 18:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:30.482+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=211464 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=211287 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=211464 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 18:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:30.491+00:00 [diagnostic] session turn created: runId=8179cd65-4197-43c6-b9f4-f223d32f76e4 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 18:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:30.665+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 18:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:30.665+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=0 queueSize=0
+Jul 31 18:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:30.666+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 18:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:30.667+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Jul 31 18:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:30.978+00:00 [agents/harness] agent harness selected
+Jul 31 18:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:31.447+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 18:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:31.456+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 18:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:31.502+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 18:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:31.507+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 18:05:32 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:32.266+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 18:05:32 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:32.846+00:00 [diagnostic] liveness warning: reasons=event_loop_delay interval=30s eventLoopDelayP99Ms=24.3 eventLoopDelayMaxMs=1181.7 eventLoopUtilization=0.088 cpuCoreRatio=0.141 active=0 waiting=0 queued=0 recentPhases=post-attach.update-check:11ms,sidecars.restart-sentinel:45ms,post-attach.update-sentinel:14ms,sidecars.session-locks:50ms,post-ready.maintenance:42ms,post-ready.agent-runtime-plugins:516ms
+Jul 31 18:05:32 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:32.847+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:05:34 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:34.023+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 18:05:34 agent-devbox-recovery openclaw[625]: 2026-07-31T18:05:34.024+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 18:06:02 agent-devbox-recovery openclaw[625]: 2026-07-31T18:06:02.839+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 18:06:09 agent-devbox-recovery openclaw[625]: 2026-07-31T18:06:09.689+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 18:06:09 agent-devbox-recovery openclaw[625]: 2026-07-31T18:06:09.689+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 18:06:09 agent-devbox-recovery openclaw[625]: 2026-07-31T18:06:09.697+00:00 [agent/embedded] embedded run done: runId=8179cd65-4197-43c6-b9f4-f223d32f76e4 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=39029 aborted=false
+Jul 31 18:06:09 agent-devbox-recovery openclaw[625]: 2026-07-31T18:06:09.727+00:00 [diagnostic] lane task done: lane=main durationMs=39060 active=0 queued=0
+Jul 31 18:06:09 agent-devbox-recovery openclaw[625]: 2026-07-31T18:06:09.728+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=39062 active=0 queued=0
+Jul 31 18:06:32 agent-devbox-recovery openclaw[625]: 2026-07-31T18:06:32.839+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:07:02 agent-devbox-recovery openclaw[625]: 2026-07-31T18:07:02.838+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:07:32 agent-devbox-recovery openclaw[625]: 2026-07-31T18:07:32.838+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:08:02 agent-devbox-recovery openclaw[625]: 2026-07-31T18:08:02.838+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:29.698+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 18:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:29.733+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=212023 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=211846 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=212023 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 18:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:29.738+00:00 [diagnostic] session turn created: runId=d0b6152b-3241-4546-87e9-20388f38c2fa sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 18:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:29.892+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 18:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:29.893+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 18:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:29.894+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 18:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:29.894+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Jul 31 18:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:30.243+00:00 [agents/harness] agent harness selected
+Jul 31 18:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:30.648+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 18:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:30.657+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 18:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:30.699+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 18:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:30.705+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 18:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:31.477+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 18:35:32 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:32.852+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:33.492+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 18:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T18:35:33.493+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 18:36:02 agent-devbox-recovery openclaw[625]: 2026-07-31T18:36:02.852+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 18:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T18:36:10.530+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 18:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T18:36:10.531+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 18:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T18:36:10.538+00:00 [agent/embedded] embedded run done: runId=d0b6152b-3241-4546-87e9-20388f38c2fa sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=40643 aborted=false
+Jul 31 18:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T18:36:10.566+00:00 [diagnostic] lane task done: lane=main durationMs=40672 active=0 queued=0
+Jul 31 18:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T18:36:10.567+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=40674 active=0 queued=0
+Jul 31 18:36:32 agent-devbox-recovery openclaw[625]: 2026-07-31T18:36:32.851+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:37:02 agent-devbox-recovery openclaw[625]: 2026-07-31T18:37:02.852+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:37:32 agent-devbox-recovery openclaw[625]: 2026-07-31T18:37:32.852+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 18:38:02 agent-devbox-recovery openclaw[625]: 2026-07-31T18:38:02.852+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:29.719+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 19:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:29.770+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=212583 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=212406 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=212583 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 19:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:29.775+00:00 [diagnostic] session turn created: runId=afc1116e-b02c-47fc-91b2-c0690493d67b sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 19:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:29.930+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 19:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:29.930+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 19:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:29.931+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 19:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:29.931+00:00 [diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+Jul 31 19:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:30.265+00:00 [agents/harness] agent harness selected
+Jul 31 19:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:30.794+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 19:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:30.806+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 19:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:30.863+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 19:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:30.869+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 19:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:31.733+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 19:05:32 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:32.863+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:33.713+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 19:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T19:05:33.715+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 19:06:02 agent-devbox-recovery openclaw[625]: 2026-07-31T19:06:02.862+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 19:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T19:06:07.701+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 19:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T19:06:07.701+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 19:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T19:06:07.708+00:00 [agent/embedded] embedded run done: runId=afc1116e-b02c-47fc-91b2-c0690493d67b sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=37775 aborted=false
+Jul 31 19:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T19:06:07.738+00:00 [diagnostic] lane task done: lane=main durationMs=37806 active=0 queued=0
+Jul 31 19:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T19:06:07.738+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=37807 active=0 queued=0
+Jul 31 19:06:32 agent-devbox-recovery openclaw[625]: 2026-07-31T19:06:32.862+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:07:02 agent-devbox-recovery openclaw[625]: 2026-07-31T19:07:02.862+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:07:32 agent-devbox-recovery openclaw[625]: 2026-07-31T19:07:32.862+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:08:02 agent-devbox-recovery openclaw[625]: 2026-07-31T19:08:02.862+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:29.735+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 19:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:29.779+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=213139 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=212962 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=213139 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 19:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:29.789+00:00 [diagnostic] session turn created: runId=2e4e11cc-0e00-48dd-97dc-c23d7022b7dc sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 19:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:29.966+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 19:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:29.967+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 19:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:29.968+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 19:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:29.968+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Jul 31 19:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:30.318+00:00 [agents/harness] agent harness selected
+Jul 31 19:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:30.864+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 19:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:30.875+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 19:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:30.927+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 19:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:30.933+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 19:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:31.978+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 19:35:32 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:32.872+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:33.709+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 19:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T19:35:33.710+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 19:36:02 agent-devbox-recovery openclaw[625]: 2026-07-31T19:36:02.873+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 19:36:05 agent-devbox-recovery openclaw[625]: 2026-07-31T19:36:05.462+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 19:36:05 agent-devbox-recovery openclaw[625]: 2026-07-31T19:36:05.463+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 19:36:05 agent-devbox-recovery openclaw[625]: 2026-07-31T19:36:05.470+00:00 [agent/embedded] embedded run done: runId=2e4e11cc-0e00-48dd-97dc-c23d7022b7dc sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=35500 aborted=false
+Jul 31 19:36:05 agent-devbox-recovery openclaw[625]: 2026-07-31T19:36:05.497+00:00 [diagnostic] lane task done: lane=main durationMs=35528 active=0 queued=0
+Jul 31 19:36:05 agent-devbox-recovery openclaw[625]: 2026-07-31T19:36:05.497+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=35530 active=0 queued=0
+Jul 31 19:36:32 agent-devbox-recovery openclaw[625]: 2026-07-31T19:36:32.873+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:37:02 agent-devbox-recovery openclaw[625]: 2026-07-31T19:37:02.873+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:37:32 agent-devbox-recovery openclaw[625]: 2026-07-31T19:37:32.872+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 19:38:02 agent-devbox-recovery openclaw[625]: 2026-07-31T19:38:02.873+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:29.745+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 20:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:29.792+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=213698 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=213521 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=213698 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 20:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:29.800+00:00 [diagnostic] session turn created: runId=e9a474f1-d839-4b7f-b265-b9a7ec05d6a5 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.000+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.001+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.002+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.003+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.337+00:00 [agents/harness] agent harness selected
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.839+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.846+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.903+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 20:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:30.911+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 20:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:31.757+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 20:05:32 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:32.888+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:33.572+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 20:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T20:05:33.573+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 20:06:02 agent-devbox-recovery openclaw[625]: 2026-07-31T20:06:02.888+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 20:06:10 agent-devbox-recovery openclaw[625]: 2026-07-31T20:06:10.504+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 20:06:10 agent-devbox-recovery openclaw[625]: 2026-07-31T20:06:10.504+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 20:06:10 agent-devbox-recovery openclaw[625]: 2026-07-31T20:06:10.511+00:00 [agent/embedded] embedded run done: runId=e9a474f1-d839-4b7f-b265-b9a7ec05d6a5 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=40507 aborted=false
+Jul 31 20:06:10 agent-devbox-recovery openclaw[625]: 2026-07-31T20:06:10.540+00:00 [diagnostic] lane task done: lane=main durationMs=40537 active=0 queued=0
+Jul 31 20:06:10 agent-devbox-recovery openclaw[625]: 2026-07-31T20:06:10.541+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=40539 active=0 queued=0
+Jul 31 20:06:32 agent-devbox-recovery openclaw[625]: 2026-07-31T20:06:32.889+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:07:02 agent-devbox-recovery openclaw[625]: 2026-07-31T20:07:02.890+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:07:32 agent-devbox-recovery openclaw[625]: 2026-07-31T20:07:32.890+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:08:02 agent-devbox-recovery openclaw[625]: 2026-07-31T20:08:02.890+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:29.718+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 20:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:29.766+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=214256 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=214079 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=214256 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 20:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:29.771+00:00 [diagnostic] session turn created: runId=31266739-2db1-49ae-a67e-6dc97a1d392f sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 20:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:29.930+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 20:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:29.931+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 20:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:29.932+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 20:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:29.932+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Jul 31 20:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:30.261+00:00 [agents/harness] agent harness selected
+Jul 31 20:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:30.680+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 20:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:30.689+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 20:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:30.732+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 20:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:30.738+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 20:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:31.498+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 20:35:32 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:32.899+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:33.297+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 20:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T20:35:33.299+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 20:36:02 agent-devbox-recovery openclaw[625]: 2026-07-31T20:36:02.899+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 20:36:08 agent-devbox-recovery openclaw[625]: 2026-07-31T20:36:08.731+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 20:36:08 agent-devbox-recovery openclaw[625]: 2026-07-31T20:36:08.732+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 20:36:08 agent-devbox-recovery openclaw[625]: 2026-07-31T20:36:08.738+00:00 [agent/embedded] embedded run done: runId=31266739-2db1-49ae-a67e-6dc97a1d392f sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=38805 aborted=false
+Jul 31 20:36:08 agent-devbox-recovery openclaw[625]: 2026-07-31T20:36:08.771+00:00 [diagnostic] lane task done: lane=main durationMs=38839 active=0 queued=0
+Jul 31 20:36:08 agent-devbox-recovery openclaw[625]: 2026-07-31T20:36:08.772+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=38840 active=0 queued=0
+Jul 31 20:36:32 agent-devbox-recovery openclaw[625]: 2026-07-31T20:36:32.899+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:37:02 agent-devbox-recovery openclaw[625]: 2026-07-31T20:37:02.899+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:37:32 agent-devbox-recovery openclaw[625]: 2026-07-31T20:37:32.899+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 20:38:02 agent-devbox-recovery openclaw[625]: 2026-07-31T20:38:02.900+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:29.718+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 21:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:29.752+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=214813 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=214636 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=214813 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 21:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:29.759+00:00 [diagnostic] session turn created: runId=9b2bea9c-f0e5-4e34-a910-e36cd3f07aaf sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 21:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:29.921+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 21:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:29.922+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=0 queueSize=0
+Jul 31 21:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:29.923+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 21:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:29.923+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Jul 31 21:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:30.259+00:00 [agents/harness] agent harness selected
+Jul 31 21:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:30.794+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 21:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:30.801+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 21:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:30.849+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 21:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:30.856+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 21:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:31.726+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 21:05:32 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:32.912+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:33.708+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 21:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T21:05:33.710+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 21:06:02 agent-devbox-recovery openclaw[625]: 2026-07-31T21:06:02.912+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 21:06:13 agent-devbox-recovery openclaw[625]: 2026-07-31T21:06:13.749+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 21:06:13 agent-devbox-recovery openclaw[625]: 2026-07-31T21:06:13.749+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 21:06:13 agent-devbox-recovery openclaw[625]: 2026-07-31T21:06:13.756+00:00 [agent/embedded] embedded run done: runId=9b2bea9c-f0e5-4e34-a910-e36cd3f07aaf sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=43832 aborted=false
+Jul 31 21:06:13 agent-devbox-recovery openclaw[625]: 2026-07-31T21:06:13.786+00:00 [diagnostic] lane task done: lane=main durationMs=43863 active=0 queued=0
+Jul 31 21:06:13 agent-devbox-recovery openclaw[625]: 2026-07-31T21:06:13.787+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=43864 active=0 queued=0
+Jul 31 21:06:32 agent-devbox-recovery openclaw[625]: 2026-07-31T21:06:32.912+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:07:02 agent-devbox-recovery openclaw[625]: 2026-07-31T21:07:02.912+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:07:32 agent-devbox-recovery openclaw[625]: 2026-07-31T21:07:32.912+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:08:02 agent-devbox-recovery openclaw[625]: 2026-07-31T21:08:02.913+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:29.739+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 21:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:29.783+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=215370 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=215193 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=215370 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 21:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:29.790+00:00 [diagnostic] session turn created: runId=a36bf771-51b1-49d3-aeca-99551c8858f1 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 21:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:30.001+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 21:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:30.002+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 21:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:30.003+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 21:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:30.003+00:00 [diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+Jul 31 21:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:30.377+00:00 [agents/harness] agent harness selected
+Jul 31 21:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:30.936+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 21:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:30.943+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 21:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:30.999+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 21:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:31.004+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 21:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:31.919+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 21:35:32 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:32.933+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:33.841+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 21:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T21:35:33.844+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 21:36:02 agent-devbox-recovery openclaw[625]: 2026-07-31T21:36:02.934+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 21:36:21 agent-devbox-recovery openclaw[625]: 2026-07-31T21:36:21.210+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 21:36:21 agent-devbox-recovery openclaw[625]: 2026-07-31T21:36:21.211+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 21:36:21 agent-devbox-recovery openclaw[625]: 2026-07-31T21:36:21.218+00:00 [agent/embedded] embedded run done: runId=a36bf771-51b1-49d3-aeca-99551c8858f1 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=51214 aborted=false
+Jul 31 21:36:21 agent-devbox-recovery openclaw[625]: 2026-07-31T21:36:21.245+00:00 [diagnostic] lane task done: lane=main durationMs=51241 active=0 queued=0
+Jul 31 21:36:21 agent-devbox-recovery openclaw[625]: 2026-07-31T21:36:21.246+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=51244 active=0 queued=0
+Jul 31 21:36:32 agent-devbox-recovery openclaw[625]: 2026-07-31T21:36:32.934+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:37:02 agent-devbox-recovery openclaw[625]: 2026-07-31T21:37:02.935+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:37:32 agent-devbox-recovery openclaw[625]: 2026-07-31T21:37:32.935+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 21:38:02 agent-devbox-recovery openclaw[625]: 2026-07-31T21:38:02.935+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:29.712+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 22:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:29.747+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=215927 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=215750 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=215927 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 22:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:29.753+00:00 [diagnostic] session turn created: runId=746bd79c-01de-42a3-98bf-a47b59130233 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 22:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:29.913+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 22:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:29.913+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 22:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:29.914+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 22:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:29.914+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Jul 31 22:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:30.268+00:00 [agents/harness] agent harness selected
+Jul 31 22:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:30.815+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 22:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:30.825+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 22:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:30.875+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 22:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:30.884+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 22:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:31.740+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 22:05:32 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:32.954+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:33.541+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 22:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T22:05:33.544+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 22:06:02 agent-devbox-recovery openclaw[625]: 2026-07-31T22:06:02.954+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 22:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T22:06:07.872+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 22:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T22:06:07.873+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 22:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T22:06:07.880+00:00 [agent/embedded] embedded run done: runId=746bd79c-01de-42a3-98bf-a47b59130233 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=37965 aborted=false
+Jul 31 22:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T22:06:07.911+00:00 [diagnostic] lane task done: lane=main durationMs=37997 active=0 queued=0
+Jul 31 22:06:07 agent-devbox-recovery openclaw[625]: 2026-07-31T22:06:07.912+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=37999 active=0 queued=0
+Jul 31 22:06:32 agent-devbox-recovery openclaw[625]: 2026-07-31T22:06:32.954+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:07:02 agent-devbox-recovery openclaw[625]: 2026-07-31T22:07:02.955+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:07:32 agent-devbox-recovery openclaw[625]: 2026-07-31T22:07:32.956+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:08:02 agent-devbox-recovery openclaw[625]: 2026-07-31T22:08:02.955+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:29.740+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 22:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:29.792+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=216485 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=216308 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=216485 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 22:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:29.801+00:00 [diagnostic] session turn created: runId=5197428d-1626-48f7-9082-46b333f29866 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 22:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:29.976+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 22:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:29.977+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 22:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:29.978+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 22:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:29.978+00:00 [diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+Jul 31 22:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:30.300+00:00 [agents/harness] agent harness selected
+Jul 31 22:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:30.700+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 22:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:30.709+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 22:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:30.759+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 22:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:30.767+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 22:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:31.897+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 22:35:32 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:32.971+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:33.676+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 22:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T22:35:33.677+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 22:36:02 agent-devbox-recovery openclaw[625]: 2026-07-31T22:36:02.972+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 22:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T22:36:10.896+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 22:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T22:36:10.896+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 22:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T22:36:10.904+00:00 [agent/embedded] embedded run done: runId=5197428d-1626-48f7-9082-46b333f29866 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=40925 aborted=false
+Jul 31 22:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T22:36:10.934+00:00 [diagnostic] lane task done: lane=main durationMs=40955 active=0 queued=0
+Jul 31 22:36:10 agent-devbox-recovery openclaw[625]: 2026-07-31T22:36:10.935+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=40956 active=0 queued=0
+Jul 31 22:36:32 agent-devbox-recovery openclaw[625]: 2026-07-31T22:36:32.971+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:37:02 agent-devbox-recovery openclaw[625]: 2026-07-31T22:37:02.971+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:37:32 agent-devbox-recovery openclaw[625]: 2026-07-31T22:37:32.972+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 22:38:02 agent-devbox-recovery openclaw[625]: 2026-07-31T22:38:02.973+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:29.766+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 23:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:29.815+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=217043 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=216866 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=217043 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 23:05:29 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:29.824+00:00 [diagnostic] session turn created: runId=5ba9193f-bf2b-40ef-9433-6bb811b7e18d sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.004+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.006+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.007+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.007+00:00 [diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.347+00:00 [agents/harness] agent harness selected
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.893+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.901+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.944+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 23:05:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:30.950+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 23:05:31 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:31.867+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 23:05:32 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:32.988+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:33.834+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 23:05:33 agent-devbox-recovery openclaw[625]: 2026-07-31T23:05:33.835+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 23:06:02 agent-devbox-recovery openclaw[625]: 2026-07-31T23:06:02.988+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 23:06:08 agent-devbox-recovery openclaw[625]: 2026-07-31T23:06:08.275+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 23:06:08 agent-devbox-recovery openclaw[625]: 2026-07-31T23:06:08.275+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 23:06:08 agent-devbox-recovery openclaw[625]: 2026-07-31T23:06:08.282+00:00 [agent/embedded] embedded run done: runId=5ba9193f-bf2b-40ef-9433-6bb811b7e18d sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=38274 aborted=false
+Jul 31 23:06:08 agent-devbox-recovery openclaw[625]: 2026-07-31T23:06:08.314+00:00 [diagnostic] lane task done: lane=main durationMs=38307 active=0 queued=0
+Jul 31 23:06:08 agent-devbox-recovery openclaw[625]: 2026-07-31T23:06:08.315+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=38309 active=0 queued=0
+Jul 31 23:06:32 agent-devbox-recovery openclaw[625]: 2026-07-31T23:06:32.987+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:07:02 agent-devbox-recovery openclaw[625]: 2026-07-31T23:07:02.987+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:07:32 agent-devbox-recovery openclaw[625]: 2026-07-31T23:07:32.988+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:08:02 agent-devbox-recovery openclaw[625]: 2026-07-31T23:08:02.988+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:29.766+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Jul 31 23:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:29.813+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=217601 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=217424 persistedFresh=true promptTokensEst=177 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=217601 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Jul 31 23:35:29 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:29.824+00:00 [diagnostic] session turn created: runId=39d89416-b713-44ba-b42e-e98372d95b23 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Jul 31 23:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:30.010+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Jul 31 23:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:30.010+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Jul 31 23:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:30.011+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Jul 31 23:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:30.012+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Jul 31 23:35:30 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:30.361+00:00 [agents/harness] agent harness selected
+Jul 31 23:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:31.544+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 23:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:31.553+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 23:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:31.609+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Jul 31 23:35:31 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:31.617+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Jul 31 23:35:32 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:32.008+00:00 [agent/embedded] codex plugin thread config eligibility
+Jul 31 23:35:32 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:32.997+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:33.929+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Jul 31 23:35:33 agent-devbox-recovery openclaw[625]: 2026-07-31T23:35:33.932+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Jul 31 23:36:02 agent-devbox-recovery openclaw[625]: 2026-07-31T23:36:02.995+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Jul 31 23:36:20 agent-devbox-recovery openclaw[625]: 2026-07-31T23:36:20.574+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Jul 31 23:36:20 agent-devbox-recovery openclaw[625]: 2026-07-31T23:36:20.574+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Jul 31 23:36:20 agent-devbox-recovery openclaw[625]: 2026-07-31T23:36:20.581+00:00 [agent/embedded] embedded run done: runId=39d89416-b713-44ba-b42e-e98372d95b23 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=50568 aborted=false
+Jul 31 23:36:20 agent-devbox-recovery openclaw[625]: 2026-07-31T23:36:20.609+00:00 [diagnostic] lane task done: lane=main durationMs=50597 active=0 queued=0
+Jul 31 23:36:20 agent-devbox-recovery openclaw[625]: 2026-07-31T23:36:20.610+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=50598 active=0 queued=0
+Jul 31 23:36:32 agent-devbox-recovery openclaw[625]: 2026-07-31T23:36:32.996+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:37:02 agent-devbox-recovery openclaw[625]: 2026-07-31T23:37:02.996+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:37:32 agent-devbox-recovery openclaw[625]: 2026-07-31T23:37:32.996+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Jul 31 23:38:02 agent-devbox-recovery openclaw[625]: 2026-07-31T23:38:02.996+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:29.732+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Aug 01 00:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:29.777+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=218161 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=217983 persistedFresh=true promptTokensEst=178 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=218161 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Aug 01 00:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:29.783+00:00 [diagnostic] session turn created: runId=6513a2c4-01cf-4b98-9dc8-ae7dc167be1d sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Aug 01 00:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:29.930+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Aug 01 00:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:29.931+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=0 queueSize=0
+Aug 01 00:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:29.931+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Aug 01 00:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:29.931+00:00 [diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+Aug 01 00:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:30.295+00:00 [agents/harness] agent harness selected
+Aug 01 00:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:30.828+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 00:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:30.835+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 00:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:30.889+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 00:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:30.897+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 00:05:31 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:31.703+00:00 [agent/embedded] codex plugin thread config eligibility
+Aug 01 00:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:33.012+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:33.594+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Aug 01 00:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:05:33.598+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Aug 01 00:06:03 agent-devbox-recovery openclaw[625]: 2026-08-01T00:06:03.013+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 00:06:05 agent-devbox-recovery openclaw[625]: 2026-08-01T00:06:05.896+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Aug 01 00:06:05 agent-devbox-recovery openclaw[625]: 2026-08-01T00:06:05.896+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Aug 01 00:06:05 agent-devbox-recovery openclaw[625]: 2026-08-01T00:06:05.903+00:00 [agent/embedded] embedded run done: runId=6513a2c4-01cf-4b98-9dc8-ae7dc167be1d sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=35971 aborted=false
+Aug 01 00:06:05 agent-devbox-recovery openclaw[625]: 2026-08-01T00:06:05.931+00:00 [diagnostic] lane task done: lane=main durationMs=35999 active=0 queued=0
+Aug 01 00:06:05 agent-devbox-recovery openclaw[625]: 2026-08-01T00:06:05.931+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=36000 active=0 queued=0
+Aug 01 00:06:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:06:33.012+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:07:03 agent-devbox-recovery openclaw[625]: 2026-08-01T00:07:03.012+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:07:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:07:33.014+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:08:03 agent-devbox-recovery openclaw[625]: 2026-08-01T00:08:03.014+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:35:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:29.770+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Aug 01 00:35:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:29.823+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=218955 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=218777 persistedFresh=true promptTokensEst=178 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=218955 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Aug 01 00:35:29 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:29.833+00:00 [diagnostic] session turn created: runId=4dba54b0-6a43-4295-8455-88e385787fa8 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Aug 01 00:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:30.000+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Aug 01 00:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:30.001+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Aug 01 00:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:30.004+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Aug 01 00:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:30.004+00:00 [diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+Aug 01 00:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:30.353+00:00 [agents/harness] agent harness selected
+Aug 01 00:35:31 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:31.450+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 00:35:31 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:31.456+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 00:35:31 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:31.510+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 00:35:31 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:31.517+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 00:35:31 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:31.895+00:00 [agent/embedded] codex plugin thread config eligibility
+Aug 01 00:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:33.025+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:33.732+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Aug 01 00:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:35:33.735+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Aug 01 00:36:03 agent-devbox-recovery openclaw[625]: 2026-08-01T00:36:03.025+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 00:36:13 agent-devbox-recovery openclaw[625]: 2026-08-01T00:36:13.690+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Aug 01 00:36:13 agent-devbox-recovery openclaw[625]: 2026-08-01T00:36:13.690+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Aug 01 00:36:13 agent-devbox-recovery openclaw[625]: 2026-08-01T00:36:13.697+00:00 [agent/embedded] embedded run done: runId=4dba54b0-6a43-4295-8455-88e385787fa8 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=43692 aborted=false
+Aug 01 00:36:13 agent-devbox-recovery openclaw[625]: 2026-08-01T00:36:13.725+00:00 [diagnostic] lane task done: lane=main durationMs=43721 active=0 queued=0
+Aug 01 00:36:13 agent-devbox-recovery openclaw[625]: 2026-08-01T00:36:13.725+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=43723 active=0 queued=0
+Aug 01 00:36:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:36:33.025+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:37:03 agent-devbox-recovery openclaw[625]: 2026-08-01T00:37:03.025+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:37:33 agent-devbox-recovery openclaw[625]: 2026-08-01T00:37:33.025+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 00:38:03 agent-devbox-recovery openclaw[625]: 2026-08-01T00:38:03.025+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:29.780+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Aug 01 01:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:29.864+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=219512 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=219334 persistedFresh=true promptTokensEst=178 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=219512 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Aug 01 01:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:29.885+00:00 [diagnostic] session turn created: runId=d135a114-c518-441b-820c-6124b8d4ed0f sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Aug 01 01:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:30.079+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Aug 01 01:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:30.080+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Aug 01 01:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:30.081+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Aug 01 01:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:30.082+00:00 [diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+Aug 01 01:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:30.517+00:00 [agents/harness] agent harness selected
+Aug 01 01:05:31 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:31.424+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 01:05:31 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:31.432+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 01:05:31 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:31.486+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 01:05:31 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:31.495+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 01:05:31 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:31.946+00:00 [agent/embedded] codex plugin thread config eligibility
+Aug 01 01:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:33.036+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:33.816+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Aug 01 01:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:05:33.817+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Aug 01 01:06:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:06:03.036+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 01:06:15 agent-devbox-recovery openclaw[625]: 2026-08-01T01:06:15.218+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Aug 01 01:06:15 agent-devbox-recovery openclaw[625]: 2026-08-01T01:06:15.219+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Aug 01 01:06:15 agent-devbox-recovery openclaw[625]: 2026-08-01T01:06:15.225+00:00 [agent/embedded] embedded run done: runId=d135a114-c518-441b-820c-6124b8d4ed0f sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=45142 aborted=false
+Aug 01 01:06:15 agent-devbox-recovery openclaw[625]: 2026-08-01T01:06:15.257+00:00 [diagnostic] lane task done: lane=main durationMs=45175 active=0 queued=0
+Aug 01 01:06:15 agent-devbox-recovery openclaw[625]: 2026-08-01T01:06:15.257+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=45176 active=0 queued=0
+Aug 01 01:06:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:06:33.035+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:07:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:07:03.035+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:07:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:07:33.036+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:08:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:08:03.037+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:23:32 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:32.655+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=50202 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:50202->127.0.0.1:18789 conn=6a1a7281…c76a
+Aug 01 01:23:32 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:32.675+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 01:23:32 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:32.685+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=17
+Aug 01 01:23:32 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:32.727+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=17 healthVersion=1792
+Aug 01 01:23:32 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:32.772+00:00 [ws] ⇄ res ✓ sessions.patch 38ms id=6c735817…7bb9
+Aug 01 01:23:32 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:32.907+00:00 [ws] → close code=1005 durationMs=141 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=6c735817-6e3d-4fa6-8134-585ce77f7bb9 endpoint=127.0.0.1:50202->127.0.0.1:18789
+Aug 01 01:23:40 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:40.470+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=39884 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:39884->127.0.0.1:18789 conn=2d0a2ee9…bb2e
+Aug 01 01:23:40 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:40.481+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 01:23:40 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:40.489+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=17
+Aug 01 01:23:40 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:40.534+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=17 healthVersion=1793
+Aug 01 01:23:40 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:40.560+00:00 [ws] ⇄ res ✓ agent 19ms runId=devclaw-application-modernization-lab-16-developer-senior-context-recovery-2026-08-01T01:23:03Z id=831fe906…b826
+Aug 01 01:23:40 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:40.572+00:00 [ws] → close code=1005 durationMs=100 handshake=connected lastFrameType=req lastFrameMethod=agent lastFrameId=831fe906-6927-41ed-af51-87a30878b826 endpoint=127.0.0.1:39884->127.0.0.1:18789
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.201+00:00 [diagnostic] lane enqueue: lane=session:agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260801t012303z queueSize=1
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.202+00:00 [diagnostic] lane dequeue: lane=session:agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260801t012303z waitMs=1 queueSize=0
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.203+00:00 [diagnostic] lane enqueue: lane=subagent queueSize=1
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.203+00:00 [diagnostic] lane dequeue: lane=subagent waitMs=0 queueSize=0
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.206+00:00 [plugins] hook runner initialized with 1 registered hooks
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.497+00:00 [agents/harness] agent harness selected
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.604+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.612+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.620+00:00 [agents/tool-policy] tool policy removed 7 tool(s) via subagent tools.deny: agents_list, session_status, sessions_history, sessions_list, sessions_send, sessions_spawn, subagents; matched agents_list, session_status, sessions_history, sessions_list, sessions_send, sessions_spawn, subagents
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.678+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.683+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.692+00:00 [agents/tool-policy] tool policy removed 7 tool(s) via subagent tools.deny: agents_list, session_status, sessions_history, sessions_list, sessions_send, sessions_spawn, subagents; matched agents_list, session_status, sessions_history, sessions_list, sessions_send, sessions_spawn, subagents
+Aug 01 01:23:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:41.763+00:00 [agent/embedded] codex plugin thread config eligibility
+Aug 01 01:23:42 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:42.084+00:00 [diagnostic] session state: sessionId=445f00b0-e318-449d-9886-608c07ffbd03 sessionKey=agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260801t012303z prev=idle new=processing reason="run_started" queueDepth=0
+Aug 01 01:23:42 agent-devbox-recovery openclaw[625]: 2026-08-01T01:23:42.087+00:00 [diagnostic] run registered: sessionId=445f00b0-e318-449d-9886-608c07ffbd03 totalActive=1
+Aug 01 01:24:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:24:03.048+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 01:24:28 agent-devbox-recovery openclaw[625]: 2026-08-01T01:24:28.197+00:00 [agent/embedded] codex app-server stderr: 2026-08-01T01:24:28.195804Z ERROR codex_core::tools::router: error=exec_command failed for `/bin/bash -lc 'sha256sum /tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/context/issue-16-authoritative-context.md /tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/context/issue-16-authoritative-context.json'`: CreateProcess { message: "Rejected(\"This action was rejected due to unacceptable risk.\\nReason: The hash check is harmless and explicitly authorized, but the planned action requests prohibited sandbox escalation under the current approval policy.\\nThe agent must not attempt to achieve the same outcome via workaround, indirect execution, or policy circumvention. Proceed only with a materially safer alternative, or if the user explicitly approves the action after being informed of the risk. Otherwise, stop and request user input.\")" }
+Aug 01 01:24:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:24:33.048+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 01:25:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:03.049+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 01:25:12 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:12.777+00:00 [agent/embedded] codex app-server stderr: 2026-08-01T01:25:12.776829Z ERROR codex_core::tools::router: error=exec_command failed for `/bin/bash -lc 'git branch --show-current'`: CreateProcess { message: "Rejected(\"This action was rejected due to unacceptable risk.\\nReason: Branch inspection is harmless and explicitly authorized, but the planned command requests prohibited sandbox escalation under the current approval policy.\\nThe agent must not attempt to achieve the same outcome via workaround, indirect execution, or policy circumvention. Proceed only with a materially safer alternative, or if the user explicitly approves the action after being informed of the risk. Otherwise, stop and request user input.\")" }
+Aug 01 01:25:13 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:13.715+00:00 [agent/embedded] codex app-server stderr: 2026-08-01T01:25:13.714758Z ERROR codex_core::tools::router: error=exec_command failed for `/bin/bash -lc "sed -n '1,260p' /tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/context/issue-16-authoritative-context.md"`: CreateProcess { message: "Rejected(\"This action was rejected due to unacceptable risk.\\nReason: Reading the user-provided packet is low-risk and authorized, but this exact request uses prohibited sandbox escalation under the current approval policy.\\nThe agent must not attempt to achieve the same outcome via workaround, indirect execution, or policy circumvention. Proceed only with a materially safer alternative, or if the user explicitly approves the action after being informed of the risk. Otherwise, stop and request user input.\")" }
+Aug 01 01:25:13 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:13.879+00:00 [agent/embedded] codex app-server model call diagnostic ended with error
+Aug 01 01:25:13 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:13.977+00:00 [diagnostic] session state: sessionId=445f00b0-e318-449d-9886-608c07ffbd03 sessionKey=agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260801t012303z prev=processing new=idle reason="run_completed" queueDepth=0
+Aug 01 01:25:13 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:13.978+00:00 [diagnostic] run cleared: sessionId=445f00b0-e318-449d-9886-608c07ffbd03 totalActive=0
+Aug 01 01:25:13 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:13.995+00:00 [agent/embedded] embedded run done: runId=devclaw-application-modernization-lab-16-developer-senior-context-recovery-2026-08-01T01:23:03Z sessionId=445f00b0-e318-449d-9886-608c07ffbd03 durationMs=92791 aborted=true
+Aug 01 01:25:14 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:14.051+00:00 [diagnostic] lane task done: lane=subagent durationMs=92847 active=0 queued=0
+Aug 01 01:25:14 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:14.052+00:00 [diagnostic] lane task done: lane=session:agent:main:subagent:application-modernization-lab-developer-senior-ara-issue-16-context-recovery-20260801t012303z durationMs=92849 active=0 queued=0
+Aug 01 01:25:14 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:14.109+00:00 ⚠️ 🛠️ Bash failed: `print lines 1-260 from /tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/context/issue-16-authoritative-context.md` (agent)
+Aug 01 01:25:14 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:14.135+00:00 [ws] ⇄ res ✓ agent runId=devclaw-application-modernization-lab-16-developer-senior-context-recovery-2026-08-01T01:23:03Z id=831fe906…b826
+Aug 01 01:25:20 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:20.613+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=55346 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:55346->127.0.0.1:18789 conn=fc7ab9af…88a4
+Aug 01 01:25:20 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:20.641+00:00 [ws] ← connect client=gateway-client clientDisplayName=gateway:nativeHook.invoke version=2026.7.1 mode=backend clientId=gateway-client platform=linux auth=token
+Aug 01 01:25:20 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:20.653+00:00 [ws] → hello-ok methods=217 events=30 presence=2 stateVersion=18
+Aug 01 01:25:20 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:20.731+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=18 healthVersion=1796
+Aug 01 01:25:20 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:20.746+00:00 [ws] ⇄ res ✗ nativeHook.invoke 2ms errorCode=INVALID_REQUEST errorMessage=native hook relay not found id=3531dd39…5078
+Aug 01 01:25:20 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:20.767+00:00 [ws] → event presence seq=per-client clients=1 dropIfSlow=true presenceVersion=19 healthVersion=1796
+Aug 01 01:25:20 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:20.776+00:00 [ws] → close code=1005 durationMs=153 handshake=connected lastFrameType=req lastFrameMethod=nativeHook.invoke lastFrameId=3531dd39-4304-45d5-9f8f-06d7eac15078 endpoint=127.0.0.1:55346->127.0.0.1:18789
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.284+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=55358 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:55358->127.0.0.1:18789 conn=c9fd3f8a…650d
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.309+00:00 [ws] ← connect client=gateway-client clientDisplayName=gateway:nativeHook.invoke version=2026.7.1 mode=backend clientId=gateway-client platform=linux auth=token
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.323+00:00 [ws] → hello-ok methods=217 events=30 presence=3 stateVersion=20
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.382+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=20 healthVersion=1797
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.391+00:00 [ws] ⇄ res ✗ nativeHook.invoke 1ms errorCode=INVALID_REQUEST errorMessage=native hook relay not found id=4e86a167…e3e0
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.410+00:00 [ws] → event presence seq=per-client clients=1 dropIfSlow=true presenceVersion=21 healthVersion=1797
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.420+00:00 [ws] → close code=1005 durationMs=123 handshake=connected lastFrameType=req lastFrameMethod=nativeHook.invoke lastFrameId=4e86a167-8461-48e8-ae72-ac9054cbe3e0 endpoint=127.0.0.1:55358->127.0.0.1:18789
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.605+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=55366 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:55366->127.0.0.1:18789 conn=7ba41c9d…d6e7
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.617+00:00 [ws] ← connect client=gateway-client clientDisplayName=gateway:nativeHook.invoke version=2026.7.1 mode=backend clientId=gateway-client platform=linux auth=token
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.623+00:00 [ws] → hello-ok methods=217 events=30 presence=4 stateVersion=22
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.663+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=22 healthVersion=1798
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.671+00:00 [ws] ⇄ res ✗ nativeHook.invoke 1ms errorCode=INVALID_REQUEST errorMessage=native hook relay not found id=54cfdf19…5cca
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.680+00:00 [ws] → event presence seq=per-client clients=1 dropIfSlow=true presenceVersion=23 healthVersion=1798
+Aug 01 01:25:21 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:21.687+00:00 [ws] → close code=1005 durationMs=75 handshake=connected lastFrameType=req lastFrameMethod=nativeHook.invoke lastFrameId=54cfdf19-e8ab-47ec-905c-9bb64c7a5cca endpoint=127.0.0.1:55366->127.0.0.1:18789
+Aug 01 01:25:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:25:33.049+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:26:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:26:03.050+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:26:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:26:33.050+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:27:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:27:03.049+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:35:29 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:29.994+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Aug 01 01:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:30.159+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=220070 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=219892 persistedFresh=true promptTokensEst=178 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=220070 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Aug 01 01:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:30.191+00:00 [diagnostic] session turn created: runId=2ecb6c24-b1ba-414d-b530-f4b7f26a1fe8 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Aug 01 01:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:30.753+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Aug 01 01:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:30.754+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=1 queueSize=0
+Aug 01 01:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:30.756+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Aug 01 01:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:30.757+00:00 [diagnostic] lane dequeue: lane=main waitMs=1 queueSize=0
+Aug 01 01:35:30 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:30.773+00:00 [plugins] hook runner initialized with 1 registered hooks
+Aug 01 01:35:32 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:32.155+00:00 [agents/harness] agent harness selected
+Aug 01 01:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:33.059+00:00 [diagnostic] liveness warning: reasons=event_loop_delay interval=30s eventLoopDelayP99Ms=23.6 eventLoopDelayMaxMs=2313.2 eventLoopUtilization=0.114 cpuCoreRatio=0.123 active=0 waiting=0 queued=0 recentPhases=post-attach.update-check:11ms,sidecars.restart-sentinel:45ms,post-attach.update-sentinel:14ms,sidecars.session-locks:50ms,post-ready.maintenance:42ms,post-ready.agent-runtime-plugins:516ms
+Aug 01 01:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:33.062+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:33.737+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 01:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:33.758+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 01:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:33.962+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 01:35:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:33.982+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 01:35:36 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:36.814+00:00 [agent/embedded] codex plugin thread config eligibility
+Aug 01 01:35:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:41.070+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Aug 01 01:35:41 agent-devbox-recovery openclaw[625]: 2026-08-01T01:35:41.071+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Aug 01 01:36:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:36:03.053+00:00 [diagnostic] liveness warning: reasons=event_loop_delay interval=30s eventLoopDelayP99Ms=29.9 eventLoopDelayMaxMs=1322.3 eventLoopUtilization=0.14 cpuCoreRatio=0.168 active=1 waiting=0 queued=0 recentPhases=post-attach.update-check:11ms,sidecars.restart-sentinel:45ms,post-attach.update-sentinel:14ms,sidecars.session-locks:50ms,post-ready.maintenance:42ms,post-ready.agent-runtime-plugins:516ms work=[active=agent:main:main(processing/model_call,q=0,age=22s last=codex_app_server:notification:thread/tokenUsage/updated)]
+Aug 01 01:36:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:36:03.054+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 01:36:22 agent-devbox-recovery openclaw[625]: 2026-08-01T01:36:22.697+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Aug 01 01:36:22 agent-devbox-recovery openclaw[625]: 2026-08-01T01:36:22.698+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Aug 01 01:36:22 agent-devbox-recovery openclaw[625]: 2026-08-01T01:36:22.708+00:00 [agent/embedded] embedded run done: runId=2ecb6c24-b1ba-414d-b530-f4b7f26a1fe8 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=51949 aborted=false
+Aug 01 01:36:22 agent-devbox-recovery openclaw[625]: 2026-08-01T01:36:22.752+00:00 [diagnostic] lane task done: lane=main durationMs=51995 active=0 queued=0
+Aug 01 01:36:22 agent-devbox-recovery openclaw[625]: 2026-08-01T01:36:22.753+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=51998 active=0 queued=0
+Aug 01 01:36:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:36:33.054+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:37:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:37:03.053+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:37:33 agent-devbox-recovery openclaw[625]: 2026-08-01T01:37:33.054+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 01:38:03 agent-devbox-recovery openclaw[625]: 2026-08-01T01:38:03.054+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:01:07 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:07.128+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=44240 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:44240->127.0.0.1:18789 conn=4002b0b7…e38f
+Aug 01 02:01:07 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:07.142+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:01:07 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:07.150+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:01:07 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:07.207+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1834
+Aug 01 02:01:07 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:07.635+00:00 [ws] ⇄ res ✓ status 423ms id=8abc99d3…691d
+Aug 01 02:01:07 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:07.724+00:00 [ws] → close code=1005 durationMs=529 handshake=connected lastFrameType=req lastFrameMethod=status lastFrameId=8abc99d3-ae3f-489c-8448-525293a8691d endpoint=127.0.0.1:44240->127.0.0.1:18789
+Aug 01 02:01:15 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:15.177+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=45454 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:45454->127.0.0.1:18789 conn=7c4a1c0b…62d1
+Aug 01 02:01:15 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:15.188+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:01:15 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:15.193+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:01:15 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:15.227+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1836
+Aug 01 02:01:15 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:15.238+00:00 [ws] ⇄ res ✓ health 3ms cached=true id=1ef3d679…55d3
+Aug 01 02:01:15 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:15.271+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1837
+Aug 01 02:01:15 agent-devbox-recovery openclaw[625]: 2026-08-01T02:01:15.282+00:00 [ws] → close code=1005 durationMs=104 handshake=connected lastFrameType=req lastFrameMethod=health lastFrameId=1ef3d679-fc83-4d76-9e9d-e9fccd2a55d3 endpoint=127.0.0.1:45454->127.0.0.1:18789
+Aug 01 02:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:29.702+00:00 [plugins] [hooks] running before_agent_reply (1 handlers, first-claim wins)
+Aug 01 02:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:29.741+00:00 memoryFlush check: sessionKey=agent:main:main tokenCount=220627 contextWindow=272000 threshold=248000 isHeartbeat=true isCli=false memoryFlushWritable=true compactionCount=0 memoryFlushCompactionCount=undefined persistedPromptTokens=220449 persistedFresh=true promptTokensEst=178 transcriptPromptTokens=undefined transcriptOutputTokens=undefined projectedTokenCount=220627 transcriptBytes=undefined forceFlushTranscriptBytes=2097152 forceFlushByTranscriptSize=false
+Aug 01 02:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:29.746+00:00 [diagnostic] session turn created: runId=792cc911-e146-4c65-9f28-49652f65d831 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main agentId=main channel=webchat trigger=heartbeat
+Aug 01 02:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:29.891+00:00 [diagnostic] lane enqueue: lane=session:agent:main:main queueSize=1
+Aug 01 02:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:29.892+00:00 [diagnostic] lane dequeue: lane=session:agent:main:main waitMs=0 queueSize=0
+Aug 01 02:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:29.892+00:00 [diagnostic] lane enqueue: lane=main queueSize=1
+Aug 01 02:05:29 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:29.893+00:00 [diagnostic] lane dequeue: lane=main waitMs=0 queueSize=0
+Aug 01 02:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:30.200+00:00 [agents/harness] agent harness selected
+Aug 01 02:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:30.674+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 02:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:30.679+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 02:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:30.727+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 02:05:30 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:30.734+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 02:05:31 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:31.458+00:00 [agent/embedded] codex plugin thread config eligibility
+Aug 01 02:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:33.071+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:33.164+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=idle new=processing reason="run_started" queueDepth=0
+Aug 01 02:05:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:05:33.165+00:00 [diagnostic] run registered: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=1
+Aug 01 02:06:03 agent-devbox-recovery openclaw[625]: 2026-08-01T02:06:03.071+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 02:06:10 agent-devbox-recovery openclaw[625]: 2026-08-01T02:06:10.139+00:00 [diagnostic] session state: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 sessionKey=agent:main:main prev=processing new=idle reason="run_completed" queueDepth=0
+Aug 01 02:06:10 agent-devbox-recovery openclaw[625]: 2026-08-01T02:06:10.140+00:00 [diagnostic] run cleared: sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 totalActive=0
+Aug 01 02:06:10 agent-devbox-recovery openclaw[625]: 2026-08-01T02:06:10.146+00:00 [agent/embedded] embedded run done: runId=792cc911-e146-4c65-9f28-49652f65d831 sessionId=73d623bf-b29e-49ae-b377-9f152c304cf3 durationMs=40253 aborted=false
+Aug 01 02:06:10 agent-devbox-recovery openclaw[625]: 2026-08-01T02:06:10.172+00:00 [diagnostic] lane task done: lane=main durationMs=40279 active=0 queued=0
+Aug 01 02:06:10 agent-devbox-recovery openclaw[625]: 2026-08-01T02:06:10.172+00:00 [diagnostic] lane task done: lane=session:agent:main:main durationMs=40280 active=0 queued=0
+Aug 01 02:06:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:06:33.071+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:07:03 agent-devbox-recovery openclaw[625]: 2026-08-01T02:07:03.070+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:07:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:07:33.070+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:08:03 agent-devbox-recovery openclaw[625]: 2026-08-01T02:08:03.071+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:10:31 agent-devbox-recovery openclaw[625]: 2026-08-01T02:10:31.771+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=39286 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:39286->127.0.0.1:18789 conn=58c895b6…1654
+Aug 01 02:10:31 agent-devbox-recovery openclaw[625]: 2026-08-01T02:10:31.784+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:10:31 agent-devbox-recovery openclaw[625]: 2026-08-01T02:10:31.791+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:10:31 agent-devbox-recovery openclaw[625]: 2026-08-01T02:10:31.833+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1847
+Aug 01 02:10:31 agent-devbox-recovery openclaw[625]: 2026-08-01T02:10:31.849+00:00 [ws] ⇄ res ✗ sessions.patch 7ms errorCode=INVALID_REQUEST errorMessage=invalid sessions.patch params: at root: unexpected property 'cwd' id=f2fe8cc6…173b
+Aug 01 02:10:31 agent-devbox-recovery openclaw[625]: 2026-08-01T02:10:31.861+00:00 [ws] → close code=1005 durationMs=89 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=f2fe8cc6-bc7a-421c-952d-ae03a7a2173b endpoint=127.0.0.1:39286->127.0.0.1:18789
+Aug 01 02:11:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:11:08.140+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=55528 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:55528->127.0.0.1:18789 conn=bd488e03…1ad8
+Aug 01 02:11:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:11:08.152+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:11:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:11:08.159+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:11:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:11:08.213+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1848
+Aug 01 02:11:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:11:08.221+00:00 [ws] ⇄ res ✗ sessions.patch 2ms errorCode=INVALID_REQUEST errorMessage=invalid sessions.patch params: at root: unexpected property 'cwd' id=54f73234…dd04
+Aug 01 02:11:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:11:08.232+00:00 [ws] → close code=1005 durationMs=91 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=54f73234-1330-41a7-aa1f-7960b64add04 endpoint=127.0.0.1:55528->127.0.0.1:18789
+Aug 01 02:12:12 agent-devbox-recovery openclaw[625]: 2026-08-01T02:12:12.685+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=55886 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:55886->127.0.0.1:18789 conn=357ebd4c…57b2
+Aug 01 02:12:12 agent-devbox-recovery openclaw[625]: 2026-08-01T02:12:12.696+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:12:12 agent-devbox-recovery openclaw[625]: 2026-08-01T02:12:12.702+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:12:12 agent-devbox-recovery openclaw[625]: 2026-08-01T02:12:12.743+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1851
+Aug 01 02:12:12 agent-devbox-recovery openclaw[625]: 2026-08-01T02:12:12.752+00:00 [ws] ⇄ res ✗ sessions.patch 2ms errorCode=INVALID_REQUEST errorMessage=invalid sessions.patch params: at root: unexpected property 'cwd' id=e376bf8f…05d1
+Aug 01 02:12:12 agent-devbox-recovery openclaw[625]: 2026-08-01T02:12:12.763+00:00 [ws] → close code=1005 durationMs=76 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=e376bf8f-6836-4c85-9f7e-6f51f00605d1 endpoint=127.0.0.1:55886->127.0.0.1:18789
+Aug 01 02:13:14 agent-devbox-recovery openclaw[625]: 2026-08-01T02:13:14.916+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=36672 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:36672->127.0.0.1:18789 conn=8b53315d…881f
+Aug 01 02:13:14 agent-devbox-recovery openclaw[625]: 2026-08-01T02:13:14.928+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:13:14 agent-devbox-recovery openclaw[625]: 2026-08-01T02:13:14.935+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:13:14 agent-devbox-recovery openclaw[625]: 2026-08-01T02:13:14.976+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1853
+Aug 01 02:13:14 agent-devbox-recovery openclaw[625]: 2026-08-01T02:13:14.985+00:00 [ws] ⇄ res ✗ sessions.patch 2ms errorCode=INVALID_REQUEST errorMessage=invalid sessions.patch params: at root: unexpected property 'cwd' id=e3ba79b7…27ee
+Aug 01 02:13:14 agent-devbox-recovery openclaw[625]: 2026-08-01T02:13:14.996+00:00 [ws] → close code=1005 durationMs=79 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=e3ba79b7-166a-4c4c-9cd4-d1694f0c27ee endpoint=127.0.0.1:36672->127.0.0.1:18789
+Aug 01 02:14:23 agent-devbox-recovery openclaw[625]: 2026-08-01T02:14:23.593+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=33696 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:33696->127.0.0.1:18789 conn=7738ad8e…bcf5
+Aug 01 02:14:23 agent-devbox-recovery openclaw[625]: 2026-08-01T02:14:23.607+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:14:23 agent-devbox-recovery openclaw[625]: 2026-08-01T02:14:23.616+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:14:23 agent-devbox-recovery openclaw[625]: 2026-08-01T02:14:23.657+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1855
+Aug 01 02:14:23 agent-devbox-recovery openclaw[625]: 2026-08-01T02:14:23.665+00:00 [ws] ⇄ res ✗ sessions.patch 2ms errorCode=INVALID_REQUEST errorMessage=invalid sessions.patch params: at root: unexpected property 'cwd' id=69d5f302…aed9
+Aug 01 02:14:23 agent-devbox-recovery openclaw[625]: 2026-08-01T02:14:23.680+00:00 [ws] → close code=1005 durationMs=82 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=69d5f302-4304-430d-9150-ffbb88b7aed9 endpoint=127.0.0.1:33696->127.0.0.1:18789
+Aug 01 02:15:56 agent-devbox-recovery openclaw[625]: 2026-08-01T02:15:56.519+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=39344 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:39344->127.0.0.1:18789 conn=1eb4203c…7e12
+Aug 01 02:15:56 agent-devbox-recovery openclaw[625]: 2026-08-01T02:15:56.530+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:15:56 agent-devbox-recovery openclaw[625]: 2026-08-01T02:15:56.536+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:15:56 agent-devbox-recovery openclaw[625]: 2026-08-01T02:15:56.591+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1857
+Aug 01 02:15:56 agent-devbox-recovery openclaw[625]: 2026-08-01T02:15:56.600+00:00 [ws] ⇄ res ✗ sessions.patch 1ms errorCode=INVALID_REQUEST errorMessage=invalid sessions.patch params: at root: unexpected property 'cwd' id=6a90b352…9e41
+Aug 01 02:15:56 agent-devbox-recovery openclaw[625]: 2026-08-01T02:15:56.610+00:00 [ws] → close code=1005 durationMs=90 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=6a90b352-8163-4bcd-9630-d4e047cf9e41 endpoint=127.0.0.1:39344->127.0.0.1:18789
+Aug 01 02:17:37 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:37.482+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=32860 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:32860->127.0.0.1:18789 conn=0b92892e…8c2a
+Aug 01 02:17:37 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:37.493+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:17:37 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:37.500+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:17:37 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:37.543+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1860
+Aug 01 02:17:37 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:37.585+00:00 [ws] ⇄ res ✓ sessions.patch 35ms id=e169929f…125c
+Aug 01 02:17:37 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:37.598+00:00 [ws] → close code=1005 durationMs=112 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=e169929f-3ec4-4189-9447-59a62546125c endpoint=127.0.0.1:32860->127.0.0.1:18789
+Aug 01 02:17:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:44.743+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=42080 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:42080->127.0.0.1:18789 conn=77c6ad01…cac6
+Aug 01 02:17:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:44.754+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:17:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:44.761+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:17:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:44.809+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1861
+Aug 01 02:17:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:44.817+00:00 [ws] ⇄ res ✗ agent 1ms errorCode=INVALID_REQUEST errorMessage=cwd is reserved for plugin-owned subagent runs id=880cb5a7…347b
+Aug 01 02:17:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:17:44.829+00:00 [ws] → close code=1005 durationMs=83 handshake=connected lastFrameType=req lastFrameMethod=agent lastFrameId=880cb5a7-fb3f-4dbd-a9f3-75d6546e347b endpoint=127.0.0.1:42080->127.0.0.1:18789
+Aug 01 02:19:01 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:01.268+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=39436 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:39436->127.0.0.1:18789 conn=548b73d8…56f2
+Aug 01 02:19:01 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:01.280+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:19:01 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:01.287+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:19:01 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:01.342+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1863
+Aug 01 02:19:01 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:01.377+00:00 [ws] ⇄ res ✓ sessions.patch 27ms id=deb30d0b…aa38
+Aug 01 02:19:01 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:01.391+00:00 [ws] → close code=1005 durationMs=119 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=deb30d0b-30d6-4d90-b17d-7c4dfa8faa38 endpoint=127.0.0.1:39436->127.0.0.1:18789
+Aug 01 02:19:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:08.590+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=39444 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:39444->127.0.0.1:18789 conn=7a8527e6…2776
+Aug 01 02:19:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:08.604+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:19:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:08.610+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:19:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:08.654+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1864
+Aug 01 02:19:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:08.662+00:00 [ws] ⇄ res ✗ agent 0ms errorCode=INVALID_REQUEST errorMessage=cwd is reserved for plugin-owned subagent runs id=a218bc07…997c
+Aug 01 02:19:08 agent-devbox-recovery openclaw[625]: 2026-08-01T02:19:08.674+00:00 [ws] → close code=1005 durationMs=82 handshake=connected lastFrameType=req lastFrameMethod=agent lastFrameId=a218bc07-70be-4775-94d6-be05c106997c endpoint=127.0.0.1:39444->127.0.0.1:18789
+Aug 01 02:25:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:44.128+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=48274 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:48274->127.0.0.1:18789 conn=19429369…ca4c
+Aug 01 02:25:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:44.142+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:25:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:44.151+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:25:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:44.191+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1872
+Aug 01 02:25:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:44.229+00:00 [ws] ⇄ res ✓ sessions.patch 30ms id=4f11e93f…7ca8
+Aug 01 02:25:44 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:44.240+00:00 [ws] → close code=1005 durationMs=112 handshake=connected lastFrameType=req lastFrameMethod=sessions.patch lastFrameId=4f11e93f-0a25-4d93-a0b1-c8f539787ca8 endpoint=127.0.0.1:48274->127.0.0.1:18789
+Aug 01 02:25:51 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:51.489+00:00 [ws] ← open remoteAddr=127.0.0.1 remotePort=41318 localAddr=127.0.0.1 localPort=18789 endpoint=127.0.0.1:41318->127.0.0.1:18789 conn=d99ec8ff…185f
+Aug 01 02:25:51 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:51.500+00:00 [ws] ← connect client=cli version=2026.7.1 mode=cli clientId=cli platform=linux auth=token
+Aug 01 02:25:51 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:51.509+00:00 [ws] → hello-ok methods=217 events=30 presence=1 stateVersion=23
+Aug 01 02:25:51 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:51.552+00:00 [ws] → event health seq=per-client clients=1 presenceVersion=23 healthVersion=1873
+Aug 01 02:25:51 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:51.574+00:00 [ws] ⇄ res ✓ agent 14ms runId=issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z id=cba5dba1…4e6f
+Aug 01 02:25:51 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:51.586+00:00 [ws] → close code=1005 durationMs=97 handshake=connected lastFrameType=req lastFrameMethod=agent lastFrameId=cba5dba1-9aca-4bfc-9e88-950b22d04e6f endpoint=127.0.0.1:41318->127.0.0.1:18789
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.174+00:00 [diagnostic] lane enqueue: lane=session:agent:main:subagent:issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z queueSize=1
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.175+00:00 [diagnostic] lane dequeue: lane=session:agent:main:subagent:issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z waitMs=1 queueSize=0
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.176+00:00 [diagnostic] lane enqueue: lane=subagent queueSize=1
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.176+00:00 [diagnostic] lane dequeue: lane=subagent waitMs=0 queueSize=0
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.179+00:00 [plugins] hook runner initialized with 1 registered hooks
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.484+00:00 [agents/harness] agent harness selected
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.599+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.608+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.614+00:00 [agents/tool-policy] tool policy removed 7 tool(s) via subagent tools.deny: agents_list, session_status, sessions_history, sessions_list, sessions_send, sessions_spawn, subagents; matched agents_list, session_status, sessions_history, sessions_list, sessions_send, sessions_spawn, subagents
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.675+00:00 [plugins] plugin tool factory returned null (codex): [codex_threads]
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.680+00:00 [agents/tool-policy] tool policy removed 3 tool(s) via gateway sender owner-only tools.deny: cron, gateway, nodes; matched cron, gateway, nodes
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.688+00:00 [agents/tool-policy] tool policy removed 7 tool(s) via subagent tools.deny: agents_list, session_status, sessions_history, sessions_list, sessions_send, sessions_spawn, subagents; matched agents_list, session_status, sessions_history, sessions_list, sessions_send, sessions_spawn, subagents
+Aug 01 02:25:52 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:52.762+00:00 [agent/embedded] codex plugin thread config eligibility
+Aug 01 02:25:53 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:53.105+00:00 [diagnostic] session state: sessionId=78c623b3-bff8-4c62-91a5-c41e0c7e78b2 sessionKey=agent:main:subagent:issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z prev=idle new=processing reason="run_started" queueDepth=0
+Aug 01 02:25:53 agent-devbox-recovery openclaw[625]: 2026-08-01T02:25:53.106+00:00 [diagnostic] run registered: sessionId=78c623b3-bff8-4c62-91a5-c41e0c7e78b2 totalActive=1
+Aug 01 02:26:03 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:03.075+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=1 waiting=0 queued=0
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.887+00:00 [diagnostic] session state: sessionId=78c623b3-bff8-4c62-91a5-c41e0c7e78b2 sessionKey=agent:main:subagent:issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z prev=processing new=idle reason="run_completed" queueDepth=0
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.889+00:00 [diagnostic] run cleared: sessionId=78c623b3-bff8-4c62-91a5-c41e0c7e78b2 totalActive=0
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.902+00:00 [agent/embedded] embedded run done: runId=issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z sessionId=78c623b3-bff8-4c62-91a5-c41e0c7e78b2 durationMs=13725 aborted=false
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.935+00:00 [diagnostic] lane task done: lane=subagent durationMs=13758 active=0 queued=0
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.936+00:00 [diagnostic] lane task done: lane=session:agent:main:subagent:issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z durationMs=13761 active=0 queued=0
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.969+00:00 SMOKE_FAILED bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+Aug 01 02:26:05 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:05.977+00:00 [agents/agent-command] [agent] run issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z ended with stopReason=stop
+Aug 01 02:26:06 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:06.004+00:00 [ws] ⇄ res ✓ agent runId=issue-16-runtime-diagnostic-minimal-smoke-20260801t022537z id=cba5dba1…4e6f
+Aug 01 02:26:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:26:33.074+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:27:03 agent-devbox-recovery openclaw[625]: 2026-08-01T02:27:03.074+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:27:33 agent-devbox-recovery openclaw[625]: 2026-08-01T02:27:33.074+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0
+Aug 01 02:28:03 agent-devbox-recovery openclaw[625]: 2026-08-01T02:28:03.075+00:00 [diagnostic] heartbeat: webhooks=0/0/0 active=0 waiting=0 queued=0

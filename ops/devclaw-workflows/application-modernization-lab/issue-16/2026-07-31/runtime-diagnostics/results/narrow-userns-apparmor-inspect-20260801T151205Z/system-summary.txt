@@ -1,0 +1,7 @@
+checkedAt=2026-08-01T15:12:05Z
+kernel=Linux agent-devbox-recovery 6.17.0-1021-gcp #24~24.04.1-Ubuntu SMP Tue Jul  7 14:58:58 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+ubuntu=Ubuntu 24.04.4 LTS 24.04
+apparmorRestrictUserns=1
+unprivilegedUsernsClone=1
+newuidmap=
+newgidmap=

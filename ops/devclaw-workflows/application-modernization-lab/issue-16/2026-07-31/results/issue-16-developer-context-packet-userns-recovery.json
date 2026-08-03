@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-08-01T16:20:13Z",
+  "contextJson": "/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/context/issue-16-authoritative-context.json",
+  "contextMarkdown": "/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/context/issue-16-authoritative-context.md",
+  "contextJsonSha256": "97c12e2279690bb443f304dcfc3fbdb8a988ed00738d174098ea62df054d9214",
+  "contextMarkdownSha256": "7d2a893d19c16320216120d93603c15c28da17f87b93f6b793ea1b2656161cc4",
+  "issue": {
+    "number": 16,
+    "labels": "Implementing, developer:senior, review:human, notify:openclaw:primary, owner:Josefina"
+  },
+  "acceptedBaseline": {
+    "issue": 14,
+    "pullRequest": 15,
+    "issueClosed": true,
+    "pullRequestMerged": true
+  },
+  "gates": {
+    "architectureReportCommentIndex": 1,
+    "humanAspireArchitectureApprovalCommentIndex": 2,
+    "humanImplementationApprovalCommentIndex": 3
+  }
+}

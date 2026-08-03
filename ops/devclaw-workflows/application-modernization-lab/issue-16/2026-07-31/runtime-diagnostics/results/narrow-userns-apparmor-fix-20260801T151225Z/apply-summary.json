@@ -1,0 +1,15 @@
+{
+  "appliedAt": "2026-08-01T15:12:43Z",
+  "outDir": "/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/runtime-diagnostics/results/narrow-userns-apparmor-fix-20260801T151225Z",
+  "backupDir": "/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/runtime-diagnostics/backups/narrow-userns-apparmor-fix-20260801T151225Z",
+  "rollbackScript": "/tmp/devclaw-workflows/application-modernization-lab/issue-16/2026-07-31/runtime-diagnostics/backups/narrow-userns-apparmor-fix-20260801T151225Z/rollback-narrow-userns-apparmor-fix.sh",
+  "profileFile": "/etc/apparmor.d/openclaw-codex-bwrap",
+  "uidmapInstalledBefore": false,
+  "subuidChange": "subuid added: devclaw-svc:196608:65536",
+  "subgidChange": "subgid added: devclaw-svc:196608:65536",
+  "bwrapPaths": [
+    "/home/devclaw-svc/.openclaw/npm/projects/openclaw-codex-8902d781d4/node_modules/@openclaw/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap"
+  ],
+  "globalAppArmorChanged": false,
+  "sysctlChanged": false
+}

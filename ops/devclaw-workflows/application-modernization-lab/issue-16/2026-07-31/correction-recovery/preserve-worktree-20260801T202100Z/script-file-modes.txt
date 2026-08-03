@@ -1,0 +1,7 @@
+-rw------- 600 devclaw-svc:devclaw-svc /workspace/repos/application-modernization-lab/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/aspire-run-state.sh
+-rwx------ 700 devclaw-svc:devclaw-svc /workspace/repos/application-modernization-lab/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/start-aspire.sh
+-rwx------ 700 devclaw-svc:devclaw-svc /workspace/repos/application-modernization-lab/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-negative.sh
+-rwx------ 700 devclaw-svc:devclaw-svc /workspace/repos/application-modernization-lab/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/cleanup-aspire.sh
+-rw------- 600 devclaw-svc:devclaw-svc /workspace/repos/application-modernization-lab/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-failure-cleanup.sh
+-rw------- 600 devclaw-svc:devclaw-svc /workspace/repos/application-modernization-lab/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-cleanup-isolation.sh
+-rwx------ 700 devclaw-svc:devclaw-svc /workspace/repos/application-modernization-lab/experiments/08-aks-store-demo/02-compose-to-aspire/scripts/validate-aspire.sh

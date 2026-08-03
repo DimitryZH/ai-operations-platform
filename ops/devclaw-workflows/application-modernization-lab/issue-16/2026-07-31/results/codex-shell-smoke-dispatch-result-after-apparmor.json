@@ -1,0 +1,6 @@
+{
+  "dispatchedAt": "2026-07-31T22:14:27Z",
+  "sessionKey": "agent:main:subagent:codex-shell-smoke-issue-16-20260731t221411z",
+  "dispatchAccepted": true,
+  "agentResult": "{\n  \"runId\": \"codex-shell-smoke-issue-16-20260731t221411z\",\n  \"sessionKey\": \"agent:main:subagent:codex-shell-smoke-issue-16-20260731t221411z\",\n  \"status\": \"accepted\",\n  \"acceptedAt\": 1785536067140\n}"
+}
