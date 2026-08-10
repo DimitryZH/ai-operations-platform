@@ -318,47 +318,57 @@ SECURITY-01).
 
 ## 13. Operational Cost
 
-Evidence-backed finding: The accepted evidence records disproportionate
-recovery and orchestration effort qualitatively, not exact dollars or operator
-hours. It supports classifying compatibility maintenance, recovery overhead,
-investigation overhead, and operator intervention as high for the evaluated
-primary-orchestrator architecture (RECOVERY-01, RECOVERY-02, SECURITY-01,
-CODEX-02, DECISION-INPUT-01).
+Evidence-backed fact: The accepted evidence records the architecture and
+runtime elements that would have cost implications, including a private GCP
+runtime, preserved disk, IAP, systemd services, Secret Manager boundaries,
+pinned OpenClaw/DevClaw versions, and a compatibility overlay (INFRA-01,
+INFRA-02, INFRA-03, RUNTIME-01, COMPAT-01).
 
-Qualitative assessment:
+Evidence-backed fact: The accepted evidence does not record exact
+infrastructure spend, operator hours, recovery hours, dollar costs, token
+costs, or controlled wall-clock comparisons (CODEX-02, DECISION-INPUT-01).
 
-- Infrastructure cost: moderate. A private GCP runtime, preserved disk, IAP,
-  systemd services, Secret Manager, and monitoring are defensible but not free
-  (INFRA-01, INFRA-02, INFRA-03).
-- Compatibility-maintenance cost: high. The integration depended on pinned
-  versions and a compatibility overlay (RUNTIME-01, COMPAT-01).
-- Operator time: high. Recovery and direct continuation required explicit
-  human intervention and governance changes (CODEX-01, CODEX-02).
-- Recovery time: high. Narrow recovery improved minimal execution but did not
-  complete full workflow readiness (RECOVERY-01, RECOVERY-02, SECURITY-01).
-- Opportunity cost: high. Orchestration diagnosis competed with the application
-  modernization work (CODEX-02, DECISION-INPUT-01).
+Decision input: The accepted closeout and decision-input evidence supports a
+qualitative burden concern: worker orchestration reliability and cost concerns
+were significant enough to inform the recommendation against the evaluated
+primary-orchestrator architecture (CODEX-02, DECISION-INPUT-01).
 
-No exact cost figures are asserted because the accepted evidence does not
-record exact dollar cost, operator hours, or controlled wall-clock comparison.
+Engineering inference: Compatibility maintenance and recovery burden are
+material platform risks because the integration depended on pinned versions, a
+compatibility overlay, sandbox recovery, and follow-up capability checking
+(RUNTIME-01, COMPAT-01, RECOVERY-01, RECOVERY-02, SECURITY-01). This is a
+qualitative inference, not a measured cost total.
+
+INSUFFICIENT EVIDENCE: Infrastructure cost magnitude cannot be classified from
+architecture evidence alone. Operator time, recovery time, and opportunity cost
+also cannot be quantified or assigned measured magnitude categories from the
+accepted evidence.
 
 ## 14. Time and Token-Cost Assessment
 
-Evidence-backed finding: The accepted package supports a qualitative conclusion
-that token and time costs became disproportionate for the evaluated worker
-orchestration approach, but it does not record exact token counts, exact dollar
-costs, or exact performance ratios (CODEX-02, DECISION-INPUT-01).
+Evidence-backed fact: The accepted package does not record exact token counts,
+exact dollar costs, exact operator hours, or controlled wall-clock measurements
+(CODEX-02, DECISION-INPUT-01).
 
-Qualitative assessment:
+Decision input: The accepted closeout preserves qualitative worker
+orchestration reliability and cost concerns as architecture-decision input
+(CODEX-02, DECISION-INPUT-01).
 
-- Worker orchestration time cost: high, due to diagnostics, capability checks,
-  recovery loops, and state ambiguity (RECOVERY-01, RECOVERY-02, SECURITY-01).
-- Direct Codex continuation time cost: lower for final completion in the
-  observed 08B closeout, but not measured as a controlled benchmark
-  (CODEX-01, CODEX-02).
-- Token cost: high for the evaluated orchestration effort in qualitative terms;
-  insufficient evidence for exact totals or ratios (CODEX-02,
-  DECISION-INPUT-01).
+Engineering inference: The worker orchestration path carried a qualitative
+time/token burden because accepted evidence records diagnostics, sandbox
+failure, bounded recovery, capability concerns, and a later human-approved
+direct Codex continuation (RECOVERY-01, RECOVERY-02, SECURITY-01, CODEX-01,
+CODEX-02). This inference does not assign exact elapsed time, token count, or
+performance ratio.
+
+INSUFFICIENT EVIDENCE: The accepted evidence does not support claiming direct
+Codex had a lower execution time. It supports successful final direct
+completion reports, but not a measured time advantage over worker execution
+(CODEX-01, CODEX-02).
+
+INSUFFICIENT EVIDENCE: Token-cost magnitude remains unmeasured. The report may
+use qualitative burden as decision input, but it does not assert exact totals,
+ratios, or measured token-cost classes.
 
 ## 15. Worker Execution and Direct Codex Comparison
 
@@ -373,19 +383,19 @@ or identical starting conditions (CODEX-01, CODEX-02).
 | Permissions | Intended least privilege and controlled GitHub/token handling, but worker capability was not guaranteed by dispatch/session state (AUTH-01, GITHUB-01, SECURITY-01). | Human-approved direct executor completed final validation/correction reports without OpenClaw/DevClaw workers (CODEX-01, CODEX-02). |
 | Execution reliability | Successful earlier experiments exist, but later worker/runtime evidence exposed sandbox and capability blockers (WORKER-01, EXP06-01, EXP07-02, RECOVERY-01, SECURITY-01). | Final 08B reports recorded PASS on the final PR head and accepted closeout (CODEX-01, CODEX-02, EXP08-02). |
 | Repository mutation | Not proven by dispatch or session creation; later capability concerns included Git-process boundaries (SECURITY-01). | Final deliverables were validated and merged through GitHub state (EXP08-02, CODEX-01, CODEX-02). |
-| Docker/runtime access | Required explicit capability proof; not established by control-plane readiness (RECOVERY-01, RECOVERY-02, SECURITY-01). | Sufficient for the final direct completion path as reported and accepted, without proving identical capability conditions (CODEX-01, CODEX-02). |
-| Recovery burden | High: diagnosis and narrow recovery did not prove full workflow readiness (RECOVERY-01, RECOVERY-02, SECURITY-01). | Lower for final completion, but selected only after human approval and not as a replacement-framework decision (CODEX-01, CODEX-02). |
+| Docker/runtime access | Required explicit capability proof; not established by control-plane readiness (RECOVERY-01, RECOVERY-02, SECURITY-01). | Final direct completion reports indicate that the required validation path completed successfully, but the accepted evidence does not independently establish Docker/runtime capability parity with the worker environment (CODEX-01, CODEX-02). |
+| Recovery burden | Decision-input evidence supports qualitative worker recovery burden: diagnosis and narrow recovery did not prove full workflow readiness (RECOVERY-01, RECOVERY-02, SECURITY-01, CODEX-02). | Direct Codex was used after explicit human approval and completed final reports; the accepted evidence does not measure comparative recovery time or prove environment parity (CODEX-01, CODEX-02). |
 | Final deliverables | Earlier worker-supported experiments were successful, but evaluated primary-orchestrator suitability failed on later reliability and cost concerns (EXP06-01, EXP07-02, DECISION-INPUT-01). | Experiment 08B migration result remained technically valid and accepted (EXP08-02, CODEX-02). |
 
 ## 16. Component Scorecard
 
 | Component | Rating | Evidence IDs | Rationale | Limitations | Platform-design consequence |
 | --- | --- | --- | --- | --- | --- |
-| OpenClaw communication gateway | PASS WITH LIMITATIONS | INFRA-02, RUNTIME-01, AUTH-01 | Loopback Gateway and status-oriented operator access are useful bounded communication patterns. | Gateway health does not prove execution readiness. | Keep gateway concerns separate from executor control. |
-| OpenClaw interactive runtime | PASS WITH LIMITATIONS | RUNTIME-01, AUTH-01, RECOVERY-02 | Interactive runtime validation and narrow command recovery show value for operator/runtime use. | Minimal command success does not prove full workflow execution. | Use for interactive/runtime access only with explicit capability checks. |
+| OpenClaw communication gateway | INSUFFICIENT EVIDENCE | INFRA-02, RUNTIME-01, AUTH-01 | The accepted evidence supports the loopback Gateway design, status-only operator boundary, and validation contract. | It does not directly establish operational PASS for the communication-gateway capability. | Preserve the gateway as a candidate design pattern, but require operational validation before scoring it as passed. |
+| OpenClaw interactive runtime | INSUFFICIENT EVIDENCE | RUNTIME-01, AUTH-01, RECOVERY-02 | The accepted evidence supports intended runtime checks and a narrow post-recovery minimal command path. | It does not directly establish operational PASS for interactive runtime usability across the evaluated role. | Preserve interactive runtime as a candidate role, but require direct usability validation before platform scoring. |
 | OpenClaw engineering-task gateway | REQUIRES REDESIGN | RUNTIME-01, RECOVERY-01, SECURITY-01 | Control-plane readiness did not reliably imply command, repository, Git, Docker, validation, or PR capability. | Attribution across product, integration, sandbox, host, and permission layers is unresolved. | Redesign execution handshake and attempt state before primary use. |
 | Managed Gateway lifecycle | INSUFFICIENT EVIDENCE | INFRA-03, INFRA-04 | The systemd restart model and disk-backed reboot model are documented. | No direct successful restart or reboot persistence PASS artifact was found. | Treat lifecycle model as design evidence until benchmarked. |
-| Authentication/model integration | PASS WITH LIMITATIONS | AUTH-01, RUNTIME-01 | OAuth/model validation and credential hygiene were part of the runtime contract. | The evidence does not publish or verify secret values and does not prove every worker used credentials correctly. | Retain OAuth and secret hygiene; audit executor-level access separately. |
+| Authentication/model integration | INSUFFICIENT EVIDENCE | AUTH-01, RUNTIME-01 | The accepted evidence supports the OAuth/model and credential-hygiene validation contract. | It does not directly establish operational PASS for authentication/model integration. | Retain OAuth and secret-hygiene requirements, but require operational auth/model validation before scoring the component as passed. |
 | GitHub integration | PASS | GITHUB-01, GOVERNANCE-01, EXP06-01, EXP07-02, EXP08-02 | GitHub provided durable issues, comments, branches, PRs, heads, merge commits, and closeout state. | GitHub state does not make agent-authored reports independently true. | Keep GitHub-native auditability as a core platform control. |
 | DevClaw role model | PASS WITH LIMITATIONS | WORKER-01, GOVERNANCE-01, EXP06-01, EXP07-02 | Logical architect/developer/tester separation worked as a governance concept. | It does not prove the worker runtime remained reliable later. | Retain logical roles independent of DevClaw workers. |
 | DevClaw workflow model | PASS WITH LIMITATIONS | GOVERNANCE-01, GOVERNANCE-02, WORKER-01, KNOWLEDGE-01 | Architecture-first, human-gated, sequential workflow remains useful. | Sequential workflow controls do not prove execution capability. | Use a simpler sequential workflow as first implementation. |
