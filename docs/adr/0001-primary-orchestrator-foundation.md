@@ -2,11 +2,10 @@
 
 ## Status
 
-Proposed.
+Accepted.
 
-This ADR records a proposed architecture decision for human review in issue
-#13. It becomes accepted only through the normal pull request review and merge
-process.
+This decision was accepted through human review of PR #14 and becomes effective
+when the pull request is manually merged.
 
 ## Context
 
