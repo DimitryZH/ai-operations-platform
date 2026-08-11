@@ -1,7 +1,7 @@
 # Security Model
 
 AI Operations Platform follows a least-privilege operational model for a
-GCP-first, self-hosted runtime foundation.
+GCP-first operations control plane and private runtime foundation.
 
 ## Core Principles
 
@@ -10,6 +10,8 @@ GCP-first, self-hosted runtime foundation.
 - dedicated runtime service accounts
 - Secret Manager for secret values
 - no secret values in Git, Terraform variables, metadata, docs, or context
+- explicit capability verification before active execution attempts
+- fail-closed behavior for missing, ambiguous, or unverifiable capabilities
 - human approval before destructive actions
 - status-only Telegram channel without execution authority
 
@@ -21,10 +23,24 @@ It uses:
 
 - private Compute Engine VM without a public IP
 - OS Login and IAP for operator access
-- preserved Persistent Disk for runtime state
+- preserved Persistent Disk for private runtime state
 - systemd for runtime process ownership
 - Secret Manager retrieval into VM-local files
 - Terraform-managed IAM and infrastructure boundaries
+
+## Control-Plane Boundary
+
+The control plane owns or coordinates task state, attempt state, capability
+requirements, capability verification, approval records, dispatch decisions,
+evidence references, timeout handling, recovery, and final closeout.
+
+The control plane must not treat gateway health, plugin loading, dispatch
+acceptance, session creation, or minimal command execution as proof that an
+executor can complete the requested operational work. Capability handshakes
+must verify required filesystem, Git, Docker/runtime, API, validation, branch,
+or pull request capabilities before an attempt becomes active.
+
+If capability status is missing or ambiguous, execution fails closed.
 
 ## Context Boundary
 
@@ -44,7 +60,7 @@ migration workflow. The public evidence is summarized in the
 
 - GitHub access was repository-scoped for reviewable delivery work.
 - Issues, branches, pull requests, comments, and merge history provided durable
-  delivery state.
+  delivery evidence.
 - Automatic merge remained disabled.
 - Architecture approval, merge approval, and skill application required
   explicit human decisions.
@@ -55,6 +71,9 @@ migration workflow. The public evidence is summarized in the
 - Validation was designed to prevent unrelated runtime resources from
   producing false-positive evidence.
 
+Those safeguards remain useful independently of the runtime or executor chosen
+for a future implementation.
+
 ## Telegram Boundary
 
 The Telegram operator channel is status-only. Supported commands are `/status`,
@@ -62,4 +81,4 @@ The Telegram operator channel is status-only. Supported commands are `/status`,
 
 Telegram messages are observation inputs only. They are not approval signals and
 must not authorize mutation, remediation, Terraform actions, shell execution,
-GitHub write actions, or incident workflows.
+GitHub write actions, incident workflows, capability expansion, or merge.
