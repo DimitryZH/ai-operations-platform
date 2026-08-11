@@ -18,6 +18,8 @@ capability handshakes, GitHub auditability, and human approval gates.
 - removal of the legacy container-service scaffold
 - OpenClaw/DevClaw evidence consolidation and orchestration evaluation
 - ADR 0001 primary-orchestrator decision
+- Vision, architecture, operating model, security model, backup and restore,
+  and roadmap alignment with ADR 0001 through issue #15
 
 Implemented fact: the current Stateful VM foundation includes a
 systemd-managed OpenClaw runtime. That runtime fact is distinct from the ADR
@@ -45,19 +47,15 @@ be read as successful managed-service restart or VM reboot recovery evidence.
 
 ## Current
 
-- align the platform Vision, architecture narrative, diagrams, and roadmap
-  with ADR 0001 through issue #15
-- preserve historical migration outcomes while separating them from
-  orchestration-platform selection
-- keep OpenClaw and DevClaw as optional or research inputs unless separate
-  evidence supports a narrower operational role
-- keep candidate runtime, workflow, and control-plane mappings as hypotheses
-  until a separate evidence-backed selection is accepted
+- define a reusable, product-neutral orchestrator acceptance benchmark through
+  issue #17
+- preserve the distinction between historical application-modernization
+  success, OpenClaw/DevClaw orchestration non-selection, and future benchmark
+  evaluation
+- keep the benchmark unexecuted until a later candidate-evaluation workstream
 
 ## Planned
 
-- define a product-neutral acceptance benchmark for future orchestrator or
-  executor candidates
 - evaluate future candidates against the accepted control-plane requirements
 - make any replacement selection through a separate evidence-backed decision
 - implement the first simpler sequential control-plane workflow
@@ -98,7 +96,7 @@ accepted through separate review.
 ## Explicitly Out Of Scope For Now
 
 - selecting, recommending, ranking, or comparing a replacement framework
-- implementing a benchmark in this documentation update
+- executing the orchestrator acceptance benchmark
 - alternate cloud-provider scope
 - cloud-provider abstraction
 - write-capable Telegram commands
