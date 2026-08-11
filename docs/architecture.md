@@ -1,85 +1,153 @@
 # Architecture
 
-AI Operations Platform is a GCP-first platform foundation for self-hosted AI
-operations runtimes.
+AI Operations Platform is a GCP-first, AI-native operations control plane for
+human-reviewed software engineering, DevOps, SRE, Platform Engineering,
+Infrastructure as Code, FinOps, security, and cloud operations work.
 
-The current architecture starts with a private Stateful VM runtime and layers
-operational context, operator channels, monitoring, and future platform
-capabilities above it.
+The accepted architecture direction separates the communication gateway,
+control plane, durable state, executor adapter, executor implementation,
+validation/evidence flow, and human review boundary. It does not select,
+recommend, rank, or compare a replacement framework.
 
-## Current Layers
+## Target Architecture
 
 ```text
-AI Operations Platform
-|-- platform/context/
-|   `-- explicit operational context lifecycle boundaries
-`-- gcp/stateful-agent-runtime/
-    |-- private Stateful VM runtime
-    |-- Persistent Disk state model
-    |-- IAP-only operator access
-    |-- Secret Manager runtime integration
-    |-- systemd-managed OpenClaw runtime
-    |-- service-state monitoring baseline
-    `-- Telegram status-only operator channel
+Operator / Interface
+  |
+  v
+Communication Gateway
+  |
+  v
+AI Operations Control Plane
+  |-- task identity and lifecycle
+  |-- attempt identity and lifecycle
+  |-- executor selection and assignment
+  |-- required, declared, and verified capabilities
+  |-- approval gates and audit events
+  |-- dispatch, timeout, recovery, and stale-attempt handling
+  |-- validation and evidence references
+  `-- final review and closeout
+  |
+  v
+Durable Task / Attempt State
+  |
+  v
+Executor Adapter / Capability Handshake
+  |
+  v
+Replaceable Executor
+  |
+  v
+Target Platform / Repository / Tooling
+  |
+  v
+Validation / Evidence
+  |
+  v
+Human Review / GitHub Audit
 ```
 
-## Runtime Foundation
+## Current Foundation
 
-The runtime foundation lives in `gcp/stateful-agent-runtime/`.
+The GCP runtime foundation lives in `gcp/stateful-agent-runtime/`.
 
 It provides:
 
 - private Compute Engine VM runtime with no public VM IP
-- preserved Persistent Disk for durable runtime state
+- preserved Persistent Disk for private runtime state
 - Terraform-managed infrastructure
 - runtime secrets loaded from Secret Manager
-- systemd-managed OpenClaw service
 - optional service-state exporter wiring
 - optional Telegram status-only adapter wiring
 
-## Validated Agent Delivery Workflow
+The context lifecycle foundation lives in `platform/context/`. It separates
+durable runtime state from reviewable operational context, summaries, evidence
+references, approvals, and forbidden data.
 
-Experiment 06 validated a bounded delivery workflow layered on top of the
-runtime foundation. The workflow is documented in the
+## Control-Plane Responsibilities
+
+The AI Operations control plane owns or coordinates:
+
+- task identity and lifecycle
+- attempt identity and lifecycle
+- executor selection and assignment
+- capability requirements, declarations, and verification
+- human approvals and audit events
+- dispatch to executor adapters
+- execution and validation state
+- result state
+- evidence and GitHub references
+- timeout, recovery, and stale-attempt handling
+- final review and closeout
+
+Capabilities must be declared and verified before an attempt becomes active. If
+a required capability is missing, ambiguous, or unverifiable, the control plane
+fails closed instead of dispatching the attempt.
+
+## Gateway Boundary
+
+Communication gateways handle request intake, operator interaction,
+communication, status presentation, notifications, approval collection, and
+optional access to an interactive runtime.
+
+A gateway can host or connect to an executor in some deployments, but the
+platform architecture must not depend on that coupling. Gateway health,
+operator reachability, or interactive session availability is not proof of
+executor readiness.
+
+## Executor Boundary
+
+Executors are replaceable implementation choices behind an adapter contract.
+The control plane must not rely on a single agent runtime owning
+communication, orchestration, execution, state, and recovery at the same time.
+
+Executors perform bounded engineering or operations tasks, use only authorized
+repository, runtime, filesystem, network, API, and tooling access, perform
+required validation, and return structured execution results and evidence.
+
+Logical architect, developer, tester-validator, and human-reviewer
+responsibilities remain useful, but they are responsibilities in the workflow,
+not fixed long-running agent processes.
+
+The first implementation should use a simpler sequential workflow. Parallel or
+multi-agent execution can be evaluated later after the control-plane state,
+adapter contract, capability handshake, and recovery model are stable.
+
+## GitHub Boundary
+
+GitHub issues, branches, pull requests, comments, commits, reviews, and merge
+commits remain durable workflow evidence and review boundaries. GitHub is not
+required to be the platform's internal execution-state engine.
+
+## Candidate Runtime Status
+
+OpenClaw may remain an optional communication gateway or interactive runtime
+candidate after separate operational validation. DevClaw remains useful as
+workflow research and a source of governance concepts, but it is not a required
+primary dependency.
+
+Other runtime, agent, control-plane, or workflow frameworks are candidates or
+hypotheses until a separate evidence-backed selection is accepted.
+
+## Validated Application-Delivery Pattern
+
+Experiment 06 validated a bounded application-migration workflow layered on top
+of the runtime foundation. The workflow is documented in the
 [Online Boutique Compose-to-Aspire case study](case-studies/experiment-06-online-boutique-compose-to-aspire.md).
 
-The validated reference workflow used:
-
-- a human operator for scope, architecture approval, merge approval, and skill
-  application decisions
-- OpenClaw as the operator-facing control surface and agent runtime
-- DevClaw for workflow, role dispatch, and task-state orchestration
-- separated architect, developer, and independent tester roles
-- controlled Agent DevBox execution for repository work and validation
-- GitHub issues, labels, branches, pull requests, comments, and merge history
-  as durable delivery state
-- foreground Knowledge Review after merge
-- Skill Workshop proposal review followed by explicit human Apply
-
-This capability is separate from the core GCP runtime foundation. It validates
-one sequential, human-reviewed migration workflow, not unattended production
-remediation or universal autonomous delivery. Cross-project reuse value for the
-applied migration skill remains unvalidated.
-
-Hermes Agent remains historical candidate research. It was not the
-implementation workflow used for Experiment 06; the validated workflow used
-OpenClaw and DevClaw.
-
-## Context Layer
-
-The context lifecycle foundation lives in `platform/context/`.
-
-It defines how the platform separates durable runtime state from reviewable
-operational context, summaries, evidence references, approvals, and forbidden
-data.
+That migration result remains valid, including architecture-first planning,
+human approval gates, independent validation, GitHub auditability, and governed
+knowledge promotion. It does not select the evaluated OpenClaw/DevClaw
+architecture as the primary orchestrator.
 
 ## Design Boundaries
 
 - Runtime state and operational context are separate concerns.
-- Stateful VM state is durable runtime state.
-- Platform context is explicit, reviewable, and bounded.
+- Durable task and attempt state belongs outside ephemeral agent sessions.
+- Platform context is explicit, reviewable, bounded, and non-secret.
 - Telegram status-only interactions are observation inputs, not approval
   signals.
-- Destructive actions require human approval.
+- Human approvals and audit are control-plane responsibilities.
+- Destructive actions require explicit human approval.
 - No secrets, raw credentials, real chat IDs, Terraform state, local tfvars, or
   raw plans belong in tracked context.

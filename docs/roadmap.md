@@ -1,72 +1,91 @@
 # Roadmap
 
-This repository is now aligned around the initial AI Operations Platform
-migration: a GCP-first private Stateful VM runtime foundation with explicit
-operational boundaries.
+This repository is aligned around the accepted AI Operations Platform direction:
+a GCP-first, AI-native operations control plane with durable task and attempt
+state outside ephemeral agent sessions, replaceable executors, explicit
+capability handshakes, GitHub auditability, and human approval gates.
 
-## Completed Foundation
+## Completed
 
 - GCP private Stateful VM runtime foundation
-- Persistent Disk state model
+- Persistent Disk state model for private runtime state
 - IAP-only operator access
 - Secret Manager runtime integration
-- systemd-managed OpenClaw runtime
 - service-state monitoring baseline
 - Telegram status-only operator channel
 - context lifecycle foundation
 - removal of the legacy container-service scaffold
+- OpenClaw/DevClaw evidence consolidation and orchestration evaluation
+- ADR 0001 primary-orchestrator decision
 
-## Validated Workflow Status
-
-Experiment 06 validated a bounded OpenClaw and DevClaw delivery workflow for
-an application migration. See the
+Experiment 06 validated a bounded application-modernization workflow. See the
 [Online Boutique Compose-to-Aspire case study](case-studies/experiment-06-online-boutique-compose-to-aspire.md)
 for evidence and scope boundaries.
 
-| Capability | Status |
-|---|---|
-| Governed multi-agent migration workflow | VALIDATED |
-| Independent defect detection and correction loop | VALIDATED |
-| Human-controlled GitHub delivery workflow | VALIDATED |
-| Governed knowledge promotion through Skill Workshop | VALIDATED |
-| Cross-project skill reuse | PENDING VALIDATION |
+That migration success remains valid and separate from the ADR 0001 decision
+not to select the evaluated OpenClaw/DevClaw architecture as the primary
+orchestrator.
 
-The next proof is to reuse `compose-to-aspire-migration` in a fresh project or
-session boundary, then evaluate whether it reduces unnecessary rediscovery or
-improves consistency while preserving functional, negative, isolation, and
-independent-review rigor.
+## Current
 
-The validated result does not mark parallel multi-agent execution, unattended
-heartbeat-driven delivery, automatic merge, production remediation, destructive
-infrastructure execution, universal autonomous software engineering, or
-production readiness as complete.
+- align the platform Vision, architecture narrative, diagrams, and roadmap
+  with ADR 0001 through issue #15
+- preserve historical migration outcomes while separating them from
+  orchestration-platform selection
+- keep OpenClaw and DevClaw as optional or research inputs unless separate
+  evidence supports a narrower operational role
+- keep candidate runtime, workflow, and control-plane mappings as hypotheses
+  until a separate evidence-backed selection is accepted
 
-## Near-Term Next Steps
+## Planned
 
-- validate the imported runtime from this target repository
-- review Terraform plans with sanitized environment values
-- run local Terraform validation before any reviewed infrastructure plan
-- define a small context lifecycle implementation spike
-- design operator workflows around explicit approvals
-- design approval workflow records and review boundaries
-- decide whether backend bootstrap automation belongs in this repository
+- define a product-neutral acceptance benchmark for future orchestrator or
+  executor candidates
+- evaluate future candidates against the accepted control-plane requirements
+- make any replacement selection through a separate evidence-backed decision
+- implement the first simpler sequential control-plane workflow
+- define replaceable executor-adapter contracts
+- implement capability declaration and verification before active attempts
+- implement durable task and attempt state outside ephemeral agent sessions
+- define timeout, recovery, and stale-attempt handling
+- expand specialized integrations after the executor-adapter contract is
+  stable
 
-## Deferred Work
+## Candidate Status
 
+No replacement framework is selected, recommended, ranked, or compared by this
+roadmap.
+
+OpenClaw may be reconsidered as an optional communication gateway or
+interactive runtime after separate operational validation. DevClaw remains
+workflow research and a source of governance concepts, not a required primary
+dependency.
+
+Other candidates, including runtime frameworks, workflow frameworks, control
+planes, operational assistants, GitHub-native automation, cloud-agent
+frameworks, incident-analysis tools, and cost-optimization tools, remain
+hypotheses until evaluated through a product-neutral acceptance benchmark and
+accepted through separate review.
+
+## Deferred
+
+- parallel or multi-agent execution
 - full alert routing
 - incident workflows
-- agent remediation
-- platform adapters
-- operational agents
-- multi-agent orchestration
+- automated remediation
+- platform adapters beyond the first executor-adapter contract
+- specialized operational agents
 - restore-drill automation
+- cross-project reusable-skill value validation
 
 ## Explicitly Out Of Scope For Now
 
-- alternate runtime foundations
+- selecting, recommending, ranking, or comparing a replacement framework
+- implementing a benchmark in this documentation update
 - alternate cloud-provider scope
 - cloud-provider abstraction
 - write-capable Telegram commands
 - unapproved autonomous remediation
+- automatic merge
 - secrets, real chat IDs, Terraform state, tfvars, raw plans, or private
   operator notes in tracked files

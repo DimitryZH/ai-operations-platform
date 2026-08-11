@@ -1,26 +1,54 @@
 # AI Operations Platform
 
-AI Operations Platform is a GCP-first platform foundation for self-hosted AI
-operations runtimes.
+AI Operations Platform is a GCP-first, AI-native operations control plane for
+human-reviewed software engineering, DevOps, SRE, Platform Engineering,
+Infrastructure as Code, FinOps, security, and cloud operations work.
 
-The current foundation starts with a private Stateful VM runtime, service-state
-monitoring, a status-only Telegram operator channel, and explicit context
-lifecycle boundaries.
-
-## Recent Validation
-
-Experiment 06 validated a governed multi-agent migration workflow by moving Google Cloud Online Boutique from a Docker Compose baseline to .NET Aspire in [Application Modernization Lab](https://github.com/DimitryZH/application-modernization-lab), with independent defect detection, corrective validation, human-controlled merge, and operator-approved skill promotion documented in the [case study](docs/case-studies/experiment-06-online-boutique-compose-to-aspire.md).
+The platform direction is defined by
+[ADR 0001](docs/adr/0001-primary-orchestrator-foundation.md): durable task and
+attempt state belong outside ephemeral agent sessions, executors are
+replaceable, capabilities are declared and verified before active attempts, and
+human approvals remain explicit control-plane decisions.
 
 ## Current Foundation
 
 - GCP private Stateful VM runtime under `gcp/stateful-agent-runtime/`
-- Persistent Disk state model for the self-hosted runtime
+- Persistent Disk state model for private runtime state
 - IAP-only operator access
 - Secret Manager integration
-- systemd-managed OpenClaw runtime
 - service-state monitoring baseline
 - Telegram status-only operator channel
 - context lifecycle foundation under `platform/context/`
+- accepted ADR 0001 primary-orchestrator decision
+
+## Platform Direction
+
+The intended architecture separates:
+
+- operator interfaces and optional communication gateways
+- the AI Operations control plane
+- durable task and attempt state
+- executor adapters with capability handshakes
+- replaceable executors
+- target repositories, platforms, and tools
+- validation, evidence, human review, and GitHub audit records
+
+OpenClaw may be reconsidered as an optional communication gateway or
+interactive runtime after separate operational validation. DevClaw remains
+useful as workflow research and a source of governance concepts, but it is not
+a required primary-orchestration dependency.
+
+## Recent Validation
+
+Experiment 06 validated a governed application-migration workflow by moving
+Google Cloud Online Boutique from a Docker Compose baseline to .NET Aspire in
+[Application Modernization Lab](https://github.com/DimitryZH/application-modernization-lab),
+with independent defect detection, corrective validation, human-controlled
+merge, and operator-approved skill promotion documented in the
+[case study](docs/case-studies/experiment-06-online-boutique-compose-to-aspire.md).
+
+That migration success remains separate from the ADR 0001 decision not to
+select the evaluated OpenClaw/DevClaw architecture as the primary orchestrator.
 
 ## Repository Structure
 
@@ -48,8 +76,9 @@ ai-operations-platform/
 
 ## Scope Boundaries
 
-The repository is centered on the Stateful VM runtime foundation. The legacy
-container-service scaffold has been removed.
+The repository is centered on a GCP-first platform foundation and an
+AI-native operations control-plane direction. The legacy container-service
+scaffold has been removed.
 
 Do not commit secrets, real chat IDs, Terraform state, local tfvars, raw plans,
 raw logs, private operator notes, `AI/`, or local-only roadmap material.
