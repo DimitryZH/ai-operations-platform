@@ -57,12 +57,19 @@ It provides:
 - preserved Persistent Disk for private runtime state
 - Terraform-managed infrastructure
 - runtime secrets loaded from Secret Manager
+- systemd-managed OpenClaw service
 - optional service-state exporter wiring
 - optional Telegram status-only adapter wiring
 
 The context lifecycle foundation lives in `platform/context/`. It separates
 durable runtime state from reviewable operational context, summaries, evidence
 references, approvals, and forbidden data.
+
+Implemented fact: the current Stateful VM foundation includes a
+systemd-managed OpenClaw runtime. Accepted evidence preserves this bounded
+runtime foundation and historical application-modernization use. ADR 0001
+separately records that the evaluated OpenClaw/DevClaw architecture was not
+selected as the primary orchestration foundation.
 
 ## Control-Plane Responsibilities
 
@@ -138,7 +145,8 @@ of the runtime foundation. The workflow is documented in the
 That migration result remains valid, including architecture-first planning,
 human approval gates, independent validation, GitHub auditability, and governed
 knowledge promotion. It does not select the evaluated OpenClaw/DevClaw
-architecture as the primary orchestrator.
+architecture as the primary orchestrator and does not establish restart or
+reboot recovery beyond the accepted evidence.
 
 ## Design Boundaries
 

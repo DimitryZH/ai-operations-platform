@@ -11,6 +11,7 @@ capability handshakes, GitHub auditability, and human approval gates.
 - Persistent Disk state model for private runtime state
 - IAP-only operator access
 - Secret Manager runtime integration
+- systemd-managed OpenClaw runtime
 - service-state monitoring baseline
 - Telegram status-only operator channel
 - context lifecycle foundation
@@ -18,13 +19,29 @@ capability handshakes, GitHub auditability, and human approval gates.
 - OpenClaw/DevClaw evidence consolidation and orchestration evaluation
 - ADR 0001 primary-orchestrator decision
 
-Experiment 06 validated a bounded application-modernization workflow. See the
+Implemented fact: the current Stateful VM foundation includes a
+systemd-managed OpenClaw runtime. That runtime fact is distinct from the ADR
+0001 decision not to select the evaluated OpenClaw/DevClaw architecture as the
+primary orchestration foundation.
+
+Historical application-modernization evidence: Experiment 06 validated a
+bounded OpenClaw and DevClaw delivery workflow for an application migration.
+See the
 [Online Boutique Compose-to-Aspire case study](case-studies/experiment-06-online-boutique-compose-to-aspire.md)
 for evidence and scope boundaries.
 
+| Capability | Status |
+|---|---|
+| Governed multi-agent migration workflow | VALIDATED |
+| Independent defect detection and correction loop | VALIDATED |
+| Human-controlled GitHub delivery workflow | VALIDATED |
+| Governed knowledge promotion through Skill Workshop | VALIDATED |
+| Cross-project skill reuse | PENDING VALIDATION |
+
 That migration success remains valid and separate from the ADR 0001 decision
 not to select the evaluated OpenClaw/DevClaw architecture as the primary
-orchestrator.
+orchestrator. It does not override the orchestration non-selection and must not
+be read as successful managed-service restart or VM reboot recovery evidence.
 
 ## Current
 

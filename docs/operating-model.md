@@ -75,9 +75,22 @@ lifecycle.
 
 ## Validated Delivery Pattern
 
-Experiment 06 validated a sequential, human-reviewed delivery pattern for one
-bounded application migration. The outcome is summarized in the
+Historical application-modernization evidence: Experiment 06 validated a
+sequential, human-reviewed delivery pattern for one bounded application
+migration. The outcome is summarized in the
 [Online Boutique Compose-to-Aspire case study](case-studies/experiment-06-online-boutique-compose-to-aspire.md).
+
+1. Create a GitHub issue with bounded scope.
+2. Complete architecture analysis.
+3. Obtain human architecture approval.
+4. Implement through a branch and pull request.
+5. Run independent tester validation.
+6. Return to developer correction when evidence is insufficient.
+7. Obtain human merge approval.
+8. Run foreground Knowledge Review.
+9. Prepare a pending Skill Workshop proposal.
+10. Review and Apply the skill through an explicit human action.
+11. Complete final closeout.
 
 During the validated workflow, execution was sequential, recurring heartbeat
 remained disabled, automatic merge remained disabled, and autonomous Skill
@@ -86,7 +99,8 @@ application remained human decisions.
 
 That application-modernization result remains valid. It is separate from the
 ADR 0001 decision not to select the evaluated OpenClaw/DevClaw architecture as
-the primary orchestrator.
+the primary orchestrator, does not override that non-selection, and must not be
+read as restart or reboot recovery evidence.
 
 ## Runtime Candidates
 

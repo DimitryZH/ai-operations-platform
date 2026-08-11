@@ -16,10 +16,16 @@ human approvals remain explicit control-plane decisions.
 - Persistent Disk state model for private runtime state
 - IAP-only operator access
 - Secret Manager integration
+- systemd-managed OpenClaw runtime
 - service-state monitoring baseline
 - Telegram status-only operator channel
 - context lifecycle foundation under `platform/context/`
 - accepted ADR 0001 primary-orchestrator decision
+
+Implemented fact: the current Stateful VM foundation includes a
+systemd-managed OpenClaw runtime. Accepted evidence preserves that bounded
+runtime foundation and application-modernization use without making OpenClaw
+the primary platform orchestrator.
 
 ## Platform Direction
 
@@ -49,6 +55,8 @@ merge, and operator-approved skill promotion documented in the
 
 That migration success remains separate from the ADR 0001 decision not to
 select the evaluated OpenClaw/DevClaw architecture as the primary orchestrator.
+It remains technically valid historical application-modernization evidence and
+does not override the orchestration non-selection recorded in ADR 0001.
 
 ## Repository Structure
 
