@@ -360,8 +360,7 @@ Automatic merge must not be required or used by the benchmark.
 
 ## 14. GitHub Audit And Evidence Requirements
 
-Each future run must preserve durable GitHub or equivalent review references
-for:
+Each future run must preserve durable GitHub references for:
 
 - issue or task specification
 - approval
@@ -374,8 +373,9 @@ for:
 - manual merge where performed
 - final issue closeout
 
-GitHub may remain the durable workflow, evidence, and review boundary without
-being treated as the internal execution-state engine.
+GitHub is the required durable workflow, evidence, audit, and human-review
+boundary for benchmark publication. It must not be treated as the internal
+execution-state engine.
 
 ## 15. Observability Requirements
 
@@ -495,21 +495,35 @@ and evidence rules. They do not produce PASS.
 
 ## 20. Result Classifications
 
-| Result | Allowed when | Mandatory-gate handling |
+| Result | Allowed when | Candidate-level handling |
 | --- | --- | --- |
-| PASS | Required evidence directly proves the scenario or gate satisfied the benchmark contract. | All applicable mandatory gates pass. |
-| CONDITIONAL PASS | Required evidence proves the core behavior, but documented limitations or candidate-specific conditions remain within predeclared bounds. | Not allowed when an applicable mandatory gate fails. |
-| FAIL | Candidate behavior violates the benchmark contract, required evidence contradicts the claim, or a mandatory gate fails for candidate-attributable reasons. | Any candidate-attributable mandatory-gate failure prevents PASS and CONDITIONAL PASS. |
-| BLOCKED | The scenario cannot be attributed to the candidate because the blocker belongs to environment, permissions, integration, or benchmark setup. | Does not become candidate PASS or candidate FAIL without attribution. |
-| NOT TESTED | The scenario, gate, or measurement was not executed or no evidence was captured. | Never treated as PASS. |
+| PASS | Required direct evidence proves the scenario or gate satisfied the benchmark contract. | Candidate-level PASS requires PASS for every applicable mandatory gate and every required scenario. |
+| CONDITIONAL PASS | Every applicable mandatory gate passes, every required scenario has direct evidence, no required scenario is FAIL, BLOCKED, or NOT TESTED, and remaining limitations affect only predeclared non-mandatory qualities within predeclared bounds. | Candidate-level CONDITIONAL PASS is not allowed when an applicable mandatory gate fails or when a required scenario is FAIL, BLOCKED, or NOT TESTED. |
+| FAIL | Candidate behavior violates the benchmark contract, required evidence contradicts the claim, or a mandatory gate fails for candidate-attributable reasons. | Any candidate-attributable failure of an applicable mandatory gate requires candidate-level FAIL. |
+| BLOCKED | The scenario cannot be attributed to the candidate because the blocker belongs to environment, permissions, integration, or benchmark setup. | Any applicable mandatory gate or required scenario classified as BLOCKED prevents candidate-level PASS. |
+| NOT TESTED | The scenario, gate, or measurement was not executed or no evidence was captured. | Any applicable mandatory gate or required scenario classified as NOT TESTED prevents candidate-level PASS. |
+
+Candidate-level derivation rules:
+
+- Candidate-level PASS requires PASS for every applicable mandatory gate and
+  every required scenario.
+- Any applicable mandatory gate or required scenario classified as BLOCKED or
+  NOT TESTED prevents candidate-level PASS.
+- Candidate-level CONDITIONAL PASS requires every applicable mandatory gate to
+  pass and every required scenario to have direct evidence.
+- A required scenario classified as FAIL, BLOCKED, or NOT TESTED prevents
+  candidate-level CONDITIONAL PASS.
+- Remaining limitations for candidate-level CONDITIONAL PASS may affect only
+  predeclared non-mandatory qualities and must remain within predeclared
+  bounds.
+- Any candidate-attributable failure of an applicable mandatory gate requires
+  candidate-level FAIL.
+- Aggregate scoring cannot override mandatory gates or candidate-level result
+  derivation rules.
 
 Contradictions must be recorded as contradictions. Retries and recovered
 attempts must preserve the original attempt result and the replacement or
 superseding attempt lineage.
-
-A candidate-level conclusion is derived from individual scenario results only
-after mandatory gates are evaluated. Aggregate scoring must not hide mandatory
-failures.
 
 ## 21. Reusable Scorecard
 
