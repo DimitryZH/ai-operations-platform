@@ -472,7 +472,8 @@ The MVP must retain explicit identifiers:
 
 Retry must create a new `attempt_id`. A failed, timed out, stale, cancelled,
 or capability-rejected attempt must never be silently reused as a successful
-attempt.
+attempt. A task in a terminal state must not create another attempt; further
+investigation after terminal task closeout requires a new request and task.
 
 ### Task States
 
@@ -485,8 +486,8 @@ attempt.
 | `AWAITING_HUMAN_REVIEW` | Structured result is available and workflow has stopped for review. | Control plane |
 | `COMPLETED` | Human closeout accepted the AI Operations task result. | Human reviewer |
 | `REJECTED` | Request cannot be accepted. | Control plane |
-| `FAILED` | No allowed attempt can produce a valid result without new human action. | Control plane |
-| `TIMED_OUT` | Task exceeded declared task-level budget. | Control plane |
+| `FAILED` | Task is closed unsuccessfully; no more attempts may be created on this task. | Control plane or human reviewer |
+| `TIMED_OUT` | Task exceeded declared task-level budget and is closed; no more attempts may be created on this task. | Control plane |
 | `CANCELLED` | Human or policy cancelled the task. | Human reviewer or control plane policy |
 
 Permitted normal transitions:
@@ -501,14 +502,27 @@ Permitted exceptional transitions:
 RECEIVED -> REJECTED
 VALIDATED -> REJECTED
 READY -> FAILED
+READY -> TIMED_OUT
 READY -> CANCELLED
+RUNNING -> READY
 RUNNING -> FAILED
 RUNNING -> TIMED_OUT
 RUNNING -> CANCELLED
 AWAITING_HUMAN_REVIEW -> COMPLETED
+AWAITING_HUMAN_REVIEW -> READY
 AWAITING_HUMAN_REVIEW -> FAILED
 AWAITING_HUMAN_REVIEW -> CANCELLED
 ```
+
+`READY -> TIMED_OUT` is allowed only when the task-level timeout budget is
+exhausted before another attempt can be dispatched. `RUNNING -> READY` is
+allowed only after the active attempt reaches a terminal non-success state and
+the control plane records that retry is still permitted within the same task.
+`AWAITING_HUMAN_REVIEW -> READY` is allowed only when a human reviewer rejects
+the result but explicitly requests another investigation attempt under the
+same validated request scope. If a task reaches `FAILED`, `TIMED_OUT`,
+`CANCELLED`, `REJECTED`, or `COMPLETED`, retry on that task is no longer
+allowed.
 
 Each transition must retain:
 
@@ -532,12 +546,12 @@ metadata, human-review comments, or linked GitHub references.
 | `CAPABILITY_CHECKED` | Required capabilities were declared and verified. | Control plane and adapter |
 | `DISPATCHED` | Adapter accepted the read-only investigation request. | Control plane |
 | `RUNNING` | Executor is actively collecting or analyzing evidence. | Adapter or executor |
-| `SUCCEEDED` | Executor produced a schema-valid result. | Adapter |
+| `SUCCEEDED` | Executor produced a schema-valid result, including a schema-valid partial result. | Adapter |
 | `CAPABILITY_REJECTED` | Required capability was missing, ambiguous, unverifiable, incorrectly scoped, or write-capable. | Control plane |
 | `DISPATCH_FAILED` | Adapter did not accept dispatch. | Control plane |
 | `FAILED` | Executor or adapter failed with a non-timeout error. | Adapter or control plane |
 | `TIMED_OUT` | Attempt exceeded declared attempt budget. | Control plane |
-| `STALE` | Attempt lost heartbeat, status, or recoverable session continuity. | Control plane |
+| `STALE` | Attempt lost heartbeat, status, or observable executor continuity and is terminal for that attempt. | Control plane |
 | `CANCELLED` | Attempt was cancelled before terminal result. | Human reviewer or control plane |
 
 Permitted normal transitions:
@@ -550,7 +564,10 @@ Permitted exceptional transitions:
 
 ```text
 CREATED -> CAPABILITY_REJECTED
+CREATED -> CANCELLED
 CAPABILITY_CHECKED -> DISPATCH_FAILED
+CAPABILITY_CHECKED -> CANCELLED
+DISPATCHED -> CANCELLED
 DISPATCHED -> FAILED
 DISPATCHED -> TIMED_OUT
 DISPATCHED -> STALE
@@ -563,12 +580,21 @@ RUNNING -> CANCELLED
 Terminal attempt states are `SUCCEEDED`, `CAPABILITY_REJECTED`,
 `DISPATCH_FAILED`, `FAILED`, `TIMED_OUT`, `STALE`, and `CANCELLED`.
 
-When an attempt fails and the task can continue, the parent task may return to
-`READY` with a recorded retry decision. The next execution must use a new
-`attempt_id` and must repeat capability verification. After a control-plane or
-executor interruption, the control plane must reconcile durable task and
-attempt state before any new dispatch. It must not infer success from dispatch
-acceptance, session creation, or incomplete executor output.
+`STALE` is a terminal state for the affected attempt, not a non-terminal
+reconciliation state. After marking an attempt `STALE`, the control plane must
+reconcile durable task state. If retry remains permitted, the parent task moves
+from `RUNNING` to `READY`; otherwise it moves from `RUNNING` to terminal
+`FAILED` or `TIMED_OUT` according to the task budget and failure reason.
+
+When an attempt reaches `CAPABILITY_REJECTED`, `DISPATCH_FAILED`, `FAILED`,
+`TIMED_OUT`, `STALE`, or `CANCELLED` and the same task can continue, the parent
+task must move to `READY` with a recorded retry decision. The next execution
+must use a new `attempt_id` and must repeat capability verification. If the
+parent task moves to terminal `FAILED`, `TIMED_OUT`, or `CANCELLED`, retry
+requires a new task. After a control-plane or executor interruption, the
+control plane must reconcile durable task and attempt state before any new
+dispatch. It must not infer success from dispatch acceptance, session
+creation, or incomplete executor output.
 
 ## Required Executor Capabilities
 
@@ -577,12 +603,12 @@ repository-verified staging scenario.
 
 | Capability | Class | Scope | Verification method | Failure behavior |
 | --- | --- | --- | --- | --- |
-| `kubernetes.read` | Required | Read pod, workload, event, service, ingress, and namespace metadata for `online-shop-stage` only. | Adapter declares read-only Kubernetes access; control plane verifies target namespace restriction and denies write verbs. | Attempt becomes `CAPABILITY_REJECTED`; task remains `READY` or `FAILED` according to retry policy. |
-| `prometheus.query` | Required | Query approved Prometheus expressions for the approved time range. | Adapter declares query endpoint scope; control plane verifies queries are read-only and bounded to approved SLO/ingress signals. | Fail closed before dispatch. |
-| `rollout.read` | Required | Read Argo Rollouts resource `frontend` and related AnalysisRuns in `online-shop-stage`. | Adapter declares rollout read scope; control plane verifies no patch, promote, abort, retry, or undo verbs. | Fail closed before dispatch. |
-| `gitops.read` | Required | Read GitOps metadata for Argo CD application `online-shop-stage` and repository refs. | Adapter declares read-only app/repository metadata access. | Fail closed before dispatch. |
-| `logs.read` | Required | Read bounded frontend, ingress, and relevant pod logs within the approved time range. | Adapter declares log source and retention limits; control plane verifies no exec or mutation scope. | Fail closed before dispatch. |
-| `investigation.report` | Required | Produce normalized result JSON and bounded human-readable summary. | Adapter declares schema version support and result validation path. | Attempt fails if result cannot validate. |
+| `kubernetes.read` | Required | Read pod, workload, event, service, ingress, and namespace metadata for `online-shop-stage` only. | Adapter declares read-only Kubernetes access; control plane verifies target namespace restriction and denies write verbs. | Immediate state: task `READY`, attempt `CAPABILITY_REJECTED`; a new attempt is allowed only after capability scope is corrected and approved. |
+| `prometheus.query` | Required | Query approved Prometheus expressions for the approved time range. | Adapter declares query endpoint scope; control plane verifies queries are read-only and bounded to approved SLO/ingress signals. | Immediate state: task `READY`, attempt `CAPABILITY_REJECTED`; a new attempt is allowed only after query capability is corrected and approved. |
+| `rollout.read` | Required | Read Argo Rollouts resource `frontend` and related AnalysisRuns in `online-shop-stage`. | Adapter declares rollout read scope; control plane verifies no patch, promote, abort, retry, or undo verbs. | Immediate state: task `READY`, attempt `CAPABILITY_REJECTED`; a new attempt is allowed only after rollout read scope is corrected and approved. |
+| `gitops.read` | Required | Read GitOps metadata for Argo CD application `online-shop-stage` and repository refs. | Adapter declares read-only app/repository metadata access. | Immediate state: task `READY`, attempt `CAPABILITY_REJECTED`; a new attempt is allowed only after GitOps read scope is corrected and approved. |
+| `logs.read` | Required | Read bounded frontend, ingress, and relevant pod logs within the approved time range. | Adapter declares log source and retention limits; control plane verifies no exec or mutation scope. | Immediate state: task `READY`, attempt `CAPABILITY_REJECTED`; a new attempt is allowed only after log read scope is corrected and approved. |
+| `investigation.report` | Required | Produce normalized result JSON and bounded human-readable summary. | Adapter declares schema version support and result validation path. | Immediate state for malformed or missing report: task `READY`, attempt `FAILED`; a new attempt is allowed only after adapter correction or human-approved retry. |
 | `recovery.observe` | Optional | Read-only observation of recovery signals when SRE Platform restore has already occurred. | Same read-only checks as evidence collection. | Absence produces explicit `recovery_status: not_checked`; it must not fail the base investigation. |
 | `raw_artifact.reference` | Optional | Reference sanitized raw logs or artifacts without committing large content. | Verify artifact reference is durable and sanitized. | Absence is recorded as a limitation. |
 
@@ -630,7 +656,7 @@ transport, authentication, hosting, and model choices remain unresolved.
 | `describe_capabilities` | Return declared capabilities and target scope. | Must include `executor_id`, schema versions, capability IDs, read/write scope, verification hints, and unsupported operations. |
 | `start_investigation` | Dispatch one read-only attempt. | Must accept `request_id`, `task_id`, `attempt_id`, approved scope, time range, capabilities, constraints, and evidence policy. |
 | `get_status` | Report attempt status. | Must distinguish accepted, queued, running, succeeded, failed, timed out, stale, and cancelled. |
-| `get_result` | Return normalized result. | Must return schema-valid result JSON or structured error with raw-output reference. |
+| `get_result` | Return normalized result. | Must return schema-valid result JSON, including `status: partial` when evidence is incomplete but reportable, or a structured error with raw-output reference. |
 | `cancel_attempt` | Request bounded cancellation. | Must stop future work when possible and report whether already-collected evidence is partial. |
 
 ### Request Metadata
@@ -653,16 +679,24 @@ Each adapter call must include:
 
 ### Status, Timeout, Retry, And Cancellation
 
-The adapter must not report `SUCCEEDED` until it has produced a schema-valid
-result. A timeout produces `TIMED_OUT`, not `FAILED`, unless the failure is
-known and non-timeout. Lost heartbeat or unobservable executor state produces
-`STALE`.
+The adapter must not report attempt `SUCCEEDED` until it has produced a
+schema-valid result. A schema-valid result with `status: partial` is still an
+attempt `SUCCEEDED`; it moves the parent task to `AWAITING_HUMAN_REVIEW`
+because the partial investigation is reviewable but incomplete. Malformed
+output, missing required result fields, or adapter inability to normalize
+executor output produces attempt `FAILED` and immediate parent task `READY`
+when retry remains permitted. A timeout produces attempt `TIMED_OUT`, not
+`FAILED`, unless the failure is known and non-timeout. Lost heartbeat or
+unobservable executor state produces terminal attempt `STALE`.
 
 Retry is a control-plane decision and must create a new attempt. The adapter
 must not silently retry in a way that hides attempt boundaries.
 
 Cancellation is best effort. A cancelled attempt must preserve collected
-evidence references and mark the result partial or unavailable.
+evidence references. If cancellation happens before a schema-valid result is
+available, the attempt is `CANCELLED`; if a schema-valid partial result already
+exists, the attempt may be `SUCCEEDED` and the result status remains
+`partial`.
 
 ### Structured Error Categories
 
@@ -837,17 +871,23 @@ Confidence values:
 
 Partial-result behavior:
 
-- use `status: partial`
+- use result `status: partial`
 - include evidence collected before the failure
 - include missing evidence in `limitations`
 - do not claim diagnosis completeness
-- preserve adapter or executor error category
+- set the producing attempt to `SUCCEEDED` only when the partial result is
+  schema-valid
+- set the parent task to `AWAITING_HUMAN_REVIEW`
+- preserve adapter or executor error category when the partial result was
+  caused by bounded evidence or executor limitations
 
 Empty-result behavior:
 
 - use `status: failed` when no useful evidence or findings can be produced
 - preserve request, capability, dispatch, and error evidence
-- keep task outcome non-success until human review
+- set the producing attempt to `FAILED`
+- set the parent task to `READY` when retry remains permitted; otherwise set
+  the parent task to terminal `FAILED`
 
 Recommendations may propose operator actions, investigation follow-up, or
 SRE-owned restore checks. They must not execute remediation, change rollout
@@ -856,24 +896,33 @@ operational incident.
 
 ## Failure Handling Matrix
 
-| Case | Task state | Attempt state | New attempt allowed | Preserved evidence | Operator-visible outcome |
-| --- | --- | --- | --- | --- | --- |
-| Invalid input | `REJECTED` | None | No, unless new valid request is submitted. | Sanitized input and rejection reason. | Request rejected before activation. |
-| Duplicate request | Existing task state returned | Existing attempt state unchanged | No uncontrolled duplicate; policy may attach reference. | Duplicate key and existing task reference. | Existing task reference returned. |
-| Missing required capability | `READY` or `FAILED` | `CAPABILITY_REJECTED` | Yes, after capability correction and new attempt. | Capability declaration, verification result, reason. | Fail-closed before dispatch. |
-| Incorrectly scoped capability | `READY` or `FAILED` | `CAPABILITY_REJECTED` | Yes, after scope correction and new attempt. | Approved scope, declared scope, mismatch. | Fail-closed before dispatch. |
-| Write-capable capability where read-only is required | `FAILED` | `CAPABILITY_REJECTED` | Only after least-privilege correction. | Capability scope and policy violation. | Security failure before dispatch. |
-| Unavailable executor | `READY` or `FAILED` | `DISPATCH_FAILED` | Yes, with same or different approved executor. | Adapter status and dispatch error. | No execution claimed. |
-| Dispatch failure | `READY` or `FAILED` | `DISPATCH_FAILED` | Yes, within retry policy. | Dispatch request and error category. | Attempt did not start. |
-| Executor timeout | `TIMED_OUT` or `RUNNING` with failed attempt | `TIMED_OUT` | Yes, with new attempt after review. | Timeout budget, last status, partial evidence. | Explicit non-success outcome. |
-| Executor loss after dispatch | `RUNNING` or `FAILED` | `STALE` | Yes, after reconciliation. | Last heartbeat/status and stale rule. | Attempt stale; no success inferred. |
-| Stale attempt | `RUNNING` or `FAILED` | `STALE` | Yes, with new attempt after stale marking. | Staleness detection evidence. | Requires recovery or supersession. |
-| Malformed executor result | `FAILED` or `AWAITING_HUMAN_REVIEW` with partial result | `FAILED` | Yes, after adapter correction. | Raw output reference and schema validation error. | Result rejected or marked partial. |
-| Incomplete evidence | `AWAITING_HUMAN_REVIEW` or `FAILED` | `SUCCEEDED` with partial result, or `FAILED` | Yes, if missing evidence is material and approved. | Evidence gaps and limitations. | Partial or failed result; no unsupported diagnosis. |
-| Control-plane restart | Reconciled from durable state | Reconciled from durable state | Only after reconciliation. | Pre/post state and recovery decision. | No duplicate dispatch or false completion. |
-| Repeated delivery of same operational event | Existing task returned or deduplicated by policy | Existing attempt unchanged unless policy creates new attempt | No uncontrolled duplicate. | Fingerprint, request IDs, dedupe decision. | Deduplicated event visible. |
-| Human rejection of result | `FAILED` or `READY` for approved retry | Terminal or superseded attempt retained | Yes, only as a new attempt after review. | Human rejection reference and result under review. | Result not accepted; task not completed. |
-| Human cancellation | `CANCELLED` | Active attempt `CANCELLED` when possible | No, unless new task is created. | Cancellation decision and partial evidence. | Work stopped. |
+The matrix records deterministic immediate states. Later retry or closeout
+decisions are separate transitions and must be recorded with the authorizing
+actor or condition. `None` means no lifecycle object exists for that incoming
+delivery, so no task or attempt state transition is created.
+
+| Case | Immediate task state | Immediate attempt state | Allowed subsequent transition | Authorizing actor or condition | Preserved evidence | Operator-visible outcome |
+| --- | --- | --- | --- | --- | --- | --- |
+| Invalid input | `REJECTED` | None | None on this task; submit a new request to investigate again. | New valid request from operator or event source. | Sanitized input and rejection reason. | Request rejected before activation. |
+| Duplicate request | `REJECTED` | None | None on the duplicate delivery; attach duplicate reference to existing task audit trail. | Control-plane deduplication policy. | Duplicate key, rejection reason, and existing task reference. | Existing task reference returned unchanged; no attempt is created for the duplicate delivery. |
+| Missing required capability | `READY` | `CAPABILITY_REJECTED` | `READY -> RUNNING` through a new attempt. | Corrected capability declaration and control-plane approval. | Capability declaration, verification result, reason. | Fail-closed before dispatch. |
+| Incorrectly scoped capability | `READY` | `CAPABILITY_REJECTED` | `READY -> RUNNING` through a new attempt. | Corrected least-privilege scope and control-plane approval. | Approved scope, declared scope, mismatch. | Fail-closed before dispatch. |
+| Write-capable capability where read-only is required | `READY` | `CAPABILITY_REJECTED` | `READY -> RUNNING` through a new attempt, or `READY -> FAILED` if least-privilege correction is not allowed. | Human approval of corrected read-only capability, or control-plane policy to close as failed. | Capability scope and policy violation. | Security failure before dispatch. |
+| Unavailable executor | `READY` | `DISPATCH_FAILED` | `READY -> RUNNING` through a new attempt, or `READY -> FAILED` if no executor is available within budget. | Executor availability restored, approved alternate executor, or timeout/budget policy. | Adapter status and dispatch error. | No execution claimed. |
+| Dispatch failure | `READY` | `DISPATCH_FAILED` | `READY -> RUNNING` through a new attempt, or `READY -> FAILED` if dispatch cannot be corrected. | Control-plane retry policy after dispatch cause is corrected. | Dispatch request and error category. | Attempt did not start. |
+| Executor timeout | `READY` | `TIMED_OUT` | `READY -> RUNNING` through a new attempt, or `READY -> TIMED_OUT` when task-level budget is exhausted. | Control-plane timeout budget and human approval when required by policy. | Timeout budget, last status, partial evidence. | Explicit non-success outcome; no completion claimed. |
+| Executor loss after dispatch | `READY` | `STALE` | `READY -> RUNNING` through a new attempt, or `READY -> FAILED` when state cannot be reconciled safely. | Control-plane reconciliation confirms no active executor and retry is safe. | Last heartbeat/status and stale rule. | Attempt stale; no success inferred. |
+| Stale attempt | `READY` | `STALE` | `READY -> RUNNING` through a new attempt, or `READY -> FAILED` when stale state cannot be safely superseded. | Stale-attempt detector and reconciliation policy. | Staleness detection evidence. | Requires recovery or supersession. |
+| Malformed executor result | `READY` | `FAILED` | `READY -> RUNNING` through a new attempt, or `READY -> FAILED` if adapter correction is not available. | Adapter correction, schema fix, or human-approved retry. | Raw output reference and schema validation error. | Result rejected; no partial success claimed. |
+| Incomplete evidence with schema-valid partial result | `AWAITING_HUMAN_REVIEW` | `SUCCEEDED` | `AWAITING_HUMAN_REVIEW -> COMPLETED`, `AWAITING_HUMAN_REVIEW -> READY`, or `AWAITING_HUMAN_REVIEW -> FAILED`. | Human accepts partial result, requests another attempt, or rejects closeout. | Evidence gaps, limitations, and partial result. | Partial investigation result is reviewable; no unsupported diagnosis. |
+| Incomplete evidence without schema-valid result | `READY` | `FAILED` | `READY -> RUNNING` through a new attempt, or `READY -> FAILED` if evidence cannot be collected within scope. | Evidence source restored, scope still valid, and human-approved retry if required. | Evidence gaps and executor error. | Failed attempt; no reviewable result claimed. |
+| Control-plane restart during active attempt | `READY` | `STALE` | `READY -> RUNNING` through a new attempt, or `READY -> FAILED` if reconciliation cannot prove safe supersession. | Durable-state reconciliation confirms active attempt cannot be observed safely. | Pre/post restart state, last heartbeat, and recovery decision. | Active attempt is bounded as stale before retry. |
+| Repeated delivery of same operational event | `REJECTED` | None | None on the repeated delivery; attach repeated event reference to existing task audit trail. | Control-plane deduplication policy based on `request_id` or `signal.fingerprint`. | Fingerprint, request IDs, dedupe decision, rejection reason, and existing task reference. | Existing task reference returned unchanged; no attempt is created for repeated delivery. |
+| Human rejection requesting another attempt | `READY` | `SUCCEEDED` | `READY -> RUNNING` through a new attempt. | Human reviewer explicitly requests another attempt under the same validated scope. | Human rejection reference and result under review. | Result not accepted; task remains retry-eligible. |
+| Human rejection closing the task | `FAILED` | `SUCCEEDED` | None on this task. | Human reviewer rejects result and closes task unsuccessfully. | Human rejection reference and result under review. | Result not accepted; task closed. |
+| Human cancellation before attempt creation | `CANCELLED` | None | None on this task. | Human cancellation or cancellation policy. | Cancellation decision. | Work stopped before attempt creation. |
+| Human cancellation before dispatch | `CANCELLED` | `CANCELLED` | None on this task. | Human cancellation or cancellation policy. | Cancellation decision. | Work stopped before execution. |
+| Human cancellation during execution | `CANCELLED` | `CANCELLED` | None on this task. | Human cancellation or cancellation policy after best-effort executor cancellation. | Cancellation decision and partial evidence reference when available. | Work stopped; no retry on the cancelled task. |
 
 These behaviors are contract requirements only. They have not been implemented
 or benchmarked by this issue.
