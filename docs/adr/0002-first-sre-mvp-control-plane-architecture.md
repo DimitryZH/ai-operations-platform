@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed for human review.
+Accepted.
 
 ## Context
 
@@ -78,9 +78,10 @@ PostgreSQL is the only transactional source of truth. The service may publish
 comments, links, or summaries to GitHub, but GitHub comment state must never be
 used to infer task state after restart.
 
-Cloud Scheduler only triggers protected reconciliation and dispatch ticks. It
-does not own workflow state and is not a queue. If a scheduled tick is missed,
-the next tick must reconcile from PostgreSQL before dispatching new work.
+Cloud Scheduler only triggers short protected orchestration ticks. It does not
+own workflow state, act as a queue, or run as a long-lived worker. If a
+scheduled tick is missed, the next tick must reconcile from PostgreSQL before
+dispatching new work.
 
 ## Transaction Boundary
 
@@ -103,10 +104,34 @@ Minimum durable tables are:
 - `github_publications`
 - `human_reviews`
 - `control_locks`
+- `dispatch_leases`
 
 The transaction boundary for state changes is one task, its current attempt,
 and related transition, capability, invocation, evidence, publication, or
 review records. Cross-task transactions are not required for the first MVP.
+
+PostgreSQL row locks or advisory locks are used only for short atomic state
+claims. The control plane acquires the lock, reconciles visible state, claims
+or renews the global dispatch lease, creates or updates the attempt and
+invocation records, commits, and releases the database lock before making any
+external adapter call.
+
+The durable global dispatch lease is stored in PostgreSQL. The lease record
+contains:
+
+- fixed lease name, such as `first_sre_dispatch`
+- `lease_owner`, identifying the control-plane instance or tick owner
+- `expires_at`, after which another tick may attempt recovery
+- `heartbeat_at`, updated by the owner while orchestration remains active
+- monotonically increasing `fencing_token`
+- associated `task_id` and `attempt_id`
+
+The `fencing_token` is included in transition and adapter invocation records.
+Any stale owner that later reports a result with an older fencing token must be
+ignored. Database constraints must exclude a second active attempt for the MVP
+workflow, for example by allowing only one attempt in `CREATED`,
+`CAPABILITY_CHECKED`, `DISPATCHED`, or `RUNNING` at a time for the global first
+SRE workflow.
 
 ## Request Ingestion
 
@@ -162,20 +187,26 @@ according to the accepted contract.
 ## Sequential Dispatch And Restart Reconciliation
 
 The first MVP uses a database-backed single dispatcher. The dispatcher obtains
-a PostgreSQL lock before selecting one eligible `READY` task. Cloud Run
-`max-instances` may be set to one for operational simplicity, but correctness
-depends on the database lock, not on process uniqueness.
+a short PostgreSQL lock only while claiming the global dispatch lease and
+selecting one eligible `READY` task. Cloud Run `max-instances` may be set to
+one for operational simplicity, but correctness depends on the durable lease,
+fencing token, and active-attempt database constraint, not on process
+uniqueness.
 
 Dispatch order is deterministic:
 
 1. reconcile unfinished attempts
 2. expire task or attempt budgets
-3. select the oldest eligible `READY` task
-4. create a new attempt
-5. verify capabilities fail-closed
-6. persist dispatch intent
-7. call the adapter with the attempt idempotency key
-8. persist the normalized adapter outcome
+3. stop without dispatching if a non-expired active dispatch lease already
+   exists
+4. claim or renew the global dispatch lease with a new fencing token
+5. select the oldest eligible `READY` task
+6. create a new attempt
+7. verify capabilities fail-closed
+8. persist dispatch intent
+9. commit and release the PostgreSQL claim lock
+10. call the adapter with the attempt idempotency key and fencing token
+11. persist the normalized adapter outcome in a new transaction
 
 Restart reconciliation must run before new dispatch. It must inspect durable
 attempt records, last heartbeat or status timestamps, invocation intents, and
@@ -183,6 +214,31 @@ adapter-observable state. If the active executor cannot be observed safely, the
 attempt becomes terminal `STALE`. The parent task returns to `READY` only when
 retry is still allowed; otherwise it transitions to terminal `FAILED` or
 `TIMED_OUT` according to the recorded budget and failure reason.
+
+Every Cloud Scheduler tick begins with reconciliation. A tick must not dispatch
+new work while a non-expired active dispatch lease exists. If the lease is
+expired, the tick may acquire the short PostgreSQL claim lock, advance the
+fencing token, and reconcile the associated attempt before deciding whether a
+new attempt is safe.
+
+An uncertain dispatch result is not automatically retried. If the control plane
+persisted dispatch intent and the adapter call timed out, lost connection, or
+returned an ambiguous response, the next tick must query adapter status by
+`attempt_id` or idempotency key before creating any new attempt. If the adapter
+confirms the attempt was accepted or is running, the control plane records that
+state. If the adapter confirms the attempt was not accepted, the control plane
+records deterministic dispatch failure behavior from the MVP contract. If
+safe status lookup is impossible, the attempt becomes terminal `STALE` and the
+parent task is reconciled through the normal retry or terminal-failure policy.
+
+The long-running investigation belongs behind the adapter boundary. The
+Scheduler tick performs only the bounded orchestration handshake: reconciliation,
+lease claim or renewal, capability verification, dispatch intent persistence,
+short `start_investigation` call, and result normalization for immediately
+available responses. `start_investigation`, `get_status`, `get_result`, and
+`cancel_attempt` each have configured HTTP timeouts. The attempt execution
+budget is separate and governs how long the external executor may continue
+before the control plane marks the attempt `TIMED_OUT` or `STALE`.
 
 ## Capability Verification
 
@@ -211,6 +267,12 @@ toolset, or equivalent enforcement layer before accepting that capability.
 Namespace-scoped Kubernetes RBAC and workload-bounded evidence for `frontend`
 are separate checks.
 
+The adapter must prove either idempotent `start_investigation` behavior for the
+same `attempt_id` and idempotency key, or reliable status lookup by that same
+identity before capability verification can pass. If the adapter cannot support
+one of those recovery paths, capability verification fails closed because the
+control plane cannot safely reconcile uncertain dispatch outcomes.
+
 ## Executor Adapter Interface
 
 The executor adapter is product-neutral. The initial control-plane code should
@@ -221,8 +283,8 @@ Minimum operations are:
 | Operation | Purpose |
 | --- | --- |
 | `describe_capabilities` | Return executor identity, schema versions, declared capabilities, denied capabilities, target scope, auth mode, and verification evidence. |
-| `start_investigation` | Start one read-only attempt using `request_id`, `task_id`, `attempt_id`, approved scope, time range, constraints, evidence policy, and idempotency key. |
-| `get_status` | Report accepted, queued, running, succeeded, failed, timed out, stale, or cancelled without mutating control-plane state directly. |
+| `start_investigation` | Start one read-only attempt using `request_id`, `task_id`, `attempt_id`, approved scope, time range, constraints, evidence policy, idempotency key, and fencing token. Must be idempotent for the same attempt identity or paired with reliable status lookup. |
+| `get_status` | Report accepted, queued, running, succeeded, failed, timed out, stale, or cancelled by `attempt_id` or idempotency key without mutating control-plane state directly. |
 | `get_result` | Return a schema-valid normalized result, including `status: partial` when evidence is incomplete but reviewable. |
 | `cancel_attempt` | Request bounded cancellation and return whether partial evidence exists. |
 
@@ -276,6 +338,11 @@ The minimum GCP deployment target is:
 This target does not require GKE for the control plane and does not deploy an
 investigator. A future HolmesGPT prototype, if approved, must remain behind a
 private network endpoint with no public ingress.
+
+Cloud Scheduler invokes short orchestration endpoints only. It must not hold an
+open request for the full investigation duration. Long-running executor work is
+bounded by attempt-level timeout policy and observed through status/result
+calls using the durable attempt identity.
 
 ## Evidence Storage And GitHub Publication
 
@@ -402,7 +469,8 @@ Costs and tradeoffs:
 
 - a new Python service and PostgreSQL schema must be implemented
 - Cloud SQL becomes a required dependency for the deployed control plane
-- Cloud Scheduler adds a managed tick mechanism, even though it owns no state
+- Cloud Scheduler adds a managed short tick mechanism, even though it owns no
+  state and does not run the long investigation
 - a custom state-machine test suite is required
 - future workflow-engine adoption would require a separate ADR or decision
 
@@ -412,8 +480,9 @@ Costs and tradeoffs:
    executor adapter.
 2. Implement request ingestion, schema validation, idempotency, task and
    attempt transitions, and transition tests.
-3. Implement DB-locked sequential dispatch, retry budgets, timeout handling,
-   and stale-attempt reconciliation.
+3. Implement DB-locked claim, durable dispatch lease, fencing token,
+   active-attempt exclusion, retry budgets, timeout handling, and
+   stale-attempt reconciliation.
 4. Implement fail-closed capability verification and adapter contract tests.
 5. Implement evidence artifact storage, GitHub publication idempotency, and
    human closeout recording.
