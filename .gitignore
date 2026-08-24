@@ -24,6 +24,7 @@ crash.log
 crash.*.log
 
 # Local environment and secret material
+.venv/
 .env
 .env.*
 !.env.example
@@ -39,6 +40,8 @@ secrets/
 *.secrets
 
 # OS/editor noise
+__pycache__/
+.pytest_cache/
 .DS_Store
 Thumbs.db
 *.swp
