@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class TaskState(StrEnum):
+    RECEIVED = "RECEIVED"
+    REJECTED = "REJECTED"
+    READY = "READY"
+    RUNNING = "RUNNING"
+    AWAITING_HUMAN_REVIEW = "AWAITING_HUMAN_REVIEW"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    TIMED_OUT = "TIMED_OUT"
+    CANCELLED = "CANCELLED"
+
+
+class AttemptState(StrEnum):
+    CREATED = "CREATED"
+    CAPABILITY_CHECKED = "CAPABILITY_CHECKED"
+    CAPABILITY_REJECTED = "CAPABILITY_REJECTED"
+    DISPATCHED = "DISPATCHED"
+    DISPATCH_FAILED = "DISPATCH_FAILED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    TIMED_OUT = "TIMED_OUT"
+    STALE = "STALE"
+    CANCELLED = "CANCELLED"
+
+
+TERMINAL_TASK_STATES = {
+    TaskState.REJECTED,
+    TaskState.COMPLETED,
+    TaskState.FAILED,
+    TaskState.TIMED_OUT,
+    TaskState.CANCELLED,
+}
+
+TERMINAL_ATTEMPT_STATES = {
+    AttemptState.CAPABILITY_REJECTED,
+    AttemptState.DISPATCH_FAILED,
+    AttemptState.SUCCEEDED,
+    AttemptState.FAILED,
+    AttemptState.TIMED_OUT,
+    AttemptState.STALE,
+    AttemptState.CANCELLED,
+}
+
+ACTIVE_ATTEMPT_STATES = {
+    AttemptState.CREATED,
+    AttemptState.CAPABILITY_CHECKED,
+    AttemptState.DISPATCHED,
+    AttemptState.RUNNING,
+}

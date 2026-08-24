@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "request_id": "req-20260813-stage-001",
+  "source": {
+    "type": "operator",
+    "system": "sre-platform",
+    "reference": "https://github.com/DimitryZH/ai-operations-platform/issues/21"
+  },
+  "scenario": {
+    "type": "slo_investigation",
+    "environment": "staging",
+    "service": "frontend",
+    "summary": "Investigate elevated HTTP error ratio during a controlled staging failure"
+  },
+  "scope": {
+    "cluster": "sre-platform-staging",
+    "namespace": "online-shop-stage",
+    "workload": "frontend",
+    "rollout": "frontend",
+    "gitops_application": "online-shop-stage",
+    "time_range": {
+      "start": "2026-08-13T15:00:00Z",
+      "end": "2026-08-13T15:20:00Z"
+    }
+  },
+  "signal": {
+    "status": "manual",
+    "name": "frontend-stage-error-ratio",
+    "fingerprint": "sre-platform-stage-frontend-20260813T150000Z",
+    "observed_at": "2026-08-13T15:05:00Z",
+    "references": [
+      {
+        "type": "prometheus_query",
+        "name": "slo:error_ratio_5m"
+      }
+    ]
+  },
+  "requested_capabilities": [
+    "kubernetes.read",
+    "prometheus.query",
+    "rollout.read",
+    "gitops.read",
+    "logs.read",
+    "investigation.report"
+  ],
+  "constraints": {
+    "read_only": true,
+    "allow_mutation": false,
+    "require_human_closeout": true
+  }
+}

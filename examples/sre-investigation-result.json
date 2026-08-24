@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "result_id": "result-20260813-stage-001",
+  "task_id": "task-20260813-stage-001",
+  "attempt_id": "attempt-20260813-stage-001-a1",
+  "executor_id": "executor-readonly-sre-001",
+  "status": "succeeded",
+  "summary": "Controlled stage failure traffic is associated with elevated frontend SLO error signals during the approved time range.",
+  "findings": [
+    {
+      "finding_id": "finding-001",
+      "severity": "high",
+      "confidence": "medium",
+      "classification": "inference",
+      "statement": "The elevated error ratio is probably associated with requests to the approved stage failure path.",
+      "evidence_ids": ["evidence-prom-er5", "evidence-ingress-logs"],
+      "limitations": ["Failure traffic source was identified by request scope, not started by the AI Operations Platform."]
+    }
+  ],
+  "probable_causes": [
+    {
+      "cause_id": "cause-001",
+      "confidence": "medium",
+      "statement": "Controlled failure endpoint traffic is the likely cause of the SLO burn-rate increase.",
+      "evidence_ids": ["evidence-prom-br5", "evidence-request"]
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence-prom-br5",
+      "type": "prometheus_query",
+      "source": "sre_platform_observed",
+      "reference": "github-issue-comment-or-artifact-reference",
+      "supports": ["finding-001", "cause-001"],
+      "does_not_prove": "It does not prove recovery or production behavior."
+    },
+    {
+      "evidence_id": "evidence-prom-er5",
+      "type": "prometheus_query",
+      "source": "sre_platform_observed",
+      "reference": "github-issue-comment-or-artifact-reference",
+      "supports": ["finding-001"],
+      "does_not_prove": "It does not prove recovery or production behavior."
+    },
+    {
+      "evidence_id": "evidence-ingress-logs",
+      "type": "logs",
+      "source": "sre_platform_observed",
+      "reference": "github-issue-comment-or-artifact-reference",
+      "supports": ["finding-001"],
+      "does_not_prove": "It does not prove root cause without SLO evidence."
+    },
+    {
+      "evidence_id": "evidence-request",
+      "type": "operator_request",
+      "source": "operator_provided",
+      "reference": "github-issue-comment-or-artifact-reference",
+      "supports": ["cause-001"],
+      "does_not_prove": "It does not prove runtime behavior."
+    }
+  ],
+  "limitations": [
+    "Recovery was not checked during this attempt."
+  ],
+  "recommendations": [
+    {
+      "recommendation_id": "rec-001",
+      "type": "operator_action",
+      "statement": "Review SRE Platform rollout and stop the controlled failure source according to the SRE-owned procedure.",
+      "requires_human_action": true,
+      "executes_remediation": false
+    }
+  ],
+  "recovery_status": "not_checked",
+  "human_review": {
+    "required": true,
+    "status": "pending",
+    "reference": null
+  },
+  "github_references": [
+    {
+      "type": "issue_comment",
+      "url": "https://github.com/DimitryZH/ai-operations-platform/issues/21#issuecomment-placeholder"
+    }
+  ]
+}
