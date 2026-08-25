@@ -92,6 +92,7 @@ class FakeInvestigationExecutor:
     def get_result(self, attempt_id: str, idempotency_key: str) -> InvestigationResult:
         command = self._commands[idempotency_key]
         result = deepcopy(CANONICAL_FAKE_RESULT)
+        result["result_id"] = f"result-{attempt_id}"
         result["task_id"] = command.task_id
         result["attempt_id"] = attempt_id
         result["executor_id"] = self.executor_id

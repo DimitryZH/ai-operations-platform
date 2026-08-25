@@ -79,6 +79,24 @@ class AttemptRecord(Base):
     )
 
 
+class InvestigationResultRecord(Base):
+    __tablename__ = "investigation_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    result_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    attempt_id: Mapped[int] = mapped_column(ForeignKey("attempts.id"), nullable=False)
+    executor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("result_id", name="uq_investigation_results_result_id"),
+        UniqueConstraint("attempt_id", name="uq_investigation_results_attempt_id"),
+    )
+
+
 class TaskTransitionRecord(Base):
     __tablename__ = "task_transitions"
 
