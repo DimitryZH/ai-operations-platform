@@ -6,9 +6,18 @@ from fastapi import FastAPI, HTTPException, Response
 
 from sre_control_plane.config import Settings, load_settings
 from sre_control_plane.contracts import InvestigationRequest
+from sre_control_plane.database import create_session_factory
 from sre_control_plane.executor import CapabilityReport
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
 from sre_control_plane.readiness import ReadinessStatus, check_database_readiness
+from sre_control_plane.workflow import (
+    DuplicateRequestConflict,
+    HumanReviewRequest,
+    InvalidStateTransition,
+    SreInvestigationWorkflow,
+    TaskNotFound,
+    TaskView,
+)
 
 
 class ValidationResponse(InvestigationRequest):
@@ -18,12 +27,17 @@ class ValidationResponse(InvestigationRequest):
 def create_app(
     settings: Settings | None = None,
     readiness_checker: Callable[[], ReadinessStatus] | None = None,
+    workflow: SreInvestigationWorkflow | None = None,
 ) -> FastAPI:
     active_settings = settings or load_settings()
     active_readiness_checker = readiness_checker or (
         lambda: check_database_readiness(active_settings.database_url)
     )
     fake_executor = FakeInvestigationExecutor()
+    active_workflow = workflow or SreInvestigationWorkflow(
+        create_session_factory(active_settings.database_url),
+        fake_executor,
+    )
 
     app = FastAPI(
         title="SRE Control Plane",
@@ -54,6 +68,32 @@ def create_app(
     @app.post("/v1/sre-investigations/validate", response_model=ValidationResponse)
     def validate_investigation(request: InvestigationRequest) -> InvestigationRequest:
         return request
+
+    @app.post("/v1/sre-investigations", response_model=TaskView, status_code=201)
+    def submit_investigation(request: InvestigationRequest, response: Response) -> TaskView:
+        try:
+            task = active_workflow.submit_request(request)
+        except DuplicateRequestConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if task.duplicate_submission:
+            response.status_code = 200
+        return task
+
+    @app.get("/v1/sre-investigations/{task_id}", response_model=TaskView)
+    def get_investigation(task_id: str) -> TaskView:
+        try:
+            return active_workflow.get_task(task_id)
+        except TaskNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/v1/sre-investigations/{task_id}/human-review", response_model=TaskView)
+    def record_human_review(task_id: str, review: HumanReviewRequest) -> TaskView:
+        try:
+            return active_workflow.record_human_review(task_id, review)
+        except TaskNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except InvalidStateTransition as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/v1/executors/fake/capabilities", response_model=CapabilityReport)
     def fake_capabilities() -> CapabilityReport:

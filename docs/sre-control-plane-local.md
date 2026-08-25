@@ -14,12 +14,14 @@ Included:
 - Alembic migration for a fresh local PostgreSQL database
 - product-neutral executor interface
 - deterministic fake executor for tests and local development
+- one deterministic local fake-executor workflow from request intake to human
+  review
 - liveness and readiness endpoints
 
 Excluded:
 
 - real investigator or HolmesGPT integration
-- full dispatcher, lease, reconciliation, retry, and human-review workflows
+- full dispatcher, lease, reconciliation, retry, and restart recovery workflows
 - Kubernetes, cloud resources, deployment, or SRE Platform repository changes
 
 ## Local Run
@@ -69,6 +71,37 @@ Invoke-RestMethod `
   http://127.0.0.1:8000/v1/sre-investigations/validate
 ```
 
+Run one deterministic fake investigation:
+
+```powershell
+$task = Invoke-RestMethod `
+  -Method Post `
+  -ContentType "application/json" `
+  -InFile .\examples\sre-investigation-request.json `
+  http://127.0.0.1:8000/v1/sre-investigations
+
+$task.task_state
+```
+
+The expected task state after the fake investigation is
+`AWAITING_HUMAN_REVIEW`.
+
+Inspect task state:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/v1/sre-investigations/$($task.task_id)"
+```
+
+Record an explicit human decision:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"decision":"complete","actor":"local-operator","rationale":"Accepted fake investigation result for local workflow validation."}' `
+  "http://127.0.0.1:8000/v1/sre-investigations/$($task.task_id)/human-review"
+```
+
 Run tests:
 
 ```powershell
@@ -89,3 +122,21 @@ The fake executor satisfies the product-neutral adapter interface and returns
 deterministic local data. It declares only the accepted MVP read capabilities
 and explicitly denies mutation, remediation, merge, incident closeout, and
 secret-reading capabilities. It never accesses external systems.
+
+## Workflow Boundary
+
+`POST /v1/sre-investigations` accepts only the canonical MVP request shape,
+persists one task and first attempt, verifies fake executor capabilities,
+records transition rows, invokes the fake executor once, validates the
+normalized result, persists the result, and stops the task at
+`AWAITING_HUMAN_REVIEW`.
+
+Repeated submission of the same `request_id` with the same payload returns the
+existing task. The same `request_id` with a different payload is rejected with
+HTTP `409`.
+
+The human-review endpoint accepts only explicit `complete` or `reject`
+decisions while the task is in `AWAITING_HUMAN_REVIEW`. `complete` transitions
+the task to `COMPLETED`; `reject` transitions it to terminal `FAILED`.
+Requesting another attempt is intentionally not implemented in this increment
+because retry is out of scope for Issue #29.

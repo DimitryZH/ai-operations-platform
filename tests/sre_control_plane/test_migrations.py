@@ -27,6 +27,7 @@ def test_initial_migration_creates_control_plane_tables(tmp_path: Path) -> None:
         "requests",
         "tasks",
         "attempts",
+        "investigation_results",
         "task_transitions",
         "attempt_transitions",
         "capability_checks",
