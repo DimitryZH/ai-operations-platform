@@ -132,8 +132,16 @@ normalized result, persists the result, and stops the task at
 `AWAITING_HUMAN_REVIEW`.
 
 Repeated submission of the same `request_id` with the same payload returns the
-existing task. The same `request_id` with a different payload is rejected with
-HTTP `409`.
+existing task. A repeated operational event with the same `signal.fingerprint`
+also returns the existing task and creates no new attempt. The same
+`request_id` with a different payload is rejected with HTTP `409`.
+
+The workflow records deterministic failure states when the fake executor cannot
+accept dispatch or cannot return a schema-valid result. Dispatch failure moves
+the attempt to `DISPATCH_FAILED` and the task back to `READY`; malformed or
+identity-mismatched results move the attempt to `FAILED` and the task back to
+`READY`. A result is persisted only when its `task_id`, `attempt_id`, and
+`executor_id` match the current workflow identity.
 
 The human-review endpoint accepts only explicit `complete` or `reject`
 decisions while the task is in `AWAITING_HUMAN_REVIEW`. `complete` transitions

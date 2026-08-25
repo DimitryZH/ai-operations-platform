@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from sre_control_plane.contracts import InvestigationRequest
+from sre_control_plane.executor import ExecutorStatus, StartInvestigationResponse
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
 from sre_control_plane.persistence import (
     AttemptRecord,
@@ -93,6 +94,23 @@ def test_repeated_same_request_returns_existing_task_without_duplicate_work(sess
     assert count_records(session_factory, AttemptRecord) == 1
 
 
+def test_repeated_signal_fingerprint_returns_existing_task_without_duplicate_work(session_factory) -> None:
+    workflow = SreInvestigationWorkflow(session_factory, FakeInvestigationExecutor())
+    first = workflow.submit_request(request_example())
+    payload = json.loads((ROOT / "examples" / "sre-investigation-request.json").read_text())
+    payload["request_id"] = "req-20260813-stage-002"
+    repeated_event = InvestigationRequest.model_validate(payload)
+
+    second = workflow.submit_request(repeated_event)
+
+    assert second.duplicate_submission is True
+    assert second.task_id == first.task_id
+    assert second.attempt == first.attempt
+    assert count_records(session_factory, RequestRecord) == 1
+    assert count_records(session_factory, TaskRecord) == 1
+    assert count_records(session_factory, AttemptRecord) == 1
+
+
 def test_same_request_id_with_different_payload_is_rejected(session_factory) -> None:
     workflow = SreInvestigationWorkflow(session_factory, FakeInvestigationExecutor())
     workflow.submit_request(request_example())
@@ -131,6 +149,54 @@ def test_excessive_fake_executor_capability_fails_closed(session_factory) -> Non
     assert view.attempt is not None
     assert view.attempt.state == AttemptState.CAPABILITY_REJECTED
     assert view.failure_reason == "capability_scope_invalid:kubernetes.write"
+
+
+def test_failed_fake_executor_start_records_dispatch_failure(session_factory) -> None:
+    workflow = SreInvestigationWorkflow(session_factory, FailedStartExecutor())
+
+    view = workflow.submit_request(request_example())
+
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.DISPATCH_FAILED
+    assert view.result is None
+    assert view.failure_reason == "dispatch_rejected:failed"
+    assert [transition.to_state for transition in view.task_transitions] == [
+        TaskState.READY,
+        TaskState.RUNNING,
+        TaskState.READY,
+    ]
+    assert [transition.to_state for transition in view.attempt_transitions] == [
+        AttemptState.CREATED,
+        AttemptState.CAPABILITY_CHECKED,
+        AttemptState.DISPATCH_FAILED,
+    ]
+
+
+def test_result_exception_records_failed_attempt_and_ready_task(session_factory) -> None:
+    workflow = SreInvestigationWorkflow(session_factory, ResultExceptionExecutor())
+
+    view = workflow.submit_request(request_example())
+
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.FAILED
+    assert view.result is None
+    assert view.failure_reason == "result_malformed:ValueError"
+    assert count_records(session_factory, InvestigationResultRecord) == 0
+
+
+def test_mismatched_result_identity_records_failed_attempt(session_factory) -> None:
+    workflow = SreInvestigationWorkflow(session_factory, MismatchedResultExecutor())
+
+    view = workflow.submit_request(request_example())
+
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.FAILED
+    assert view.result is None
+    assert view.failure_reason == "result_malformed:task_id_mismatch"
+    assert count_records(session_factory, InvestigationResultRecord) == 0
 
 
 def test_human_can_complete_reviewed_task(session_factory) -> None:
@@ -208,3 +274,25 @@ class ExcessiveCapabilityExecutor(FakeInvestigationExecutor):
                 ]
             }
         )
+
+
+class FailedStartExecutor(FakeInvestigationExecutor):
+    def start_investigation(self, command):
+        return StartInvestigationResponse(
+            executor_id=self.executor_id,
+            attempt_id=command.attempt_id,
+            status=ExecutorStatus.FAILED,
+            idempotency_key=command.idempotency_key,
+            fencing_token=command.fencing_token,
+        )
+
+
+class ResultExceptionExecutor(FakeInvestigationExecutor):
+    def get_result(self, attempt_id: str, idempotency_key: str):
+        raise ValueError("malformed fake result")
+
+
+class MismatchedResultExecutor(FakeInvestigationExecutor):
+    def get_result(self, attempt_id: str, idempotency_key: str):
+        result = super().get_result(attempt_id, idempotency_key)
+        return result.model_copy(update={"task_id": "task-wrong"})

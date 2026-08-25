@@ -164,6 +164,9 @@ class SreInvestigationWorkflow:
                 if canonical_json(existing.payload) != canonical_json(payload):
                     raise DuplicateRequestConflict("request_id already exists with a different payload")
                 return self._task_view_for_request(session, existing, duplicate=True)
+            existing = find_request_by_fingerprint(session, request.signal.fingerprint)
+            if existing is not None:
+                return self._task_view_for_request(session, existing, duplicate=True)
 
             request_record = RequestRecord(
                 request_id=request.request_id,
@@ -239,15 +242,25 @@ class SreInvestigationWorkflow:
             task_id = task.task_id
             attempt_id = attempt.attempt_id
 
-        start_response = self._executor.start_investigation(command)
-        result = self._executor.get_result(attempt_id, attempt_id)
+        try:
+            start_response = self._executor.start_investigation(command)
+        except Exception as exc:
+            return self._record_dispatch_failure(task_id, attempt_id, f"dispatch_rejected:{exc.__class__.__name__}")
+
+        if (
+            start_response.executor_id != capability_report.executor_id
+            or start_response.attempt_id != attempt_id
+            or start_response.idempotency_key != attempt_id
+        ):
+            return self._record_dispatch_failure(task_id, attempt_id, "dispatch_rejected:identity_mismatch")
+        if start_response.status != ExecutorStatus.SUCCEEDED:
+            return self._record_dispatch_failure(task_id, attempt_id, f"dispatch_rejected:{start_response.status}")
 
         with self._session_factory.begin() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
             attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
             if task is None or attempt is None:
                 raise TaskNotFound("task or attempt disappeared during fake workflow execution")
-
             record_attempt_transition(
                 session,
                 attempt,
@@ -264,18 +277,23 @@ class SreInvestigationWorkflow:
                 "fake_executor_running",
                 "fake-executor",
             )
-            if start_response.status != ExecutorStatus.SUCCEEDED:
-                record_attempt_transition(
-                    session,
-                    attempt,
-                    AttemptState.RUNNING,
-                    AttemptState.FAILED,
-                    "fake_executor_failed",
-                    "control-plane",
-                )
-                record_task_transition(session, task, TaskState.RUNNING, TaskState.READY, "fake_executor_failed", "control-plane")
-                return self._task_view(session, task, failure_reason="fake_executor_failed")
+            update_invocation_status(session, attempt, start_response.status)
 
+        try:
+            result = self._executor.get_result(attempt_id, attempt_id)
+            normalized_result_payload = result.model_dump(mode="json")
+            identity_failure = result_identity_failure(result, task_id, attempt_id, start_response.executor_id)
+        except Exception as exc:
+            return self._record_result_failure(task_id, attempt_id, f"result_malformed:{exc.__class__.__name__}")
+
+        if identity_failure is not None:
+            return self._record_result_failure(task_id, attempt_id, identity_failure)
+
+        with self._session_factory.begin() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+            attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
+            if task is None or attempt is None:
+                raise TaskNotFound("task or attempt disappeared during fake workflow execution")
             record_attempt_transition(
                 session,
                 attempt,
@@ -290,7 +308,7 @@ class SreInvestigationWorkflow:
                 attempt_id=attempt.id,
                 executor_id=result.executor_id,
                 status=result.status,
-                payload=result.model_dump(mode="json"),
+                payload=normalized_result_payload,
             )
             session.add(persisted_result)
             record_task_transition(
@@ -302,6 +320,42 @@ class SreInvestigationWorkflow:
                 "control-plane",
             )
             return self._task_view(session, task)
+
+    def _record_dispatch_failure(self, task_id: str, attempt_id: str, reason: str) -> TaskView:
+        with self._session_factory.begin() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+            attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
+            if task is None or attempt is None:
+                raise TaskNotFound("task or attempt disappeared during dispatch failure handling")
+            record_attempt_transition(
+                session,
+                attempt,
+                AttemptState.CAPABILITY_CHECKED,
+                AttemptState.DISPATCH_FAILED,
+                reason,
+                "control-plane",
+            )
+            update_invocation_status(session, attempt, "DISPATCH_FAILED", reason)
+            record_task_transition(session, task, TaskState.RUNNING, TaskState.READY, reason, "control-plane")
+            return self._task_view(session, task, failure_reason=reason)
+
+    def _record_result_failure(self, task_id: str, attempt_id: str, reason: str) -> TaskView:
+        with self._session_factory.begin() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+            attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
+            if task is None or attempt is None:
+                raise TaskNotFound("task or attempt disappeared during result failure handling")
+            record_attempt_transition(
+                session,
+                attempt,
+                AttemptState.RUNNING,
+                AttemptState.FAILED,
+                reason,
+                "control-plane",
+            )
+            update_invocation_status(session, attempt, "FAILED", reason)
+            record_task_transition(session, task, TaskState.RUNNING, TaskState.READY, reason, "control-plane")
+            return self._task_view(session, task, failure_reason=reason)
 
     def get_task(self, task_id: str) -> TaskView:
         with self._session_factory() as session:
@@ -454,6 +508,44 @@ def capability_rejection_reason(report: CapabilityReport) -> str | None:
     return None
 
 
+def find_request_by_fingerprint(session: Session, fingerprint: str) -> RequestRecord | None:
+    for request_record in session.scalars(select(RequestRecord).order_by(RequestRecord.id)):
+        if request_record.payload.get("signal", {}).get("fingerprint") == fingerprint:
+            return request_record
+    return None
+
+
+def result_identity_failure(
+    result,
+    task_id: str,
+    attempt_id: str,
+    executor_id: str,
+) -> str | None:
+    if result.task_id != task_id:
+        return "result_malformed:task_id_mismatch"
+    if result.attempt_id != attempt_id:
+        return "result_malformed:attempt_id_mismatch"
+    if result.executor_id != executor_id:
+        return "result_malformed:executor_id_mismatch"
+    return None
+
+
+def update_invocation_status(
+    session: Session,
+    attempt: AttemptRecord,
+    status: str,
+    error_category: str | None = None,
+) -> None:
+    invocation = session.scalar(
+        select(ExecutorInvocationRecord)
+        .where(ExecutorInvocationRecord.attempt_id == attempt.id)
+        .order_by(ExecutorInvocationRecord.id.desc())
+    )
+    if invocation is not None:
+        invocation.status = str(status)
+        invocation.error_category = error_category
+
+
 def record_task_transition(
     session: Session,
     task: TaskRecord,
@@ -463,6 +555,7 @@ def record_task_transition(
     actor: str,
 ) -> None:
     assert_transition_allowed(ALLOWED_TASK_TRANSITIONS, from_state, to_state)
+    assert_record_state(task.state, from_state)
     task.state = to_state
     session.add(
         TaskTransitionRecord(
@@ -485,6 +578,7 @@ def record_attempt_transition(
     actor: str,
 ) -> None:
     assert_transition_allowed(ALLOWED_ATTEMPT_TRANSITIONS, from_state, to_state)
+    assert_record_state(attempt.state, from_state)
     attempt.state = to_state
     session.add(
         AttemptTransitionRecord(
@@ -513,6 +607,13 @@ def assert_transition_allowed(
 ) -> None:
     if to_state not in allowed.get(from_state, set()):
         raise InvalidStateTransition(f"transition {from_state} -> {to_state} is not permitted")
+
+
+def assert_record_state(current_state: str, expected_state: str | None) -> None:
+    if expected_state is not None and current_state != expected_state:
+        raise InvalidStateTransition(
+            f"record is in {current_state}; expected {expected_state}"
+        )
 
 
 def latest_attempt(session: Session, task: TaskRecord) -> AttemptRecord | None:
