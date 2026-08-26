@@ -35,6 +35,7 @@ def test_initial_migration_creates_control_plane_tables(tmp_path: Path) -> None:
         "evidence_artifacts",
         "github_publications",
         "human_reviews",
+        "retry_decisions",
         "control_locks",
         "dispatch_leases",
         "alembic_version",

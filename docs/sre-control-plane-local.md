@@ -16,12 +16,14 @@ Included:
 - deterministic fake executor for tests and local development
 - one deterministic local fake-executor workflow from request intake to human
   review
+- explicit operator-controlled retry for retry-eligible local fake tasks
 - liveness and readiness endpoints
 
 Excluded:
 
 - real investigator or HolmesGPT integration
-- full dispatcher, lease, reconciliation, retry, and restart recovery workflows
+- full dispatcher, lease, reconciliation, automatic retry, and restart recovery
+  workflows
 - Kubernetes, cloud resources, deployment, or SRE Platform repository changes
 
 ## Local Run
@@ -102,6 +104,26 @@ Invoke-RestMethod `
   "http://127.0.0.1:8000/v1/sre-investigations/$($task.task_id)/human-review"
 ```
 
+Request another investigation attempt from human review:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"decision":"retry","retry_id":"retry-local-human-001","actor":"local-operator","rationale":"Request another bounded fake investigation attempt."}' `
+  "http://127.0.0.1:8000/v1/sre-investigations/$($task.task_id)/human-review"
+```
+
+Retry an eligible task that has returned to `READY` after a failed attempt:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"retry_id":"retry-local-operator-001","actor":"local-operator","rationale":"Retry after the previous terminal non-success attempt."}' `
+  "http://127.0.0.1:8000/v1/sre-investigations/$($task.task_id)/retry"
+```
+
 Run tests:
 
 ```powershell
@@ -143,8 +165,16 @@ identity-mismatched results move the attempt to `FAILED` and the task back to
 `READY`. A result is persisted only when its `task_id`, `attempt_id`, and
 `executor_id` match the current workflow identity.
 
-The human-review endpoint accepts only explicit `complete` or `reject`
+The human-review endpoint accepts explicit `complete`, `reject`, or `retry`
 decisions while the task is in `AWAITING_HUMAN_REVIEW`. `complete` transitions
-the task to `COMPLETED`; `reject` transitions it to terminal `FAILED`.
-Requesting another attempt is intentionally not implemented in this increment
-because retry is out of scope for Issue #29.
+the task to `COMPLETED`; `reject` transitions it to terminal `FAILED`; `retry`
+requires a `retry_id`, records the human review, transitions the task back to
+`READY`, creates a new attempt, repeats capability verification, and runs the
+fake executor again.
+
+`POST /v1/sre-investigations/{task_id}/retry` allows an operator to retry a task
+that is already in `READY` after a terminal non-success attempt. Every accepted
+retry creates a new `attempt_id` and keeps previous attempts, transitions,
+capability checks, retry decisions, reviews, and results. Reusing the same
+`retry_id` returns the existing task state and creates no additional attempt.
+Terminal tasks and tasks with active attempts reject retry requests.
