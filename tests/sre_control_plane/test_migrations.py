@@ -9,8 +9,12 @@ from sqlalchemy import create_engine, inspect, text
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_initial_migration_creates_control_plane_tables(tmp_path: Path) -> None:
+def test_initial_migration_creates_control_plane_tables(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     database_url = f"sqlite:///{tmp_path / 'control-plane.db'}"
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
@@ -58,8 +62,10 @@ def test_initial_migration_creates_control_plane_tables(tmp_path: Path) -> None:
 
 def test_retry_decision_type_migration_preserves_existing_audit_rows(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
     database_url = f"sqlite:///{tmp_path / 'existing-control-plane.db'}"
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
