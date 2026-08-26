@@ -9,8 +9,6 @@ on:
       - "tests/sre_control_plane/**"
       - "pyproject.toml"
   push:
-    branches:
-      - main
 
 jobs:
   test:
