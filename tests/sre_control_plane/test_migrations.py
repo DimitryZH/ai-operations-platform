@@ -24,6 +24,13 @@ def test_initial_migration_creates_control_plane_tables(tmp_path: Path) -> None:
         retry_decision_columns = {
             column["name"] for column in inspector.get_columns("retry_decisions")
         }
+        task_transition_columns = {
+            column["name"] for column in inspector.get_columns("task_transitions")
+        }
+        with engine.connect() as connection:
+            dispatch_lease_name = connection.scalar(
+                text("SELECT lease_name FROM dispatch_leases WHERE lease_name = 'first_sre_dispatch'")
+            )
     finally:
         engine.dispose()
 
@@ -45,6 +52,8 @@ def test_initial_migration_creates_control_plane_tables(tmp_path: Path) -> None:
         "alembic_version",
     } <= tables
     assert "decision_type" in retry_decision_columns
+    assert "fencing_token" in task_transition_columns
+    assert dispatch_lease_name == "first_sre_dispatch"
 
 
 def test_retry_decision_type_migration_preserves_existing_audit_rows(

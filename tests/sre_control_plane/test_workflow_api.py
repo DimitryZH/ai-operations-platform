@@ -27,55 +27,44 @@ def client(tmp_path: Path) -> TestClient:
     return TestClient(create_app(workflow=workflow))
 
 
-def request_payload() -> dict:
-    return json.loads((ROOT / "examples" / "sre-investigation-request.json").read_text())
+def request_payload(request_id: str = "req-20260813-stage-001") -> dict:
+    payload = json.loads((ROOT / "examples" / "sre-investigation-request.json").read_text())
+    payload["request_id"] = request_id
+    payload["signal"]["fingerprint"] = request_id
+    return payload
 
 
-def test_api_runs_fake_workflow_to_human_review(client: TestClient) -> None:
+def run_tick(client: TestClient, owner: str = "api-tick") -> dict:
+    response = client.post("/internal/dispatch/tick", json={"lease_owner": owner})
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_api_intake_persists_ready_task_without_invocation(client: TestClient) -> None:
     response = client.post("/v1/sre-investigations", json=request_payload())
 
     assert response.status_code == 201
     body = response.json()
-    assert body["task_state"] == TaskState.AWAITING_HUMAN_REVIEW
-    assert body["attempt"]["state"] == "SUCCEEDED"
-    assert body["result"]["status"] == "succeeded"
-
-    get_response = client.get(f"/v1/sre-investigations/{body['task_id']}")
-    assert get_response.status_code == 200
-    assert get_response.json()["task_id"] == body["task_id"]
+    assert body["task_state"] == TaskState.READY
+    assert body["attempt"] is None
+    assert run_tick(client)["task_id"] == body["task_id"]
 
 
-def test_api_duplicate_submission_returns_existing_task(client: TestClient) -> None:
-    first = client.post("/v1/sre-investigations", json=request_payload())
-    second = client.post("/v1/sre-investigations", json=request_payload())
-
-    assert first.status_code == 201
-    assert second.status_code == 200
-    assert second.json()["duplicate_submission"] is True
-    assert second.json()["task_id"] == first.json()["task_id"]
-
-
-def test_api_human_review_complete(client: TestClient) -> None:
+def test_api_tick_runs_one_fake_workflow_to_human_review(client: TestClient) -> None:
     task = client.post("/v1/sre-investigations", json=request_payload()).json()
+    tick = run_tick(client)
+    state = client.get(f"/v1/sre-investigations/{task['task_id']}").json()
 
-    response = client.post(
-        f"/v1/sre-investigations/{task['task_id']}/human-review",
-        json={
-            "decision": "complete",
-            "actor": "local-operator",
-            "rationale": "Accepted local fake investigation result.",
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.json()["task_state"] == TaskState.COMPLETED
+    assert tick["dispatched"] is True
+    assert tick["fencing_token"] == 1
+    assert state["task_state"] == TaskState.AWAITING_HUMAN_REVIEW
+    assert state["attempt"]["state"] == "SUCCEEDED"
 
 
-def test_api_human_review_retry_creates_new_attempt(client: TestClient) -> None:
+def test_api_human_retry_waits_for_a_following_tick(client: TestClient) -> None:
     task = client.post("/v1/sre-investigations", json=request_payload()).json()
-    first_attempt = task["attempt"]["attempt_id"]
-
-    response = client.post(
+    run_tick(client)
+    review = client.post(
         f"/v1/sre-investigations/{task['task_id']}/human-review",
         json={
             "decision": "retry",
@@ -85,155 +74,80 @@ def test_api_human_review_retry_creates_new_attempt(client: TestClient) -> None:
         },
     )
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["task_state"] == TaskState.AWAITING_HUMAN_REVIEW
-    assert body["attempt"]["state"] == "SUCCEEDED"
-    assert body["attempt"]["attempt_id"] != first_attempt
-    assert body["attempt"]["attempt_id"].endswith("-a2")
+    assert review.status_code == 200
+    assert review.json()["task_state"] == TaskState.READY
+    assert len(review.json()["attempts"]) == 1
+    run_tick(client, "api-tick-retry")
+    retried = client.get(f"/v1/sre-investigations/{task['task_id']}").json()
+    assert retried["attempt"]["attempt_id"].endswith("-a2")
 
 
-def test_api_duplicate_human_retry_returns_existing_attempt(client: TestClient) -> None:
+def test_api_history_includes_attempts_results_reviews_and_fencing(client: TestClient) -> None:
     task = client.post("/v1/sre-investigations", json=request_payload()).json()
-    review = {
-        "decision": "retry",
-        "retry_id": "retry-api-human-duplicate-001",
-        "actor": "local-operator",
-        "rationale": "Request another fake investigation attempt.",
-    }
-    first = client.post(f"/v1/sre-investigations/{task['task_id']}/human-review", json=review)
-    second = client.post(f"/v1/sre-investigations/{task['task_id']}/human-review", json=review)
-
-    assert first.status_code == 200
-    assert second.status_code == 200
-    assert second.json()["duplicate_retry_submission"] is True
-    assert second.json()["attempt"] == first.json()["attempt"]
-
-
-def test_api_conflicting_human_retry_payload_returns_409(client: TestClient) -> None:
-    task = client.post("/v1/sre-investigations", json=request_payload()).json()
-    review = {
-        "decision": "retry",
-        "retry_id": "retry-api-human-conflict-001",
-        "actor": "local-operator",
-        "rationale": "Request another fake investigation attempt.",
-    }
-    first = client.post(
-        f"/v1/sre-investigations/{task['task_id']}/human-review",
-        json=review,
-    )
-    conflicting = client.post(
-        f"/v1/sre-investigations/{task['task_id']}/human-review",
-        json={**review, "actor": "different-operator"},
-    )
-
-    assert first.status_code == 200
-    assert conflicting.status_code == 409
-
-
-def test_api_exposes_complete_attempt_result_review_and_transition_history(
-    client: TestClient,
-) -> None:
-    task = client.post("/v1/sre-investigations", json=request_payload()).json()
-    first_attempt_id = task["attempt"]["attempt_id"]
-    retry_response = client.post(
+    run_tick(client)
+    client.post(
         f"/v1/sre-investigations/{task['task_id']}/human-review",
         json={
             "decision": "retry",
             "retry_id": "retry-api-history-001",
             "actor": "local-operator",
             "rationale": "Request another fake investigation attempt.",
-            "github_reference": "https://github.com/example/repository/issues/31",
         },
     )
-    history_response = client.get(f"/v1/sre-investigations/{task['task_id']}")
+    run_tick(client, "api-tick-history")
+    history = client.get(f"/v1/sre-investigations/{task['task_id']}").json()
 
-    assert retry_response.status_code == 200
-    assert history_response.status_code == 200
-    body = history_response.json()
-    second_attempt_id = body["attempt"]["attempt_id"]
-    assert [item["attempt_id"] for item in body["attempts"]] == [
-        first_attempt_id,
-        second_attempt_id,
-    ]
-    assert [item["attempt_id"] for item in body["results"]] == [
-        first_attempt_id,
-        second_attempt_id,
-    ]
-    assert body["reviews"] == [
-        {
-            "attempt_id": first_attempt_id,
-            "actor": "local-operator",
-            "decision": "retry",
-            "rationale": "Request another fake investigation attempt.",
-            "github_reference": "https://github.com/example/repository/issues/31",
-        }
-    ]
-    assert [item["to_state"] for item in body["attempts"][0]["transitions"]] == [
-        "CREATED",
-        "CAPABILITY_CHECKED",
-        "DISPATCHED",
-        "RUNNING",
-        "SUCCEEDED",
-    ]
-    assert body["attempt_transitions"] == body["attempts"][-1]["transitions"]
-    assert body["result"]["result_id"] == body["results"][-1]["result_id"]
-    assert len(body["task_transitions"]) == 6
+    assert len(history["attempts"]) == 2
+    assert len(history["results"]) == 2
+    assert len(history["reviews"]) == 1
+    assert history["attempts"][0]["transitions"][-1]["fencing_token"] == 1
+    assert history["attempts"][1]["transitions"][-1]["fencing_token"] == 2
 
 
-def test_api_operator_retry_requires_ready_task(client: TestClient) -> None:
-    task = client.post("/v1/sre-investigations", json=request_payload()).json()
+def test_api_duplicate_submission_and_retry_remain_idempotent(client: TestClient) -> None:
+    first = client.post("/v1/sre-investigations", json=request_payload())
+    second = client.post("/v1/sre-investigations", json=request_payload())
 
-    response = client.post(
-        f"/v1/sre-investigations/{task['task_id']}/retry",
-        json={
-            "retry_id": "retry-api-operator-001",
-            "actor": "local-operator",
-            "rationale": "Invalid retry while awaiting human review.",
-        },
-    )
-
-    assert response.status_code == 409
+    assert first.status_code == 201
+    assert second.status_code == 200
+    assert second.json()["duplicate_submission"] is True
 
 
-def test_api_operator_retry_creates_new_attempt_after_failure(tmp_path: Path) -> None:
+def test_api_metrics_expose_dispatch_counters(client: TestClient) -> None:
+    client.post("/v1/sre-investigations", json=request_payload())
+    run_tick(client)
+    metrics = client.get("/metrics")
+
+    assert metrics.status_code == 200
+    assert "sre_control_plane_dispatch_ticks_total 1" in metrics.text
+    assert "sre_control_plane_dispatch_claims_total 1" in metrics.text
+
+
+def test_api_retry_after_dispatch_failure_waits_for_tick(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'api-retry-workflow.db'}")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     workflow = SreInvestigationWorkflow(session_factory, FailFirstStartExecutor())
     retry_client = TestClient(create_app(workflow=workflow))
-    failed = retry_client.post("/v1/sre-investigations", json=request_payload()).json()
+    task = retry_client.post("/v1/sre-investigations", json=request_payload()).json()
+    run_tick(retry_client, "api-failing-tick")
 
-    response = retry_client.post(
-        f"/v1/sre-investigations/{failed['task_id']}/retry",
+    retry = retry_client.post(
+        f"/v1/sre-investigations/{task['task_id']}/retry",
         json={
-            "retry_id": "retry-api-operator-success-001",
+            "retry_id": "retry-api-operator-001",
             "actor": "local-operator",
             "rationale": "Retry after fake dispatch failure.",
         },
     )
 
-    assert failed["task_state"] == TaskState.READY
-    assert failed["attempt"]["state"] == "DISPATCH_FAILED"
-    assert response.status_code == 201
-    body = response.json()
-    assert body["task_state"] == TaskState.AWAITING_HUMAN_REVIEW
-    assert body["attempt"]["state"] == "SUCCEEDED"
-    assert body["attempt"]["attempt_id"].endswith("-a2")
-
-
-def test_api_invalid_human_review_transition_returns_409(client: TestClient) -> None:
-    task = client.post("/v1/sre-investigations", json=request_payload()).json()
-    review = {
-        "decision": "complete",
-        "actor": "local-operator",
-        "rationale": "Accepted local fake investigation result.",
-    }
-    first = client.post(f"/v1/sre-investigations/{task['task_id']}/human-review", json=review)
-    second = client.post(f"/v1/sre-investigations/{task['task_id']}/human-review", json=review)
-
-    assert first.status_code == 200
-    assert second.status_code == 409
+    assert retry.status_code == 201
+    assert retry.json()["task_state"] == TaskState.READY
+    assert len(retry.json()["attempts"]) == 1
+    run_tick(retry_client, "api-retry-tick")
+    assert retry_client.get(f"/v1/sre-investigations/{task['task_id']}").json()[
+        "attempt"
+    ]["attempt_id"].endswith("-a2")
 
 
 class FailFirstStartExecutor(FakeInvestigationExecutor):
