@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -32,10 +33,17 @@ from sre_control_plane.persistence import (
     HumanReviewRecord,
     InvestigationResultRecord,
     RequestRecord,
+    RetryDecisionRecord,
     TaskRecord,
     TaskTransitionRecord,
 )
-from sre_control_plane.states import AttemptState, TaskState
+from sre_control_plane.states import (
+    ACTIVE_ATTEMPT_STATES,
+    TERMINAL_ATTEMPT_STATES,
+    TERMINAL_TASK_STATES,
+    AttemptState,
+    TaskState,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -52,7 +60,11 @@ MUTATION_CAPABILITY_HINTS = (
 
 ALLOWED_TASK_TRANSITIONS: dict[str | None, set[str]] = {
     None: {TaskState.READY},
-    TaskState.READY: {TaskState.RUNNING, TaskState.FAILED, TaskState.CANCELLED},
+    TaskState.READY: {
+        TaskState.RUNNING,
+        TaskState.FAILED,
+        TaskState.CANCELLED,
+    },
     TaskState.RUNNING: {
         TaskState.AWAITING_HUMAN_REVIEW,
         TaskState.READY,
@@ -62,6 +74,7 @@ ALLOWED_TASK_TRANSITIONS: dict[str | None, set[str]] = {
     },
     TaskState.AWAITING_HUMAN_REVIEW: {
         TaskState.COMPLETED,
+        TaskState.READY,
         TaskState.FAILED,
         TaskState.CANCELLED,
     },
@@ -69,10 +82,30 @@ ALLOWED_TASK_TRANSITIONS: dict[str | None, set[str]] = {
 
 ALLOWED_ATTEMPT_TRANSITIONS: dict[str | None, set[str]] = {
     None: {AttemptState.CREATED},
-    AttemptState.CREATED: {AttemptState.CAPABILITY_CHECKED, AttemptState.CAPABILITY_REJECTED, AttemptState.CANCELLED},
-    AttemptState.CAPABILITY_CHECKED: {AttemptState.DISPATCHED, AttemptState.DISPATCH_FAILED, AttemptState.CANCELLED},
-    AttemptState.DISPATCHED: {AttemptState.RUNNING, AttemptState.FAILED, AttemptState.TIMED_OUT, AttemptState.STALE, AttemptState.CANCELLED},
-    AttemptState.RUNNING: {AttemptState.SUCCEEDED, AttemptState.FAILED, AttemptState.TIMED_OUT, AttemptState.STALE, AttemptState.CANCELLED},
+    AttemptState.CREATED: {
+        AttemptState.CAPABILITY_CHECKED,
+        AttemptState.CAPABILITY_REJECTED,
+        AttemptState.CANCELLED,
+    },
+    AttemptState.CAPABILITY_CHECKED: {
+        AttemptState.DISPATCHED,
+        AttemptState.DISPATCH_FAILED,
+        AttemptState.CANCELLED,
+    },
+    AttemptState.DISPATCHED: {
+        AttemptState.RUNNING,
+        AttemptState.FAILED,
+        AttemptState.TIMED_OUT,
+        AttemptState.STALE,
+        AttemptState.CANCELLED,
+    },
+    AttemptState.RUNNING: {
+        AttemptState.SUCCEEDED,
+        AttemptState.FAILED,
+        AttemptState.TIMED_OUT,
+        AttemptState.STALE,
+        AttemptState.CANCELLED,
+    },
 }
 
 
@@ -81,6 +114,10 @@ class WorkflowError(RuntimeError):
 
 
 class DuplicateRequestConflict(WorkflowError):
+    pass
+
+
+class DuplicateRetryConflict(WorkflowError):
     pass
 
 
@@ -95,12 +132,29 @@ class InvalidStateTransition(WorkflowError):
 class HumanReviewDecision(StrEnum):
     COMPLETE = "complete"
     REJECT = "reject"
+    RETRY = "retry"
 
 
 class HumanReviewRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     decision: HumanReviewDecision
+    actor: str = Field(min_length=1, max_length=128)
+    rationale: str = Field(min_length=1, max_length=2000)
+    github_reference: str | None = Field(default=None, max_length=512)
+    retry_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_retry_id(self) -> "HumanReviewRequest":
+        if self.decision == HumanReviewDecision.RETRY and self.retry_id is None:
+            raise ValueError("retry_id is required when decision is retry")
+        return self
+
+
+class RetryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    retry_id: str = Field(min_length=1, max_length=128)
     actor: str = Field(min_length=1, max_length=128)
     rationale: str = Field(min_length=1, max_length=2000)
     github_reference: str | None = Field(default=None, max_length=512)
@@ -130,6 +184,24 @@ class ResultView(BaseModel):
     executor_id: str
 
 
+class AttemptHistoryView(AttemptView):
+    transitions: list[TransitionView] = Field(default_factory=list)
+
+
+class ResultHistoryView(ResultView):
+    attempt_id: str
+
+
+class HumanReviewView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_id: str | None
+    actor: str
+    decision: str
+    rationale: str
+    github_reference: str | None
+
+
 class TaskView(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -139,9 +211,27 @@ class TaskView(BaseModel):
     attempt: AttemptView | None
     result: ResultView | None
     duplicate_submission: bool = False
+    duplicate_retry_submission: bool = False
     failure_reason: str | None = None
     task_transitions: list[TransitionView] = Field(default_factory=list)
     attempt_transitions: list[TransitionView] = Field(default_factory=list)
+    attempts: list[AttemptHistoryView] = Field(default_factory=list)
+    results: list[ResultHistoryView] = Field(default_factory=list)
+    reviews: list[HumanReviewView] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class PreparedAttempt:
+    command: StartInvestigationCommand
+    task_id: str
+    attempt_id: str
+    executor_id: str
+
+
+@dataclass(frozen=True)
+class CapabilityRejectedAttempt:
+    task_id: str
+    failure_reason: str
 
 
 class SreInvestigationWorkflow:
@@ -178,69 +268,195 @@ class SreInvestigationWorkflow:
                 request=request_record,
                 state=TaskState.READY,
             )
-            attempt = AttemptRecord(
-                attempt_id=f"{task.task_id}-a1",
-                task=task,
-                state=AttemptState.CREATED,
-                fencing_token=1,
-            )
-            session.add_all([request_record, task, attempt])
+            session.add_all([request_record, task])
             session.flush()
             record_task_transition(session, task, None, TaskState.READY, "request_accepted", "control-plane")
-            record_attempt_transition(session, attempt, None, AttemptState.CREATED, "attempt_created", "control-plane")
+            preparation = self._prepare_attempt(
+                session,
+                task,
+                request,
+                attempt_created_reason="attempt_created",
+                task_started_reason="fake_executor_started",
+                actor="control-plane",
+            )
 
+            if isinstance(preparation, CapabilityRejectedAttempt):
+                return self._task_view_for_request(
+                    session,
+                    request_record,
+                    failure_reason=preparation.failure_reason,
+                )
+
+        return self._run_prepared_attempt(preparation)
+
+    def retry_task(self, task_id: str, retry: RetryRequest) -> TaskView:
+        with self._session_factory.begin() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+            if task is None:
+                raise TaskNotFound(f"task not found: {task_id}")
+
+            existing = find_retry_decision(session, retry.retry_id)
+            if existing is not None:
+                assert_retry_decision_matches(
+                    existing,
+                    task_id=task.id,
+                    actor=retry.actor,
+                    rationale=retry.rationale,
+                    source="operator_retry",
+                    decision_type=HumanReviewDecision.RETRY,
+                    github_reference=retry.github_reference,
+                )
+                return self._task_view(session, task, duplicate_retry=True)
+
+            assert_task_can_retry(task)
+            ensure_no_active_attempt(session)
+            previous_attempt = latest_attempt(session, task)
+            if previous_attempt is None or previous_attempt.state not in TERMINAL_ATTEMPT_STATES:
+                raise InvalidStateTransition("retry requires a terminal previous attempt")
+
+            request_record = session.get(RequestRecord, task.request_id)
+            if request_record is None:
+                raise TaskNotFound("request not found for task")
+            retry_decision = RetryDecisionRecord(
+                retry_id=retry.retry_id,
+                task_id=task.id,
+                previous_attempt_id=previous_attempt.id,
+                actor=retry.actor,
+                rationale=retry.rationale,
+                source="operator_retry",
+                decision_type=HumanReviewDecision.RETRY,
+                github_reference=retry.github_reference,
+            )
+            session.add(retry_decision)
+            request = InvestigationRequest.model_validate(request_record.payload)
+            preparation = self._prepare_attempt(
+                session,
+                task,
+                request,
+                attempt_created_reason="operator_retry_attempt_created",
+                task_started_reason="operator_retry_started",
+                actor=retry.actor,
+                retry_decision=retry_decision,
+            )
+            if isinstance(preparation, CapabilityRejectedAttempt):
+                return self._task_view(
+                    session,
+                    task,
+                    failure_reason=preparation.failure_reason,
+                )
+
+        return self._run_prepared_attempt(preparation)
+
+    def _prepare_attempt(
+        self,
+        session: Session,
+        task: TaskRecord,
+        request: InvestigationRequest,
+        attempt_created_reason: str,
+        task_started_reason: str,
+        actor: str,
+        retry_decision: RetryDecisionRecord | None = None,
+    ) -> PreparedAttempt | CapabilityRejectedAttempt:
+        attempt_number = count_attempts(session, task) + 1
+        attempt = AttemptRecord(
+            attempt_id=f"{task.task_id}-a{attempt_number}",
+            task=task,
+            state=AttemptState.CREATED,
+            fencing_token=attempt_number,
+        )
+        session.add(attempt)
+        session.flush()
+        if retry_decision is not None:
+            retry_decision.new_attempt_id = attempt.id
+        record_attempt_transition(session, attempt, None, AttemptState.CREATED, attempt_created_reason, actor)
+
+        try:
             capability_report = self._executor.describe_capabilities()
             capability_failure = capability_rejection_reason(capability_report)
+        except Exception as exc:
+            capability_failure = f"capability_verification_failed:{exc.__class__.__name__}"
             session.add(
                 CapabilityCheckRecord(
                     attempt_id=attempt.id,
-                    executor_id=capability_report.executor_id,
-                    status="REJECTED" if capability_failure else "PASSED",
-                    declared_capabilities={"items": capability_report.declared_capabilities},
-                    denied_capabilities={"items": capability_report.denied_capabilities},
-                    target_scope=capability_report.target_scope,
-                    verification_evidence={"items": capability_report.verification_evidence},
+                    executor_id="unverified",
+                    status="REJECTED",
+                    declared_capabilities={"items": []},
+                    denied_capabilities={"items": []},
+                    target_scope={},
+                    verification_evidence={"items": [capability_failure]},
                 )
             )
-            if capability_failure is not None:
-                record_attempt_transition(
-                    session,
-                    attempt,
-                    AttemptState.CREATED,
-                    AttemptState.CAPABILITY_REJECTED,
-                    capability_failure,
-                    "control-plane",
-                )
-                return self._task_view_for_request(session, request_record, failure_reason=capability_failure)
-
             record_attempt_transition(
                 session,
                 attempt,
                 AttemptState.CREATED,
-                AttemptState.CAPABILITY_CHECKED,
-                "capabilities_verified",
+                AttemptState.CAPABILITY_REJECTED,
+                capability_failure,
                 "control-plane",
             )
-            record_task_transition(session, task, TaskState.READY, TaskState.RUNNING, "fake_executor_started", "control-plane")
-            invocation = ExecutorInvocationRecord(
+            return CapabilityRejectedAttempt(
+                task_id=task.task_id,
+                failure_reason=capability_failure,
+            )
+
+        session.add(
+            CapabilityCheckRecord(
                 attempt_id=attempt.id,
                 executor_id=capability_report.executor_id,
-                operation="start_investigation",
-                idempotency_key=attempt.attempt_id,
-                fencing_token=1,
-                status="INTENT_RECORDED",
+                status="REJECTED" if capability_failure else "PASSED",
+                declared_capabilities={"items": capability_report.declared_capabilities},
+                denied_capabilities={"items": capability_report.denied_capabilities},
+                target_scope=capability_report.target_scope,
+                verification_evidence={"items": capability_report.verification_evidence},
             )
-            session.add(invocation)
+        )
+        if capability_failure is not None:
+            record_attempt_transition(
+                session,
+                attempt,
+                AttemptState.CREATED,
+                AttemptState.CAPABILITY_REJECTED,
+                capability_failure,
+                "control-plane",
+            )
+            return CapabilityRejectedAttempt(task_id=task.task_id, failure_reason=capability_failure)
 
-            command = StartInvestigationCommand(
+        record_attempt_transition(
+            session,
+            attempt,
+            AttemptState.CREATED,
+            AttemptState.CAPABILITY_CHECKED,
+            "capabilities_verified",
+            "control-plane",
+        )
+        record_task_transition(session, task, TaskState.READY, TaskState.RUNNING, task_started_reason, actor)
+        invocation = ExecutorInvocationRecord(
+            attempt_id=attempt.id,
+            executor_id=capability_report.executor_id,
+            operation="start_investigation",
+            idempotency_key=attempt.attempt_id,
+            fencing_token=attempt_number,
+            status="INTENT_RECORDED",
+        )
+        session.add(invocation)
+
+        return PreparedAttempt(
+            command=StartInvestigationCommand(
                 request=request,
                 task_id=task.task_id,
                 attempt_id=attempt.attempt_id,
                 idempotency_key=attempt.attempt_id,
-                fencing_token=1,
-            )
-            task_id = task.task_id
-            attempt_id = attempt.attempt_id
+                fencing_token=attempt_number,
+            ),
+            task_id=task.task_id,
+            attempt_id=attempt.attempt_id,
+            executor_id=capability_report.executor_id,
+        )
+
+    def _run_prepared_attempt(self, prepared: PreparedAttempt) -> TaskView:
+        command = prepared.command
+        task_id = prepared.task_id
+        attempt_id = prepared.attempt_id
 
         try:
             start_response = self._executor.start_investigation(command)
@@ -248,7 +464,7 @@ class SreInvestigationWorkflow:
             return self._record_dispatch_failure(task_id, attempt_id, f"dispatch_rejected:{exc.__class__.__name__}")
 
         if (
-            start_response.executor_id != capability_report.executor_id
+            start_response.executor_id != prepared.executor_id
             or start_response.attempt_id != attempt_id
             or start_response.idempotency_key != attempt_id
         ):
@@ -365,10 +581,28 @@ class SreInvestigationWorkflow:
             return self._task_view(session, task)
 
     def record_human_review(self, task_id: str, review: HumanReviewRequest) -> TaskView:
+        if review.decision == HumanReviewDecision.RETRY:
+            return self._record_human_retry(task_id, review)
+
         with self._session_factory.begin() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
             if task is None:
                 raise TaskNotFound(f"task not found: {task_id}")
+            if review.retry_id is not None:
+                existing = find_retry_decision(session, review.retry_id)
+                if existing is not None:
+                    assert_retry_decision_matches(
+                        existing,
+                        task_id=task.id,
+                        actor=review.actor,
+                        rationale=review.rationale,
+                        source="human_review_retry",
+                        decision_type=review.decision,
+                        github_reference=review.github_reference,
+                    )
+                raise InvalidStateTransition(
+                    "retry_id is only valid when the human review decision is retry"
+                )
             if task.state != TaskState.AWAITING_HUMAN_REVIEW:
                 raise InvalidStateTransition("human review is allowed only from AWAITING_HUMAN_REVIEW")
 
@@ -398,11 +632,97 @@ class SreInvestigationWorkflow:
             )
             return self._task_view(session, task)
 
+    def _record_human_retry(self, task_id: str, review: HumanReviewRequest) -> TaskView:
+        retry_id = review.retry_id
+        if retry_id is None:
+            raise InvalidStateTransition("retry_id is required when decision is retry")
+
+        with self._session_factory.begin() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+            if task is None:
+                raise TaskNotFound(f"task not found: {task_id}")
+
+            existing = find_retry_decision(session, retry_id)
+            if existing is not None:
+                assert_retry_decision_matches(
+                    existing,
+                    task_id=task.id,
+                    actor=review.actor,
+                    rationale=review.rationale,
+                    source="human_review_retry",
+                    decision_type=review.decision,
+                    github_reference=review.github_reference,
+                )
+                return self._task_view(session, task, duplicate_retry=True)
+
+            if task.state != TaskState.AWAITING_HUMAN_REVIEW:
+                raise InvalidStateTransition(
+                    "human retry is allowed only from AWAITING_HUMAN_REVIEW"
+                )
+            ensure_no_active_attempt(session)
+
+            previous_attempt = latest_attempt(session, task)
+            if previous_attempt is None or previous_attempt.state not in TERMINAL_ATTEMPT_STATES:
+                raise InvalidStateTransition("human retry requires a terminal previous attempt")
+
+            session.add(
+                HumanReviewRecord(
+                    task_id=task.id,
+                    attempt_id=previous_attempt.id,
+                    actor=review.actor,
+                    decision=review.decision,
+                    rationale=review.rationale,
+                    github_reference=review.github_reference,
+                )
+            )
+            retry_decision = RetryDecisionRecord(
+                retry_id=retry_id,
+                task_id=task.id,
+                previous_attempt_id=previous_attempt.id,
+                actor=review.actor,
+                rationale=review.rationale,
+                source="human_review_retry",
+                decision_type=review.decision,
+                github_reference=review.github_reference,
+            )
+            session.add(retry_decision)
+            record_task_transition(
+                session,
+                task,
+                TaskState.AWAITING_HUMAN_REVIEW,
+                TaskState.READY,
+                "human_review_retry",
+                review.actor,
+            )
+
+            request_record = session.get(RequestRecord, task.request_id)
+            if request_record is None:
+                raise TaskNotFound("request not found for task")
+            request = InvestigationRequest.model_validate(request_record.payload)
+            preparation = self._prepare_attempt(
+                session,
+                task,
+                request,
+                attempt_created_reason="human_retry_attempt_created",
+                task_started_reason="human_retry_started",
+                actor=review.actor,
+                retry_decision=retry_decision,
+            )
+            if isinstance(preparation, CapabilityRejectedAttempt):
+                return self._task_view(
+                    session,
+                    task,
+                    failure_reason=preparation.failure_reason,
+                )
+
+        return self._run_prepared_attempt(preparation)
+
     def _task_view_for_request(
         self,
         session: Session,
         request_record: RequestRecord,
         duplicate: bool = False,
+        duplicate_retry: bool = False,
         failure_reason: str | None = None,
     ) -> TaskView:
         task = session.scalar(
@@ -412,18 +732,67 @@ class SreInvestigationWorkflow:
         )
         if task is None:
             raise TaskNotFound("task not found for request")
-        return self._task_view(session, task, duplicate=duplicate, failure_reason=failure_reason)
+        return self._task_view(
+            session,
+            task,
+            duplicate=duplicate,
+            duplicate_retry=duplicate_retry,
+            failure_reason=failure_reason,
+        )
 
     def _task_view(
         self,
         session: Session,
         task: TaskRecord,
         duplicate: bool = False,
+        duplicate_retry: bool = False,
         failure_reason: str | None = None,
     ) -> TaskView:
         request_record = session.get(RequestRecord, task.request_id)
-        attempt = latest_attempt(session, task)
-        result = latest_result(session, task)
+        attempts = list(
+            session.scalars(
+                select(AttemptRecord)
+                .where(AttemptRecord.task_id == task.id)
+                .order_by(AttemptRecord.id)
+            )
+        )
+        attempt = attempts[-1] if attempts else None
+        attempt_ids = [item.id for item in attempts]
+        transition_records = (
+            list(
+                session.scalars(
+                    select(AttemptTransitionRecord)
+                    .where(AttemptTransitionRecord.attempt_id.in_(attempt_ids))
+                    .order_by(AttemptTransitionRecord.id)
+                )
+            )
+            if attempt_ids
+            else []
+        )
+        transitions_by_attempt: dict[int, list[TransitionView]] = {
+            attempt_id: [] for attempt_id in attempt_ids
+        }
+        for transition in transition_records:
+            transitions_by_attempt[transition.attempt_id].append(
+                transition_view(transition)
+            )
+
+        results = list(
+            session.scalars(
+                select(InvestigationResultRecord)
+                .where(InvestigationResultRecord.task_id == task.id)
+                .order_by(InvestigationResultRecord.id)
+            )
+        )
+        result = results[-1] if results else None
+        attempt_id_by_record_id = {item.id: item.attempt_id for item in attempts}
+        reviews = list(
+            session.scalars(
+                select(HumanReviewRecord)
+                .where(HumanReviewRecord.task_id == task.id)
+                .order_by(HumanReviewRecord.id)
+            )
+        )
         return TaskView(
             request_id=request_record.request_id if request_record else "",
             task_id=task.task_id,
@@ -439,6 +808,7 @@ class SreInvestigationWorkflow:
                 else None
             ),
             duplicate_submission=duplicate,
+            duplicate_retry_submission=duplicate_retry,
             failure_reason=failure_reason,
             task_transitions=[
                 TransitionView(
@@ -453,22 +823,39 @@ class SreInvestigationWorkflow:
                     .order_by(TaskTransitionRecord.id)
                 )
             ],
-            attempt_transitions=[
-                TransitionView(
-                    from_state=transition.from_state,
-                    to_state=transition.to_state,
-                    reason=transition.reason,
-                    actor=transition.actor,
+            attempt_transitions=(
+                transitions_by_attempt.get(attempt.id, []) if attempt else []
+            ),
+            attempts=[
+                AttemptHistoryView(
+                    attempt_id=item.attempt_id,
+                    state=item.state,
+                    transitions=transitions_by_attempt[item.id],
                 )
-                for transition in (
-                    session.scalars(
-                        select(AttemptTransitionRecord)
-                        .where(AttemptTransitionRecord.attempt_id == attempt.id)
-                        .order_by(AttemptTransitionRecord.id)
-                    )
-                    if attempt
-                    else []
+                for item in attempts
+            ],
+            results=[
+                ResultHistoryView(
+                    result_id=item.result_id,
+                    attempt_id=attempt_id_by_record_id[item.attempt_id],
+                    status=item.status,
+                    executor_id=item.executor_id,
                 )
+                for item in results
+            ],
+            reviews=[
+                HumanReviewView(
+                    attempt_id=(
+                        attempt_id_by_record_id.get(item.attempt_id)
+                        if item.attempt_id is not None
+                        else None
+                    ),
+                    actor=item.actor,
+                    decision=item.decision,
+                    rationale=item.rationale,
+                    github_reference=item.github_reference,
+                )
+                for item in reviews
             ],
         )
 
@@ -508,11 +895,75 @@ def capability_rejection_reason(report: CapabilityReport) -> str | None:
     return None
 
 
+def transition_view(
+    transition: TaskTransitionRecord | AttemptTransitionRecord,
+) -> TransitionView:
+    return TransitionView(
+        from_state=transition.from_state,
+        to_state=transition.to_state,
+        reason=transition.reason,
+        actor=transition.actor,
+    )
+
+
 def find_request_by_fingerprint(session: Session, fingerprint: str) -> RequestRecord | None:
     for request_record in session.scalars(select(RequestRecord).order_by(RequestRecord.id)):
         if request_record.payload.get("signal", {}).get("fingerprint") == fingerprint:
             return request_record
     return None
+
+
+def find_retry_decision(session: Session, retry_id: str) -> RetryDecisionRecord | None:
+    return session.scalar(
+        select(RetryDecisionRecord).where(RetryDecisionRecord.retry_id == retry_id)
+    )
+
+
+def assert_retry_decision_matches(
+    existing: RetryDecisionRecord,
+    *,
+    task_id: int,
+    actor: str,
+    rationale: str,
+    source: str,
+    decision_type: str,
+    github_reference: str | None,
+) -> None:
+    expected = (
+        task_id,
+        actor,
+        rationale,
+        source,
+        str(decision_type),
+        github_reference,
+    )
+    actual = (
+        existing.task_id,
+        existing.actor,
+        existing.rationale,
+        existing.source,
+        existing.decision_type,
+        existing.github_reference,
+    )
+    if actual != expected:
+        raise DuplicateRetryConflict(
+            "retry_id already exists with a different decision payload"
+        )
+
+
+def assert_task_can_retry(task: TaskRecord) -> None:
+    if task.state in TERMINAL_TASK_STATES:
+        raise InvalidStateTransition("terminal tasks cannot create retry attempts")
+    if task.state != TaskState.READY:
+        raise InvalidStateTransition("operator retry is allowed only from READY")
+
+
+def ensure_no_active_attempt(session: Session) -> None:
+    active_attempt = session.scalar(
+        select(AttemptRecord).where(AttemptRecord.state.in_(ACTIVE_ATTEMPT_STATES))
+    )
+    if active_attempt is not None:
+        raise InvalidStateTransition("retry is blocked while an attempt is active")
 
 
 def result_identity_failure(
@@ -621,6 +1072,16 @@ def latest_attempt(session: Session, task: TaskRecord) -> AttemptRecord | None:
         select(AttemptRecord)
         .where(AttemptRecord.task_id == task.id)
         .order_by(AttemptRecord.id.desc())
+    )
+
+
+def count_attempts(session: Session, task: TaskRecord) -> int:
+    return len(
+        list(
+            session.scalars(
+                select(AttemptRecord.id).where(AttemptRecord.task_id == task.id)
+            )
+        )
     )
 
 

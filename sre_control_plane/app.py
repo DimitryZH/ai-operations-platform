@@ -12,8 +12,10 @@ from sre_control_plane.fake_executor import FakeInvestigationExecutor
 from sre_control_plane.readiness import ReadinessStatus, check_database_readiness
 from sre_control_plane.workflow import (
     DuplicateRequestConflict,
+    DuplicateRetryConflict,
     HumanReviewRequest,
     InvalidStateTransition,
+    RetryRequest,
     SreInvestigationWorkflow,
     TaskNotFound,
     TaskView,
@@ -86,13 +88,25 @@ def create_app(
         except TaskNotFound as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @app.post("/v1/sre-investigations/{task_id}/retry", response_model=TaskView, status_code=201)
+    def retry_investigation(task_id: str, retry: RetryRequest, response: Response) -> TaskView:
+        try:
+            task = active_workflow.retry_task(task_id, retry)
+        except TaskNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (DuplicateRetryConflict, InvalidStateTransition) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if task.duplicate_retry_submission:
+            response.status_code = 200
+        return task
+
     @app.post("/v1/sre-investigations/{task_id}/human-review", response_model=TaskView)
     def record_human_review(task_id: str, review: HumanReviewRequest) -> TaskView:
         try:
             return active_workflow.record_human_review(task_id, review)
         except TaskNotFound as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except InvalidStateTransition as exc:
+        except (DuplicateRetryConflict, InvalidStateTransition) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/v1/executors/fake/capabilities", response_model=CapabilityReport)

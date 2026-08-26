@@ -196,6 +196,24 @@ class HumanReviewRecord(Base):
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class RetryDecisionRecord(Base):
+    __tablename__ = "retry_decisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    retry_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    previous_attempt_id: Mapped[int | None] = mapped_column(ForeignKey("attempts.id"), nullable=True)
+    new_attempt_id: Mapped[int | None] = mapped_column(ForeignKey("attempts.id"), nullable=True)
+    actor: Mapped[str] = mapped_column(String(128), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    github_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (UniqueConstraint("retry_id", name="uq_retry_decisions_retry_id"),)
+
+
 class ControlLockRecord(Base):
     __tablename__ = "control_locks"
 
