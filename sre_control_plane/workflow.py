@@ -184,6 +184,24 @@ class ResultView(BaseModel):
     executor_id: str
 
 
+class AttemptHistoryView(AttemptView):
+    transitions: list[TransitionView] = Field(default_factory=list)
+
+
+class ResultHistoryView(ResultView):
+    attempt_id: str
+
+
+class HumanReviewView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_id: str | None
+    actor: str
+    decision: str
+    rationale: str
+    github_reference: str | None
+
+
 class TaskView(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -197,6 +215,9 @@ class TaskView(BaseModel):
     failure_reason: str | None = None
     task_transitions: list[TransitionView] = Field(default_factory=list)
     attempt_transitions: list[TransitionView] = Field(default_factory=list)
+    attempts: list[AttemptHistoryView] = Field(default_factory=list)
+    results: list[ResultHistoryView] = Field(default_factory=list)
+    reviews: list[HumanReviewView] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -276,8 +297,15 @@ class SreInvestigationWorkflow:
 
             existing = find_retry_decision(session, retry.retry_id)
             if existing is not None:
-                if existing.task_id != task.id:
-                    raise DuplicateRetryConflict("retry_id already exists for a different task")
+                assert_retry_decision_matches(
+                    existing,
+                    task_id=task.id,
+                    actor=retry.actor,
+                    rationale=retry.rationale,
+                    source="operator_retry",
+                    decision_type=HumanReviewDecision.RETRY,
+                    github_reference=retry.github_reference,
+                )
                 return self._task_view(session, task, duplicate_retry=True)
 
             assert_task_can_retry(task)
@@ -296,6 +324,7 @@ class SreInvestigationWorkflow:
                 actor=retry.actor,
                 rationale=retry.rationale,
                 source="operator_retry",
+                decision_type=HumanReviewDecision.RETRY,
                 github_reference=retry.github_reference,
             )
             session.add(retry_decision)
@@ -341,8 +370,35 @@ class SreInvestigationWorkflow:
             retry_decision.new_attempt_id = attempt.id
         record_attempt_transition(session, attempt, None, AttemptState.CREATED, attempt_created_reason, actor)
 
-        capability_report = self._executor.describe_capabilities()
-        capability_failure = capability_rejection_reason(capability_report)
+        try:
+            capability_report = self._executor.describe_capabilities()
+            capability_failure = capability_rejection_reason(capability_report)
+        except Exception as exc:
+            capability_failure = f"capability_verification_failed:{exc.__class__.__name__}"
+            session.add(
+                CapabilityCheckRecord(
+                    attempt_id=attempt.id,
+                    executor_id="unverified",
+                    status="REJECTED",
+                    declared_capabilities={"items": []},
+                    denied_capabilities={"items": []},
+                    target_scope={},
+                    verification_evidence={"items": [capability_failure]},
+                )
+            )
+            record_attempt_transition(
+                session,
+                attempt,
+                AttemptState.CREATED,
+                AttemptState.CAPABILITY_REJECTED,
+                capability_failure,
+                "control-plane",
+            )
+            return CapabilityRejectedAttempt(
+                task_id=task.task_id,
+                failure_reason=capability_failure,
+            )
+
         session.add(
             CapabilityCheckRecord(
                 attempt_id=attempt.id,
@@ -532,6 +588,21 @@ class SreInvestigationWorkflow:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
             if task is None:
                 raise TaskNotFound(f"task not found: {task_id}")
+            if review.retry_id is not None:
+                existing = find_retry_decision(session, review.retry_id)
+                if existing is not None:
+                    assert_retry_decision_matches(
+                        existing,
+                        task_id=task.id,
+                        actor=review.actor,
+                        rationale=review.rationale,
+                        source="human_review_retry",
+                        decision_type=review.decision,
+                        github_reference=review.github_reference,
+                    )
+                raise InvalidStateTransition(
+                    "retry_id is only valid when the human review decision is retry"
+                )
             if task.state != TaskState.AWAITING_HUMAN_REVIEW:
                 raise InvalidStateTransition("human review is allowed only from AWAITING_HUMAN_REVIEW")
 
@@ -573,8 +644,15 @@ class SreInvestigationWorkflow:
 
             existing = find_retry_decision(session, retry_id)
             if existing is not None:
-                if existing.task_id != task.id:
-                    raise DuplicateRetryConflict("retry_id already exists for a different task")
+                assert_retry_decision_matches(
+                    existing,
+                    task_id=task.id,
+                    actor=review.actor,
+                    rationale=review.rationale,
+                    source="human_review_retry",
+                    decision_type=review.decision,
+                    github_reference=review.github_reference,
+                )
                 return self._task_view(session, task, duplicate_retry=True)
 
             if task.state != TaskState.AWAITING_HUMAN_REVIEW:
@@ -604,6 +682,7 @@ class SreInvestigationWorkflow:
                 actor=review.actor,
                 rationale=review.rationale,
                 source="human_review_retry",
+                decision_type=review.decision,
                 github_reference=review.github_reference,
             )
             session.add(retry_decision)
@@ -670,8 +749,50 @@ class SreInvestigationWorkflow:
         failure_reason: str | None = None,
     ) -> TaskView:
         request_record = session.get(RequestRecord, task.request_id)
-        attempt = latest_attempt(session, task)
-        result = latest_result(session, task)
+        attempts = list(
+            session.scalars(
+                select(AttemptRecord)
+                .where(AttemptRecord.task_id == task.id)
+                .order_by(AttemptRecord.id)
+            )
+        )
+        attempt = attempts[-1] if attempts else None
+        attempt_ids = [item.id for item in attempts]
+        transition_records = (
+            list(
+                session.scalars(
+                    select(AttemptTransitionRecord)
+                    .where(AttemptTransitionRecord.attempt_id.in_(attempt_ids))
+                    .order_by(AttemptTransitionRecord.id)
+                )
+            )
+            if attempt_ids
+            else []
+        )
+        transitions_by_attempt: dict[int, list[TransitionView]] = {
+            attempt_id: [] for attempt_id in attempt_ids
+        }
+        for transition in transition_records:
+            transitions_by_attempt[transition.attempt_id].append(
+                transition_view(transition)
+            )
+
+        results = list(
+            session.scalars(
+                select(InvestigationResultRecord)
+                .where(InvestigationResultRecord.task_id == task.id)
+                .order_by(InvestigationResultRecord.id)
+            )
+        )
+        result = results[-1] if results else None
+        attempt_id_by_record_id = {item.id: item.attempt_id for item in attempts}
+        reviews = list(
+            session.scalars(
+                select(HumanReviewRecord)
+                .where(HumanReviewRecord.task_id == task.id)
+                .order_by(HumanReviewRecord.id)
+            )
+        )
         return TaskView(
             request_id=request_record.request_id if request_record else "",
             task_id=task.task_id,
@@ -702,22 +823,39 @@ class SreInvestigationWorkflow:
                     .order_by(TaskTransitionRecord.id)
                 )
             ],
-            attempt_transitions=[
-                TransitionView(
-                    from_state=transition.from_state,
-                    to_state=transition.to_state,
-                    reason=transition.reason,
-                    actor=transition.actor,
+            attempt_transitions=(
+                transitions_by_attempt.get(attempt.id, []) if attempt else []
+            ),
+            attempts=[
+                AttemptHistoryView(
+                    attempt_id=item.attempt_id,
+                    state=item.state,
+                    transitions=transitions_by_attempt[item.id],
                 )
-                for transition in (
-                    session.scalars(
-                        select(AttemptTransitionRecord)
-                        .where(AttemptTransitionRecord.attempt_id == attempt.id)
-                        .order_by(AttemptTransitionRecord.id)
-                    )
-                    if attempt
-                    else []
+                for item in attempts
+            ],
+            results=[
+                ResultHistoryView(
+                    result_id=item.result_id,
+                    attempt_id=attempt_id_by_record_id[item.attempt_id],
+                    status=item.status,
+                    executor_id=item.executor_id,
                 )
+                for item in results
+            ],
+            reviews=[
+                HumanReviewView(
+                    attempt_id=(
+                        attempt_id_by_record_id.get(item.attempt_id)
+                        if item.attempt_id is not None
+                        else None
+                    ),
+                    actor=item.actor,
+                    decision=item.decision,
+                    rationale=item.rationale,
+                    github_reference=item.github_reference,
+                )
+                for item in reviews
             ],
         )
 
@@ -757,6 +895,17 @@ def capability_rejection_reason(report: CapabilityReport) -> str | None:
     return None
 
 
+def transition_view(
+    transition: TaskTransitionRecord | AttemptTransitionRecord,
+) -> TransitionView:
+    return TransitionView(
+        from_state=transition.from_state,
+        to_state=transition.to_state,
+        reason=transition.reason,
+        actor=transition.actor,
+    )
+
+
 def find_request_by_fingerprint(session: Session, fingerprint: str) -> RequestRecord | None:
     for request_record in session.scalars(select(RequestRecord).order_by(RequestRecord.id)):
         if request_record.payload.get("signal", {}).get("fingerprint") == fingerprint:
@@ -768,6 +917,38 @@ def find_retry_decision(session: Session, retry_id: str) -> RetryDecisionRecord 
     return session.scalar(
         select(RetryDecisionRecord).where(RetryDecisionRecord.retry_id == retry_id)
     )
+
+
+def assert_retry_decision_matches(
+    existing: RetryDecisionRecord,
+    *,
+    task_id: int,
+    actor: str,
+    rationale: str,
+    source: str,
+    decision_type: str,
+    github_reference: str | None,
+) -> None:
+    expected = (
+        task_id,
+        actor,
+        rationale,
+        source,
+        str(decision_type),
+        github_reference,
+    )
+    actual = (
+        existing.task_id,
+        existing.actor,
+        existing.rationale,
+        existing.source,
+        existing.decision_type,
+        existing.github_reference,
+    )
+    if actual != expected:
+        raise DuplicateRetryConflict(
+            "retry_id already exists with a different decision payload"
+        )
 
 
 def assert_task_can_retry(task: TaskRecord) -> None:

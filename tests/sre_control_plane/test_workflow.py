@@ -25,6 +25,7 @@ from sre_control_plane.persistence import (
 from sre_control_plane.states import AttemptState, TaskState
 from sre_control_plane.workflow import (
     DuplicateRequestConflict,
+    DuplicateRetryConflict,
     HumanReviewDecision,
     HumanReviewRequest,
     InvalidStateTransition,
@@ -239,6 +240,8 @@ def test_operator_retry_creates_new_attempt_and_repeats_capability_verification(
     assert retry_decision is not None
     assert retry_decision.previous_attempt_id == attempts[0].id
     assert retry_decision.new_attempt_id == attempts[1].id
+    assert retry_decision.source == "operator_retry"
+    assert retry_decision.decision_type == HumanReviewDecision.RETRY
 
 
 def test_operator_retry_after_failed_result_creates_new_attempt(session_factory) -> None:
@@ -282,6 +285,118 @@ def test_duplicate_operator_retry_does_not_create_another_attempt(session_factor
     assert duplicate.attempt == first_retry.attempt
     assert count_records(session_factory, AttemptRecord) == 2
     assert count_records(session_factory, RetryDecisionRecord) == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "conflicting_value"),
+    [
+        ("actor", "different-operator"),
+        ("rationale", "A semantically different retry decision."),
+        ("github_reference", "https://github.com/example/repository/issues/31"),
+    ],
+)
+def test_conflicting_operator_retry_payload_is_rejected(
+    session_factory,
+    field: str,
+    conflicting_value: str,
+) -> None:
+    workflow = SreInvestigationWorkflow(session_factory, FailFirstStartExecutor())
+    failed = workflow.submit_request(request_example())
+    retry = RetryRequest(
+        retry_id="retry-operator-conflict-001",
+        actor="local-operator",
+        rationale="Retry once after fake dispatch failure.",
+    )
+    workflow.retry_task(failed.task_id, retry)
+
+    with pytest.raises(DuplicateRetryConflict):
+        workflow.retry_task(
+            failed.task_id,
+            retry.model_copy(update={field: conflicting_value}),
+        )
+
+    assert count_records(session_factory, AttemptRecord) == 2
+    assert count_records(session_factory, RetryDecisionRecord) == 1
+
+
+def test_same_retry_id_from_a_different_source_is_rejected(session_factory) -> None:
+    workflow = SreInvestigationWorkflow(session_factory, FakeInvestigationExecutor())
+    task = workflow.submit_request(request_example())
+    review = HumanReviewRequest(
+        decision=HumanReviewDecision.RETRY,
+        retry_id="retry-source-conflict-001",
+        actor="local-operator",
+        rationale="Request another bounded investigation attempt.",
+    )
+    workflow.record_human_review(task.task_id, review)
+
+    with pytest.raises(DuplicateRetryConflict):
+        workflow.retry_task(
+            task.task_id,
+            RetryRequest(
+                retry_id=review.retry_id,
+                actor=review.actor,
+                rationale=review.rationale,
+            ),
+        )
+
+    assert count_records(session_factory, AttemptRecord) == 2
+    assert count_records(session_factory, RetryDecisionRecord) == 1
+
+
+def test_same_retry_id_with_a_different_decision_type_is_rejected(session_factory) -> None:
+    workflow = SreInvestigationWorkflow(session_factory, FakeInvestigationExecutor())
+    task = workflow.submit_request(request_example())
+    retry_review = HumanReviewRequest(
+        decision=HumanReviewDecision.RETRY,
+        retry_id="retry-decision-conflict-001",
+        actor="local-operator",
+        rationale="Request another bounded investigation attempt.",
+    )
+    workflow.record_human_review(task.task_id, retry_review)
+
+    with pytest.raises(DuplicateRetryConflict):
+        workflow.record_human_review(
+            task.task_id,
+            retry_review.model_copy(update={"decision": HumanReviewDecision.COMPLETE}),
+        )
+
+    current = workflow.get_task(task.task_id)
+    assert current.task_state == TaskState.AWAITING_HUMAN_REVIEW
+    assert count_records(session_factory, AttemptRecord) == 2
+    assert count_records(session_factory, HumanReviewRecord) == 1
+
+
+def test_retry_capability_exception_preserves_fail_closed_audit(session_factory) -> None:
+    workflow = SreInvestigationWorkflow(session_factory, FailRetryCapabilityExecutor())
+    failed = workflow.submit_request(request_example())
+    retry = RetryRequest(
+        retry_id="retry-capability-exception-001",
+        actor="local-operator",
+        rationale="Retry after fake dispatch failure.",
+    )
+
+    retried = workflow.retry_task(failed.task_id, retry)
+
+    assert retried.task_state == TaskState.READY
+    assert retried.attempt is not None
+    assert retried.attempt.state == AttemptState.CAPABILITY_REJECTED
+    assert retried.failure_reason == "capability_verification_failed:RuntimeError"
+    assert count_records(session_factory, AttemptRecord) == 2
+    assert count_records(session_factory, RetryDecisionRecord) == 1
+    assert count_records(session_factory, CapabilityCheckRecord) == 2
+    with session_factory() as session:
+        retry_decision = session.scalar(select(RetryDecisionRecord))
+        latest_check = session.scalar(
+            select(CapabilityCheckRecord).order_by(CapabilityCheckRecord.id.desc())
+        )
+    assert retry_decision is not None
+    assert retry_decision.new_attempt_id is not None
+    assert latest_check is not None
+    assert latest_check.status == "REJECTED"
+    assert latest_check.verification_evidence == {
+        "items": ["capability_verification_failed:RuntimeError"]
+    }
 
 
 def test_terminal_task_cannot_create_retry_attempt(session_factory) -> None:
@@ -501,6 +616,14 @@ class FailFirstStartExecutor(FakeInvestigationExecutor):
                 fencing_token=command.fencing_token,
             )
         return super().start_investigation(command)
+
+
+class FailRetryCapabilityExecutor(FailFirstStartExecutor):
+    def describe_capabilities(self):
+        self.capability_check_count += 1
+        if self.capability_check_count > 1:
+            raise RuntimeError("fake capability verification unavailable")
+        return FakeInvestigationExecutor.describe_capabilities(self)
 
 
 class ResultExceptionExecutor(FakeInvestigationExecutor):

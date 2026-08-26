@@ -207,6 +207,7 @@ class RetryDecisionRecord(Base):
     actor: Mapped[str] = mapped_column(String(128), nullable=False)
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision_type: Mapped[str] = mapped_column(String(32), nullable=False)
     github_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

@@ -176,5 +176,16 @@ fake executor again.
 that is already in `READY` after a terminal non-success attempt. Every accepted
 retry creates a new `attempt_id` and keeps previous attempts, transitions,
 capability checks, retry decisions, reviews, and results. Reusing the same
-`retry_id` returns the existing task state and creates no additional attempt.
+`retry_id` with the same task, actor, rationale, source, decision type, and
+GitHub reference returns the existing task state and creates no additional
+attempt. Reusing it with different decision semantics returns HTTP `409`.
 Terminal tasks and tasks with active attempts reject retry requests.
+
+Capability verification exceptions fail closed. The retry decision, new
+attempt, rejected capability check, and terminal `CAPABILITY_REJECTED` attempt
+state remain durable while the task remains retry-eligible in `READY`.
+
+Task responses retain the compatible latest `attempt`, `result`, and
+`attempt_transitions` fields. They also expose ordered `attempts`, `results`,
+and `reviews` histories; each historical attempt includes its own ordered
+transitions.

@@ -110,6 +110,77 @@ def test_api_duplicate_human_retry_returns_existing_attempt(client: TestClient) 
     assert second.json()["attempt"] == first.json()["attempt"]
 
 
+def test_api_conflicting_human_retry_payload_returns_409(client: TestClient) -> None:
+    task = client.post("/v1/sre-investigations", json=request_payload()).json()
+    review = {
+        "decision": "retry",
+        "retry_id": "retry-api-human-conflict-001",
+        "actor": "local-operator",
+        "rationale": "Request another fake investigation attempt.",
+    }
+    first = client.post(
+        f"/v1/sre-investigations/{task['task_id']}/human-review",
+        json=review,
+    )
+    conflicting = client.post(
+        f"/v1/sre-investigations/{task['task_id']}/human-review",
+        json={**review, "actor": "different-operator"},
+    )
+
+    assert first.status_code == 200
+    assert conflicting.status_code == 409
+
+
+def test_api_exposes_complete_attempt_result_review_and_transition_history(
+    client: TestClient,
+) -> None:
+    task = client.post("/v1/sre-investigations", json=request_payload()).json()
+    first_attempt_id = task["attempt"]["attempt_id"]
+    retry_response = client.post(
+        f"/v1/sre-investigations/{task['task_id']}/human-review",
+        json={
+            "decision": "retry",
+            "retry_id": "retry-api-history-001",
+            "actor": "local-operator",
+            "rationale": "Request another fake investigation attempt.",
+            "github_reference": "https://github.com/example/repository/issues/31",
+        },
+    )
+    history_response = client.get(f"/v1/sre-investigations/{task['task_id']}")
+
+    assert retry_response.status_code == 200
+    assert history_response.status_code == 200
+    body = history_response.json()
+    second_attempt_id = body["attempt"]["attempt_id"]
+    assert [item["attempt_id"] for item in body["attempts"]] == [
+        first_attempt_id,
+        second_attempt_id,
+    ]
+    assert [item["attempt_id"] for item in body["results"]] == [
+        first_attempt_id,
+        second_attempt_id,
+    ]
+    assert body["reviews"] == [
+        {
+            "attempt_id": first_attempt_id,
+            "actor": "local-operator",
+            "decision": "retry",
+            "rationale": "Request another fake investigation attempt.",
+            "github_reference": "https://github.com/example/repository/issues/31",
+        }
+    ]
+    assert [item["to_state"] for item in body["attempts"][0]["transitions"]] == [
+        "CREATED",
+        "CAPABILITY_CHECKED",
+        "DISPATCHED",
+        "RUNNING",
+        "SUCCEEDED",
+    ]
+    assert body["attempt_transitions"] == body["attempts"][-1]["transitions"]
+    assert body["result"]["result_id"] == body["results"][-1]["result_id"]
+    assert len(body["task_transitions"]) == 6
+
+
 def test_api_operator_retry_requires_ready_task(client: TestClient) -> None:
     task = client.post("/v1/sre-investigations", json=request_payload()).json()
 
