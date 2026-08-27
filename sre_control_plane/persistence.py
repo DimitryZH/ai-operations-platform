@@ -167,6 +167,10 @@ class EvidenceArtifactRecord(Base):
     retention_policy: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    __table_args__ = (
+        UniqueConstraint("attempt_id", name="uq_evidence_artifacts_attempt_id"),
+    )
+
 
 class GitHubPublicationRecord(Base):
     __tablename__ = "github_publications"
@@ -175,8 +179,10 @@ class GitHubPublicationRecord(Base):
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False)
     attempt_id: Mapped[int | None] = mapped_column(ForeignKey("attempts.id"), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
-    github_reference: Mapped[str] = mapped_column(String(512), nullable=False)
+    github_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     __table_args__ = (

@@ -38,10 +38,11 @@ is not a deployed MVP or a live SRE Platform investigation.
 | Durable request and retry history | Request and fingerprint deduplication, explicit operator-controlled retry, new attempt identity per retry, retained attempts, results, reviews, and transitions. | No automatic retry. Terminal tasks and duplicate retry decisions cannot create another attempt. |
 | Sequential dispatch and reconciliation safety | One database-backed dispatcher tick first reconciles an expired or ambiguous attempt through durable identity and status lookup, then claims at most one eligible task through a durable global lease and monotonic fencing token. Database locks are released before fake-executor calls. | PostgreSQL integration tests cover competing ticks, reconciliation recovery, active attempts, and stale fencing tokens. |
 | Fail-closed capability path | Capability checks are recorded before dispatch; rejected or exceptional checks leave a durable audit trail and retry-eligible task state as defined by the local workflow. | Fake executor capabilities only. |
+| Local evidence and publication audit | Schema-valid fake results produce sanitized, SHA-256-addressed local JSON evidence packages. Artifact metadata and idempotent fake-publication intent/outcome history are durable and visible through the task API. | Local filesystem evidence adapter and fake publisher only; no GitHub or object-storage write occurs. |
 | CI validation | GitHub Actions uses Python 3.13, PostgreSQL 16, Alembic migrations, and `SRE_CONTROL_PLANE_TEST_DATABASE_URL`. | Latest accepted control-plane CI run completed `41 passed` with no skipped tests. |
 
 The local core intentionally does not implement a real investigator, Kubernetes,
-Prometheus, logs, GitOps, GitHub publication, evidence storage, GCP deployment,
+Prometheus, logs, GitOps, real GitHub publication, real evidence storage, GCP deployment,
 automatic retry, timeout, cancellation, or a live SRE
 Platform investigation.
 
@@ -73,9 +74,10 @@ incident-management platform.
 
 The remaining work is intentionally ordered and bounded:
 
-1. **Durable evidence and GitHub publication**: persist evidence references,
-   publish bounded findings and links to GitHub, and retain the publication
-   audit trail without treating GitHub as transactional workflow state.
+1. **Live evidence storage and GitHub publication**: replace the local adapters
+   with bounded production integrations, publish bounded findings and links to
+   GitHub, and retain the publication audit trail without treating GitHub as
+   transactional workflow state.
 2. **One real read-only executor prototype**: implement one product-neutral
    adapter behind the existing boundary and verify its capabilities fail closed.
 3. **Minimum GCP deployment**: deploy the accepted ADR 0002 target with private

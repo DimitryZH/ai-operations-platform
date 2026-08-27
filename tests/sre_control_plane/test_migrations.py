@@ -31,6 +31,9 @@ def test_initial_migration_creates_control_plane_tables(
         task_transition_columns = {
             column["name"] for column in inspector.get_columns("task_transitions")
         }
+        publication_columns = {
+            column["name"] for column in inspector.get_columns("github_publications")
+        }
         with engine.connect() as connection:
             dispatch_lease_name = connection.scalar(
                 text("SELECT lease_name FROM dispatch_leases WHERE lease_name = 'first_sre_dispatch'")
@@ -57,6 +60,7 @@ def test_initial_migration_creates_control_plane_tables(
     } <= tables
     assert "decision_type" in retry_decision_columns
     assert "fencing_token" in task_transition_columns
+    assert {"payload_sha256", "error_category"} <= publication_columns
     assert dispatch_lease_name == "first_sre_dispatch"
 
 

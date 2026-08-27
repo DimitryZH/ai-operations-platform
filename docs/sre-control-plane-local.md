@@ -2,7 +2,7 @@
 
 This document describes the first locally runnable skeleton for the accepted
 SRE investigation MVP contract. It does not connect to HolmesGPT, Kubernetes,
-Prometheus, GitHub publication, cloud resources, or the SRE Platform runtime.
+Prometheus, real GitHub publication, cloud resources, or the SRE Platform runtime.
 
 ## Scope
 
@@ -18,12 +18,14 @@ Included:
   monotonic fencing token
 - one bounded local fake-executor workflow from dispatcher tick to human review
 - explicit operator-controlled retry that queues retry-eligible local fake tasks
+- a deterministic sanitized JSON evidence package through a bounded local filesystem adapter
+- durable evidence metadata and local fake-publication audit history
 - liveness and readiness endpoints
 
 Excluded:
 
 - real investigator or HolmesGPT integration
-- restart reconciliation, automatic retry, timeout, and cancellation workflows
+- automatic retry, timeout, and cancellation workflows
 - Kubernetes, cloud resources, deployment, or SRE Platform repository changes
 
 ## Local Run
@@ -263,3 +265,32 @@ Task responses retain the compatible latest `attempt`, `result`, and
 `attempt_transitions` fields. They also expose ordered `attempts`, `results`,
 and `reviews` histories; each historical attempt includes its own ordered
 transitions.
+
+## Evidence And Publication Boundary
+
+`POST /v1/sre-investigations/{task_id}/evidence-publication` accepts a bounded
+publication idempotency key only after the latest fake attempt has a
+schema-valid `succeeded` or `partial` result. It creates deterministic JSON
+evidence containing the normalized request, task and attempt timelines,
+capability verification, executor invocation, normalized result, and
+limitations. Unsafe strings are rejected before the adapter is called; the
+local adapter writes only a SHA-256-named JSON artifact below its configured
+root and returns a `local://` URI. No raw logs, credentials, private endpoints,
+or machine-local paths are accepted.
+
+Artifact URI, SHA-256, content type, sanitization status, retention policy, and
+producing attempt are retained in PostgreSQL. The publisher is a replaceable
+interface; the default fake publisher performs no GitHub or network write and
+returns a deterministic `fake://publication/...` reference. Publication intent,
+payload SHA-256, idempotency key, outcome, error category, and reference are
+also retained in PostgreSQL and exposed in task history. Task history also
+returns persisted capability checks and executor invocations with its attempts,
+results, reviews, transitions, evidence artifacts, and publications.
+
+Evidence-store and publisher calls occur outside database transactions. A
+storage error creates no publication record; a publisher error records a
+retryable `FAILED` publication outcome. Neither outcome rewrites the durable
+investigation result, task state, attempt state, or lifecycle transitions.
+Reusing the same idempotency key with the same semantic payload reuses the
+existing artifact/publication reference. Reusing it for another task, attempt,
+or payload returns a conflict.
