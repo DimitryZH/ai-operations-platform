@@ -20,6 +20,8 @@ from sre_control_plane.contracts import (
     MVP_WORKLOAD,
     REQUIRED_CAPABILITIES,
     InvestigationRequest,
+    InvestigationResult,
+    ResultStatus,
 )
 from sre_control_plane.executor import (
     CapabilityReport,
@@ -91,11 +93,13 @@ ALLOWED_ATTEMPT_TRANSITIONS: dict[str | None, set[str]] = {
     AttemptState.CREATED: {
         AttemptState.CAPABILITY_CHECKED,
         AttemptState.CAPABILITY_REJECTED,
+        AttemptState.STALE,
         AttemptState.CANCELLED,
     },
     AttemptState.CAPABILITY_CHECKED: {
         AttemptState.DISPATCHED,
         AttemptState.DISPATCH_FAILED,
+        AttemptState.STALE,
         AttemptState.CANCELLED,
     },
     AttemptState.DISPATCHED: {
@@ -269,6 +273,15 @@ class CapabilityRejectedAttempt:
     failure_reason: str
 
 
+@dataclass(frozen=True)
+class ReconciliationClaim:
+    task_id: str
+    attempt_id: str
+    executor_id: str | None
+    idempotency_key: str | None
+    fencing_token: int
+
+
 class SreInvestigationWorkflow:
     def __init__(
         self,
@@ -282,6 +295,8 @@ class SreInvestigationWorkflow:
             "claims_total": 0,
             "lease_blocked_total": 0,
             "stale_fencing_total": 0,
+            "reconciliations_total": 0,
+            "reconciliation_stale_total": 0,
         }
         self._dispatch_metrics_lock = Lock()
 
@@ -356,6 +371,22 @@ class SreInvestigationWorkflow:
 
     def run_dispatch_tick(self, lease_owner: str) -> DispatchTickView:
         self._increment_dispatch_metric("ticks_total")
+        reconciliation = self._claim_reconciliation(lease_owner)
+        if isinstance(reconciliation, DispatchTickView):
+            return reconciliation
+        if reconciliation is not None:
+            try:
+                return self._reconcile_attempt(reconciliation, lease_owner)
+            except StaleFencingToken:
+                self._increment_dispatch_metric("stale_fencing_total")
+                return DispatchTickView(
+                    dispatched=False,
+                    reason="stale_fencing_token_ignored",
+                    task_id=reconciliation.task_id,
+                    attempt_id=reconciliation.attempt_id,
+                    fencing_token=reconciliation.fencing_token,
+                )
+
         claimed: ClaimedAttempt | None = None
 
         with self._session_factory.begin() as session:
@@ -370,15 +401,6 @@ class SreInvestigationWorkflow:
                     attempt_id=lease_attempt_id(session, lease),
                     fencing_token=lease.fencing_token,
                 )
-            if lease.task_id is not None or lease.attempt_id is not None:
-                return DispatchTickView(
-                    dispatched=False,
-                    reason="expired_lease_requires_reconciliation",
-                    task_id=lease_task_id(session, lease),
-                    attempt_id=lease_attempt_id(session, lease),
-                    fencing_token=lease.fencing_token,
-                )
-
             active_attempt = session.scalar(
                 select(AttemptRecord)
                 .where(AttemptRecord.state.in_(ACTIVE_ATTEMPT_STATES))
@@ -485,6 +507,401 @@ class SreInvestigationWorkflow:
             task_id=preparation.task_id,
             attempt_id=preparation.attempt_id,
             fencing_token=preparation.command.fencing_token,
+        )
+
+    def _claim_reconciliation(
+        self,
+        lease_owner: str,
+    ) -> ReconciliationClaim | DispatchTickView | None:
+        with self._session_factory.begin() as session:
+            now = utc_now()
+            lease = lock_dispatch_lease(session, now)
+            if lease_is_active(lease, now):
+                self._increment_dispatch_metric("lease_blocked_total")
+                return DispatchTickView(
+                    dispatched=False,
+                    reason="active_dispatch_lease",
+                    task_id=lease_task_id(session, lease),
+                    attempt_id=lease_attempt_id(session, lease),
+                    fencing_token=lease.fencing_token,
+                )
+
+            attempt: AttemptRecord | None = None
+            task: TaskRecord | None = None
+            if lease.attempt_id is not None:
+                attempt = session.get(AttemptRecord, lease.attempt_id)
+                task = session.get(TaskRecord, lease.task_id) if lease.task_id is not None else None
+                if attempt is None or task is None or attempt.task_id != task.id:
+                    release_dispatch_lease(lease, now)
+                    return DispatchTickView(
+                        dispatched=False,
+                        reason="reconciliation_orphaned_lease",
+                        fencing_token=lease.fencing_token,
+                    )
+            elif lease.task_id is not None:
+                task_id = lease_task_id(session, lease)
+                release_dispatch_lease(lease, now)
+                return DispatchTickView(
+                    dispatched=False,
+                    reason="reconciliation_orphaned_lease",
+                    task_id=task_id,
+                    fencing_token=lease.fencing_token,
+                )
+            else:
+                attempt = session.scalar(
+                    select(AttemptRecord)
+                    .where(AttemptRecord.state.in_(ACTIVE_ATTEMPT_STATES))
+                    .order_by(AttemptRecord.id)
+                    .with_for_update()
+                )
+                if attempt is None:
+                    return None
+                task = session.get(TaskRecord, attempt.task_id)
+                if task is None:
+                    raise TaskNotFound("active attempt has no parent task")
+
+            if attempt.state in TERMINAL_ATTEMPT_STATES:
+                release_dispatch_lease(lease, now)
+                return DispatchTickView(
+                    dispatched=False,
+                    reason="reconciliation_terminal_lease_cleared",
+                    task_id=task.task_id,
+                    attempt_id=attempt.attempt_id,
+                    fencing_token=lease.fencing_token,
+                )
+
+            invocation = session.scalar(
+                select(ExecutorInvocationRecord)
+                .where(ExecutorInvocationRecord.attempt_id == attempt.id)
+                .order_by(ExecutorInvocationRecord.id.desc())
+            )
+            claim_reconciliation_lease(lease, lease_owner, task.id, attempt, now)
+            self._increment_dispatch_metric("reconciliations_total")
+            log_lifecycle(
+                "reconciliation_claimed",
+                task_id=task.task_id,
+                attempt_id=attempt.attempt_id,
+                lease_owner=lease_owner,
+                fencing_token=str(lease.fencing_token),
+            )
+            return ReconciliationClaim(
+                task_id=task.task_id,
+                attempt_id=attempt.attempt_id,
+                executor_id=invocation.executor_id if invocation is not None else None,
+                idempotency_key=invocation.idempotency_key if invocation is not None else None,
+                fencing_token=lease.fencing_token,
+            )
+
+    def _reconcile_attempt(
+        self,
+        claim: ReconciliationClaim,
+        lease_owner: str,
+    ) -> DispatchTickView:
+        if claim.executor_id is None or claim.idempotency_key is None:
+            self._record_reconciled_terminal(
+                claim,
+                lease_owner,
+                AttemptState.STALE,
+                "reconciliation_missing_invocation_identity",
+            )
+            return self._reconciliation_view(claim, "reconciliation_stale")
+
+        try:
+            raw_status = self._executor.get_status(claim.attempt_id, claim.idempotency_key)
+            status = validate_attempt_status(raw_status)
+            identity_failure = attempt_status_identity_failure(
+                status,
+                claim.attempt_id,
+                claim.executor_id,
+            )
+        except Exception as exc:
+            identity_failure = f"reconciliation_status_unavailable:{exc.__class__.__name__}"
+            status = None
+
+        if identity_failure is not None or status is None:
+            self._record_reconciled_terminal(
+                claim,
+                lease_owner,
+                AttemptState.STALE,
+                identity_failure or "reconciliation_status_ambiguous",
+            )
+            return self._reconciliation_view(claim, "reconciliation_stale")
+
+        if status.status in {ExecutorStatus.ACCEPTED, ExecutorStatus.QUEUED, ExecutorStatus.RUNNING}:
+            self._record_reconciled_active(claim, lease_owner, status.status)
+            return self._reconciliation_view(claim, "reconciliation_active_attempt")
+
+        if status.status == ExecutorStatus.SUCCEEDED:
+            try:
+                raw_result = self._executor.get_result(claim.attempt_id, claim.idempotency_key)
+                result = validate_investigation_result(raw_result)
+                result_payload = result.model_dump(mode="json")
+                result_failure = result_identity_failure(
+                    result,
+                    claim.task_id,
+                    claim.attempt_id,
+                    claim.executor_id,
+                )
+            except Exception as exc:
+                result_failure = f"reconciliation_result_unavailable:{exc.__class__.__name__}"
+                result = None
+                result_payload = None
+            if result_failure is not None or result is None or result_payload is None:
+                self._record_reconciled_terminal(
+                    claim,
+                    lease_owner,
+                    AttemptState.STALE,
+                    result_failure or "reconciliation_result_ambiguous",
+                )
+                return self._reconciliation_view(claim, "reconciliation_stale")
+            if result.status == ResultStatus.FAILED:
+                self._record_reconciled_failed_result(claim, lease_owner, result, result_payload)
+                return self._reconciliation_view(claim, "reconciliation_terminal")
+            self._record_reconciled_success(claim, lease_owner, result, result_payload)
+            return self._reconciliation_view(claim, "reconciliation_succeeded")
+
+        if status.status == ExecutorStatus.DISPATCH_FAILED:
+            self._record_reconciled_dispatch_failure(
+                claim,
+                lease_owner,
+                "reconciliation_executor_dispatch_failed",
+            )
+            return self._reconciliation_view(claim, "reconciliation_terminal")
+
+        terminal_state = {
+            ExecutorStatus.FAILED: AttemptState.FAILED,
+            ExecutorStatus.TIMED_OUT: AttemptState.TIMED_OUT,
+            ExecutorStatus.STALE: AttemptState.STALE,
+            ExecutorStatus.CANCELLED: AttemptState.CANCELLED,
+        }.get(status.status)
+        if terminal_state is None:
+            terminal_state = AttemptState.STALE
+            reason = "reconciliation_status_ambiguous"
+        else:
+            reason = f"reconciliation_executor_{status.status}"
+        self._record_reconciled_terminal(claim, lease_owner, terminal_state, reason)
+        return self._reconciliation_view(
+            claim,
+            "reconciliation_stale" if terminal_state == AttemptState.STALE else "reconciliation_terminal",
+        )
+
+    def _record_reconciled_dispatch_failure(
+        self,
+        claim: ReconciliationClaim,
+        lease_owner: str,
+        reason: str,
+    ) -> None:
+        with self._session_factory.begin() as session:
+            task, attempt, lease = self._load_current_reconciliation(session, claim, lease_owner)
+            if attempt.state != AttemptState.CAPABILITY_CHECKED:
+                record_attempt_transition(
+                    session,
+                    attempt,
+                    attempt.state,
+                    AttemptState.STALE,
+                    "reconciliation_dispatch_failure_state_ambiguous",
+                    "control-plane",
+                )
+                update_invocation_status(
+                    session,
+                    attempt,
+                    AttemptState.STALE,
+                    "reconciliation_dispatch_failure_state_ambiguous",
+                )
+            else:
+                record_attempt_transition(
+                    session,
+                    attempt,
+                    AttemptState.CAPABILITY_CHECKED,
+                    AttemptState.DISPATCH_FAILED,
+                    reason,
+                    "control-plane",
+                )
+                update_invocation_status(session, attempt, AttemptState.DISPATCH_FAILED, reason)
+            if task.state == TaskState.RUNNING:
+                record_task_transition(
+                    session,
+                    task,
+                    TaskState.RUNNING,
+                    TaskState.READY,
+                    reason,
+                    "control-plane",
+                    fencing_token=claim.fencing_token,
+                )
+            release_dispatch_lease(lease, utc_now())
+
+    def _record_reconciled_failed_result(
+        self,
+        claim: ReconciliationClaim,
+        lease_owner: str,
+        result: InvestigationResult,
+        result_payload: dict,
+    ) -> None:
+        with self._session_factory.begin() as session:
+            task, attempt, lease = self._load_current_reconciliation(session, claim, lease_owner)
+            advance_attempt_to_running(session, attempt, "reconciliation_executor_failed_result")
+            session.add(
+                InvestigationResultRecord(
+                    result_id=result.result_id,
+                    task_id=task.id,
+                    attempt_id=attempt.id,
+                    executor_id=result.executor_id,
+                    status=result.status,
+                    payload=result_payload,
+                )
+            )
+            record_attempt_transition(
+                session,
+                attempt,
+                AttemptState.RUNNING,
+                AttemptState.FAILED,
+                "reconciliation_schema_valid_failed_result",
+                "control-plane",
+            )
+            update_invocation_status(session, attempt, "RECONCILED_FAILED_RESULT")
+            if task.state == TaskState.RUNNING:
+                record_task_transition(
+                    session,
+                    task,
+                    TaskState.RUNNING,
+                    TaskState.READY,
+                    "reconciliation_schema_valid_failed_result",
+                    "control-plane",
+                    fencing_token=claim.fencing_token,
+                )
+            release_dispatch_lease(lease, utc_now())
+
+    def _record_reconciled_active(
+        self,
+        claim: ReconciliationClaim,
+        lease_owner: str,
+        status: ExecutorStatus,
+    ) -> None:
+        with self._session_factory.begin() as session:
+            task, attempt, lease = self._load_current_reconciliation(session, claim, lease_owner)
+            advance_attempt_to_running(session, attempt, "reconciliation_executor_active")
+            update_invocation_status(session, attempt, f"RECONCILED_{status.upper()}")
+            renew_dispatch_lease(lease, utc_now())
+            log_lifecycle(
+                "reconciliation_active",
+                task_id=task.task_id,
+                attempt_id=attempt.attempt_id,
+                fencing_token=str(claim.fencing_token),
+            )
+
+    def _record_reconciled_success(
+        self,
+        claim: ReconciliationClaim,
+        lease_owner: str,
+        result,
+        result_payload: dict,
+    ) -> None:
+        with self._session_factory.begin() as session:
+            task, attempt, lease = self._load_current_reconciliation(session, claim, lease_owner)
+            advance_attempt_to_running(session, attempt, "reconciliation_executor_succeeded")
+            record_attempt_transition(
+                session,
+                attempt,
+                AttemptState.RUNNING,
+                AttemptState.SUCCEEDED,
+                "reconciliation_schema_valid_result",
+                "control-plane",
+            )
+            session.add(
+                InvestigationResultRecord(
+                    result_id=result.result_id,
+                    task_id=task.id,
+                    attempt_id=attempt.id,
+                    executor_id=result.executor_id,
+                    status=result.status,
+                    payload=result_payload,
+                )
+            )
+            update_invocation_status(session, attempt, "RECONCILED_SUCCEEDED")
+            if task.state == TaskState.RUNNING:
+                record_task_transition(
+                    session,
+                    task,
+                    TaskState.RUNNING,
+                    TaskState.AWAITING_HUMAN_REVIEW,
+                    "reconciliation_schema_valid_result_requires_human_review",
+                    "control-plane",
+                    fencing_token=claim.fencing_token,
+                )
+            release_dispatch_lease(lease, utc_now())
+
+    def _record_reconciled_terminal(
+        self,
+        claim: ReconciliationClaim,
+        lease_owner: str,
+        terminal_state: AttemptState,
+        reason: str,
+    ) -> None:
+        with self._session_factory.begin() as session:
+            task, attempt, lease = self._load_current_reconciliation(session, claim, lease_owner)
+            if attempt.state == AttemptState.CAPABILITY_CHECKED and terminal_state != AttemptState.STALE:
+                advance_attempt_to_running(session, attempt, "reconciliation_confirmed_invocation")
+            elif attempt.state == AttemptState.DISPATCHED and terminal_state != AttemptState.STALE:
+                advance_attempt_to_running(session, attempt, "reconciliation_confirmed_invocation")
+            if attempt.state not in TERMINAL_ATTEMPT_STATES:
+                record_attempt_transition(
+                    session,
+                    attempt,
+                    attempt.state,
+                    terminal_state,
+                    reason,
+                    "control-plane",
+                )
+            update_invocation_status(session, attempt, terminal_state, reason)
+            if task.state == TaskState.RUNNING:
+                record_task_transition(
+                    session,
+                    task,
+                    TaskState.RUNNING,
+                    TaskState.READY,
+                    reason,
+                    "control-plane",
+                    fencing_token=claim.fencing_token,
+                )
+            release_dispatch_lease(lease, utc_now())
+            if terminal_state == AttemptState.STALE:
+                self._increment_dispatch_metric("reconciliation_stale_total")
+            log_lifecycle(
+                "reconciliation_terminal",
+                task_id=task.task_id,
+                attempt_id=attempt.attempt_id,
+                terminal_state=terminal_state,
+                reason=reason,
+                fencing_token=str(claim.fencing_token),
+            )
+
+    def _load_current_reconciliation(
+        self,
+        session: Session,
+        claim: ReconciliationClaim,
+        lease_owner: str,
+    ) -> tuple[TaskRecord, AttemptRecord, DispatchLeaseRecord]:
+        task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == claim.task_id))
+        attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == claim.attempt_id))
+        if task is None or attempt is None:
+            raise TaskNotFound("reconciliation task or attempt disappeared")
+        lease = assert_current_dispatch_lease(
+            session,
+            task,
+            attempt,
+            lease_owner,
+            claim.fencing_token,
+        )
+        return task, attempt, lease
+
+    @staticmethod
+    def _reconciliation_view(claim: ReconciliationClaim, reason: str) -> DispatchTickView:
+        return DispatchTickView(
+            dispatched=False,
+            reason=reason,
+            task_id=claim.task_id,
+            attempt_id=claim.attempt_id,
+            fencing_token=claim.fencing_token,
         )
 
     def dispatch_metrics(self) -> dict[str, int]:
@@ -1294,6 +1711,22 @@ def claim_dispatch_lease(
     lease.attempt_id = None
 
 
+def claim_reconciliation_lease(
+    lease: DispatchLeaseRecord,
+    lease_owner: str,
+    task_id: int,
+    attempt: AttemptRecord,
+    now: datetime,
+) -> None:
+    lease.lease_owner = lease_owner
+    lease.expires_at = now + DISPATCH_LEASE_DURATION
+    lease.heartbeat_at = now
+    lease.fencing_token += 1
+    lease.task_id = task_id
+    lease.attempt_id = attempt.id
+    attempt.fencing_token = lease.fencing_token
+
+
 def release_dispatch_lease(lease: DispatchLeaseRecord, now: datetime) -> None:
     lease.expires_at = now
     lease.heartbeat_at = now
@@ -1363,6 +1796,63 @@ def result_identity_failure(
     if result.executor_id != executor_id:
         return "result_malformed:executor_id_mismatch"
     return None
+
+
+def attempt_status_identity_failure(
+    status,
+    attempt_id: str,
+    executor_id: str,
+) -> str | None:
+    if status.attempt_id != attempt_id:
+        return "reconciliation_status_attempt_id_mismatch"
+    if status.executor_id != executor_id:
+        return "reconciliation_status_executor_id_mismatch"
+    return None
+
+
+def validate_attempt_status(raw_status) -> "AttemptStatus":
+    from sre_control_plane.executor import AttemptStatus
+
+    return AttemptStatus.model_validate(model_payload(raw_status))
+
+
+def validate_investigation_result(raw_result) -> InvestigationResult:
+    return InvestigationResult.model_validate(model_payload(raw_result))
+
+
+def model_payload(value):
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    return value
+
+
+def advance_attempt_to_running(
+    session: Session,
+    attempt: AttemptRecord,
+    reason: str,
+) -> None:
+    if attempt.state == AttemptState.CAPABILITY_CHECKED:
+        record_attempt_transition(
+            session,
+            attempt,
+            AttemptState.CAPABILITY_CHECKED,
+            AttemptState.DISPATCHED,
+            reason,
+            "control-plane",
+        )
+    if attempt.state == AttemptState.DISPATCHED:
+        record_attempt_transition(
+            session,
+            attempt,
+            AttemptState.DISPATCHED,
+            AttemptState.RUNNING,
+            reason,
+            "control-plane",
+        )
+    if attempt.state != AttemptState.RUNNING:
+        raise InvalidStateTransition(
+            f"reconciliation cannot confirm an active executor state from {attempt.state}"
+        )
 
 
 def update_invocation_status(

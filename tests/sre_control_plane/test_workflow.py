@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-from sre_control_plane.contracts import InvestigationRequest
-from sre_control_plane.executor import ExecutorStatus, StartInvestigationResponse
+from sre_control_plane.contracts import InvestigationRequest, InvestigationResult, ResultStatus
+from sre_control_plane.executor import (
+    AttemptStatus,
+    ExecutorStatus,
+    StartInvestigationCommand,
+    StartInvestigationResponse,
+)
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
 from sre_control_plane.persistence import (
     AttemptRecord,
     Base,
     CapabilityCheckRecord,
+    DispatchLeaseRecord,
+    ExecutorInvocationRecord,
     InvestigationResultRecord,
     RetryDecisionRecord,
     TaskRecord,
@@ -258,7 +266,192 @@ def test_tick_excludes_an_existing_active_attempt(session_factory) -> None:
 
     tick = workflow.run_dispatch_tick("tick-blocked")
     assert tick.dispatched is False
-    assert tick.reason == "active_attempt_exists"
+    assert tick.reason == "reconciliation_stale"
+    view = workflow.get_task(task.task_id)
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.STALE
+    assert workflow.run_dispatch_tick("tick-after-stale").reason == "no_dispatch_eligible_task"
+
+
+def test_reconciliation_persists_a_confirmed_result_without_creating_an_attempt(session_factory) -> None:
+    executor = FakeInvestigationExecutor()
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, attempt_id = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-succeeded")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_succeeded"
+    assert tick.fencing_token == 8
+    assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
+    assert view.attempt is not None
+    assert view.attempt.attempt_id == attempt_id
+    assert view.attempt.state == AttemptState.SUCCEEDED
+    assert len(view.attempts) == 1
+    assert len(view.results) == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_state"),
+    [
+        (ExecutorStatus.FAILED, AttemptState.FAILED),
+        (ExecutorStatus.TIMED_OUT, AttemptState.TIMED_OUT),
+        (ExecutorStatus.CANCELLED, AttemptState.CANCELLED),
+        (ExecutorStatus.STALE, AttemptState.STALE),
+    ],
+)
+def test_reconciliation_maps_confirmed_terminal_executor_statuses(
+    session_factory,
+    status,
+    expected_state,
+) -> None:
+    executor = StatusExecutor(status)
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, _ = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-terminal")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == (
+        "reconciliation_stale" if expected_state == AttemptState.STALE else "reconciliation_terminal"
+    )
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == expected_state
+    assert workflow.run_dispatch_tick("no-automatic-retry").reason == "no_dispatch_eligible_task"
+
+
+def test_reconciliation_keeps_confirmed_running_attempt_fenced_and_blocks_new_work(session_factory) -> None:
+    executor = StatusExecutor(ExecutorStatus.RUNNING)
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, attempt_id = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-running")
+    blocked = workflow.run_dispatch_tick("competing-tick")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_active_attempt"
+    assert tick.fencing_token == 8
+    assert blocked.reason == "active_dispatch_lease"
+    assert view.task_state == TaskState.RUNNING
+    assert view.attempt is not None
+    assert view.attempt.attempt_id == attempt_id
+    assert view.attempt.state == AttemptState.RUNNING
+
+
+def test_reconciliation_status_exception_fails_closed_to_stale(session_factory) -> None:
+    executor = StatusExceptionExecutor()
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, _ = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-unavailable")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_stale"
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.STALE
+
+
+def test_reconciliation_status_identity_mismatch_fails_closed_to_stale(session_factory) -> None:
+    executor = MismatchedStatusExecutor()
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, _ = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-mismatched-status")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_stale"
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.STALE
+
+
+def test_reconciliation_malformed_status_fails_closed_and_releases_lease(session_factory) -> None:
+    executor = MalformedStatusExecutor()
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, _ = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-malformed-status")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_stale"
+    assert_terminal_reconciliation(session_factory, view, AttemptState.STALE)
+
+
+def test_reconciliation_malformed_constructed_result_fails_closed_and_releases_lease(session_factory) -> None:
+    executor = MalformedConstructedResultExecutor()
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, _ = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-malformed-result")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_stale"
+    assert_terminal_reconciliation(session_factory, view, AttemptState.STALE)
+
+
+def test_reconciliation_schema_valid_failed_result_is_terminal_and_releases_lease(session_factory) -> None:
+    executor = FailedResultExecutor()
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, _ = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-failed-result")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_terminal"
+    assert_terminal_reconciliation(session_factory, view, AttemptState.FAILED)
+    assert len(view.results) == 1
+    assert view.results[0].status == ResultStatus.FAILED
+
+
+def test_reconciliation_schema_valid_partial_result_requires_human_review(session_factory) -> None:
+    executor = PartialResultExecutor()
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, _ = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-partial-result")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_succeeded"
+    assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.SUCCEEDED
+    assert view.results[0].status == ResultStatus.PARTIAL
+
+
+def test_reconciliation_confirmed_dispatch_failure_is_terminal_dispatch_failed(session_factory) -> None:
+    executor = StatusExecutor(ExecutorStatus.DISPATCH_FAILED)
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, _ = seed_expired_attempt(
+        session_factory,
+        workflow,
+        executor,
+        attempt_state=AttemptState.CAPABILITY_CHECKED,
+    )
+
+    tick = workflow.run_dispatch_tick("reconcile-dispatch-failed")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_terminal"
+    assert_terminal_reconciliation(session_factory, view, AttemptState.DISPATCH_FAILED)
+
+
+def test_reconciliation_ignores_stale_fencing_outcome(session_factory) -> None:
+    executor = StaleFencingStatusExecutor(session_factory)
+    workflow = SreInvestigationWorkflow(session_factory, executor)
+    task, attempt_id = seed_expired_attempt(session_factory, workflow, executor)
+
+    tick = workflow.run_dispatch_tick("reconcile-stale-owner")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "stale_fencing_token_ignored"
+    assert tick.attempt_id == attempt_id
+    assert view.task_state == TaskState.RUNNING
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.RUNNING
+    assert workflow.dispatch_metrics()["stale_fencing_total"] == 1
 
 
 def test_obsolete_fencing_token_cannot_persist_an_outcome(session_factory) -> None:
@@ -340,3 +533,148 @@ class FailFirstStartExecutor(FailedStartExecutor):
 class ResultExceptionExecutor(FakeInvestigationExecutor):
     def get_result(self, attempt_id: str, idempotency_key: str):
         raise ValueError("malformed fake result")
+
+
+class StatusExecutor(FakeInvestigationExecutor):
+    def __init__(self, status: ExecutorStatus) -> None:
+        super().__init__()
+        self._status = status
+
+    def get_status(self, attempt_id: str, idempotency_key: str) -> AttemptStatus:
+        return AttemptStatus(
+            executor_id=self.executor_id,
+            attempt_id=attempt_id,
+            status=self._status,
+        )
+
+
+class StatusExceptionExecutor(FakeInvestigationExecutor):
+    def get_status(self, attempt_id: str, idempotency_key: str):
+        raise ConnectionError("fake status lookup is unavailable")
+
+
+class MismatchedStatusExecutor(FakeInvestigationExecutor):
+    def get_status(self, attempt_id: str, idempotency_key: str) -> AttemptStatus:
+        return AttemptStatus(
+            executor_id=self.executor_id,
+            attempt_id="wrong-attempt",
+            status=ExecutorStatus.SUCCEEDED,
+        )
+
+
+class MalformedStatusExecutor(FakeInvestigationExecutor):
+    def get_status(self, attempt_id: str, idempotency_key: str):
+        return {"executor_id": self.executor_id, "attempt_id": attempt_id}
+
+
+class MalformedConstructedResultExecutor(FakeInvestigationExecutor):
+    def get_result(self, attempt_id: str, idempotency_key: str):
+        command = self._commands[idempotency_key]
+        return InvestigationResult.model_construct(
+            schema_version="1.0",
+            result_id=f"result-{attempt_id}",
+            task_id=command.task_id,
+            attempt_id=attempt_id,
+            executor_id=self.executor_id,
+            status=ResultStatus.SUCCEEDED,
+        )
+
+
+class FailedResultExecutor(FakeInvestigationExecutor):
+    def get_result(self, attempt_id: str, idempotency_key: str) -> InvestigationResult:
+        return super().get_result(attempt_id, idempotency_key).model_copy(
+            update={"status": ResultStatus.FAILED}
+        )
+
+
+class PartialResultExecutor(FakeInvestigationExecutor):
+    def get_result(self, attempt_id: str, idempotency_key: str) -> InvestigationResult:
+        return super().get_result(attempt_id, idempotency_key).model_copy(
+            update={"status": ResultStatus.PARTIAL}
+        )
+
+
+class StaleFencingStatusExecutor(FakeInvestigationExecutor):
+    def __init__(self, session_factory) -> None:
+        super().__init__()
+        self._session_factory = session_factory
+
+    def get_status(self, attempt_id: str, idempotency_key: str) -> AttemptStatus:
+        with self._session_factory.begin() as session:
+            lease = session.scalar(
+                select(DispatchLeaseRecord).where(DispatchLeaseRecord.lease_name == "first_sre_dispatch")
+            )
+            lease.lease_owner = "newer-owner"
+            lease.fencing_token += 1
+        return AttemptStatus(
+            executor_id=self.executor_id,
+            attempt_id=attempt_id,
+            status=ExecutorStatus.RUNNING,
+        )
+
+
+def assert_terminal_reconciliation(session_factory, view, state: AttemptState) -> None:
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == state
+    with session_factory() as session:
+        lease = session.scalar(
+            select(DispatchLeaseRecord).where(DispatchLeaseRecord.lease_name == "first_sre_dispatch")
+        )
+    assert lease is not None
+    assert lease.task_id is None
+    assert lease.attempt_id is None
+
+
+def seed_expired_attempt(
+    session_factory,
+    workflow,
+    executor: FakeInvestigationExecutor,
+    attempt_state: AttemptState = AttemptState.RUNNING,
+) -> tuple:
+    request = request_example("req-reconciliation")
+    task = workflow.submit_request(request)
+    attempt_id = f"{task.task_id}-a1"
+    executor.start_investigation(
+        StartInvestigationCommand(
+            request=request,
+            task_id=task.task_id,
+            attempt_id=attempt_id,
+            idempotency_key=attempt_id,
+            fencing_token=7,
+        )
+    )
+    with session_factory.begin() as session:
+        persisted_task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task.task_id))
+        persisted_task.state = TaskState.RUNNING
+        attempt = AttemptRecord(
+            attempt_id=attempt_id,
+            task_id=persisted_task.id,
+            state=attempt_state,
+            fencing_token=7,
+        )
+        session.add(attempt)
+        session.flush()
+        session.add(
+            ExecutorInvocationRecord(
+                attempt_id=attempt.id,
+                executor_id=executor.executor_id,
+                operation="start_investigation",
+                idempotency_key=attempt_id,
+                fencing_token=7,
+                status="RUNNING",
+            )
+        )
+        now = datetime.now(UTC)
+        session.add(
+            DispatchLeaseRecord(
+                lease_name="first_sre_dispatch",
+                lease_owner="expired-owner",
+                expires_at=now - timedelta(seconds=1),
+                heartbeat_at=now - timedelta(seconds=31),
+                fencing_token=7,
+                task_id=persisted_task.id,
+                attempt_id=attempt.id,
+            )
+        )
+    return task, attempt_id

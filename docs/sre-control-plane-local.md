@@ -192,10 +192,36 @@ non-expired lease prevents a competing tick from claiming work. The current
 owner and fencing token are verified before capability, dispatch, and result
 state is persisted, so an obsolete owner cannot write a late outcome.
 
-This first dispatcher does not implement restart reconciliation. An expired
-lease still associated with a task or attempt returns
-`expired_lease_requires_reconciliation` and does not dispatch, retry, or alter
-the in-flight state automatically.
+Each tick begins with restart reconciliation before it can claim `READY` work.
+For an expired lease or an active attempt without a lease, the tick atomically
+claims the existing task and attempt with a new lease owner and fencing token,
+then commits before calling the executor's status lookup by the durable
+`attempt_id` and idempotency key. A competing tick observes that recovered
+lease and cannot claim another attempt while status lookup is in progress.
+
+A confirmed `accepted`, `queued`, or `running` executor status preserves the
+same attempt, renews its recovered lease, and blocks new dispatch. The adapter
+status contract distinguishes `dispatch_failed` from `failed`: a confirmed
+`dispatch_failed` status for a `CAPABILITY_CHECKED` attempt becomes terminal
+`DISPATCH_FAILED`; a contradictory dispatch failure after acceptance is
+treated as `STALE`. A schema-valid `succeeded` or `partial` result is persisted
+as `SUCCEEDED` and moves the task to `AWAITING_HUMAN_REVIEW`. A schema-valid
+`failed` result is retained as audit evidence, transitions the attempt to
+terminal `FAILED`, and returns the task to `READY`. Confirmed executor
+`failed`, `timed_out`, or `cancelled` statuses transition the attempt to the
+matching terminal state and return the parent task to `READY`. The terminal
+`STALE` state is used when the
+invocation identity is missing, status lookup is unavailable or malformed, the
+executor reports `stale`, or a confirmed success cannot produce a schema-valid
+result. Status and result payloads are revalidated against the canonical
+schemas before persistence. In every non-success terminal outcome the recovered
+lease is released.
+
+Reconciliation never creates a replacement attempt. A task returned to `READY`
+after `FAILED`, `TIMED_OUT`, `CANCELLED`, or `STALE` remains ineligible for
+dispatch until an operator or human reviewer records an explicit retry decision.
+The reconciliation claim updates the attempt fencing token before the external
+lookup, so an outcome from the expired owner is rejected before persistence.
 
 Repeated submission of the same `request_id` with the same payload returns the
 existing task. A repeated operational event with the same `signal.fingerprint`

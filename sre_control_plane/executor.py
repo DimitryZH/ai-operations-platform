@@ -13,6 +13,7 @@ class ExecutorStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
+    DISPATCH_FAILED = "dispatch_failed"
     FAILED = "failed"
     TIMED_OUT = "timed_out"
     STALE = "stale"

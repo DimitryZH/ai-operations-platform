@@ -5,6 +5,7 @@ import os
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -12,8 +13,15 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from sre_control_plane.contracts import InvestigationRequest
+from sre_control_plane.executor import AttemptStatus, ExecutorStatus, StartInvestigationCommand
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
-from sre_control_plane.persistence import AttemptRecord, Base, TaskRecord
+from sre_control_plane.persistence import (
+    AttemptRecord,
+    Base,
+    DispatchLeaseRecord,
+    ExecutorInvocationRecord,
+    TaskRecord,
+)
 from sre_control_plane.states import AttemptState, TaskState
 from sre_control_plane.workflow import SreInvestigationWorkflow, StaleFencingToken
 
@@ -82,44 +90,74 @@ def test_competing_ticks_hold_no_database_lock_during_adapter_call(
 
 
 @pytest.mark.postgresql_integration
-def test_active_attempt_excludes_a_new_dispatch_claim(postgres_session_factory) -> None:
-    workflow = SreInvestigationWorkflow(postgres_session_factory, FakeInvestigationExecutor())
-    task = workflow.submit_request(request_example("postgres-active-attempt"))
-    with postgres_session_factory.begin() as session:
-        persisted_task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task.task_id))
-        session.add(
-            AttemptRecord(
-                attempt_id=f"{task.task_id}-active",
-                task_id=persisted_task.id,
-                state=AttemptState.RUNNING,
-                fencing_token=41,
-            )
-        )
+def test_expired_lease_reconciles_a_confirmed_result_without_a_replacement_attempt(
+    postgres_session_factory,
+) -> None:
+    executor = FakeInvestigationExecutor()
+    workflow = SreInvestigationWorkflow(postgres_session_factory, executor)
+    task, attempt_id = seed_expired_attempt(postgres_session_factory, workflow, executor)
 
-    tick = workflow.run_dispatch_tick("postgres-active-tick")
+    tick = workflow.run_dispatch_tick("postgres-reconcile-succeeded")
+    view = workflow.get_task(task.task_id)
 
     assert tick.dispatched is False
-    assert tick.reason == "active_attempt_exists"
+    assert tick.reason == "reconciliation_succeeded"
+    assert tick.attempt_id == attempt_id
+    assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.SUCCEEDED
+    with postgres_session_factory() as session:
+        assert len(list(session.scalars(select(AttemptRecord)))) == 1
+
+
+@pytest.mark.postgresql_integration
+def test_competing_reconciliation_ticks_hold_no_database_lock_during_status_lookup(
+    postgres_session_factory,
+) -> None:
+    executor = BlockingStatusExecutor()
+    first = SreInvestigationWorkflow(postgres_session_factory, executor)
+    second = SreInvestigationWorkflow(postgres_session_factory, executor)
+    task, attempt_id = seed_expired_attempt(postgres_session_factory, first, executor)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first_tick = pool.submit(first.run_dispatch_tick, "postgres-reconcile-one")
+        assert executor.started.wait(timeout=5)
+        blocked_tick = second.run_dispatch_tick("postgres-reconcile-two")
+        executor.release.set()
+        completed_tick = first_tick.result(timeout=5)
+
+    assert completed_tick.reason == "reconciliation_active_attempt"
+    assert completed_tick.attempt_id == attempt_id
+    assert blocked_tick.reason == "active_dispatch_lease"
+    with postgres_session_factory() as session:
+        attempts = list(session.scalars(select(AttemptRecord)))
+    assert len(attempts) == 1
+    assert attempts[0].state == AttemptState.RUNNING
 
 
 @pytest.mark.postgresql_integration
 def test_stale_fencing_token_cannot_write_a_late_outcome(postgres_session_factory) -> None:
-    workflow = SreInvestigationWorkflow(postgres_session_factory, FakeInvestigationExecutor())
-    task = workflow.submit_request(request_example("postgres-stale-token"))
-    tick = workflow.run_dispatch_tick("postgres-stale-tick")
-    assert tick.attempt_id is not None
-    assert tick.fencing_token is not None
+    executor = TerminalStatusExecutor(ExecutorStatus.FAILED)
+    workflow = SreInvestigationWorkflow(postgres_session_factory, executor)
+    task, attempt_id = seed_expired_attempt(postgres_session_factory, workflow, executor)
+    tick = workflow.run_dispatch_tick("postgres-reconcile-stale-token")
+
+    assert tick.reason == "reconciliation_terminal"
+    assert tick.fencing_token == 8
 
     with pytest.raises(StaleFencingToken):
         workflow._record_result_failure(
             task.task_id,
-            tick.attempt_id,
+            attempt_id,
             "result_malformed:late_owner",
-            "postgres-stale-tick",
-            tick.fencing_token,
+            "expired-owner",
+            7,
         )
 
-    assert workflow.get_task(task.task_id).task_state == TaskState.AWAITING_HUMAN_REVIEW
+    view = workflow.get_task(task.task_id)
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None
+    assert view.attempt.state == AttemptState.FAILED
 
 
 class BlockingCapabilityExecutor(FakeInvestigationExecutor):
@@ -133,3 +171,82 @@ class BlockingCapabilityExecutor(FakeInvestigationExecutor):
         if not self.release.wait(timeout=5):
             raise TimeoutError("test did not release fake executor")
         return super().describe_capabilities()
+
+
+class BlockingStatusExecutor(FakeInvestigationExecutor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def get_status(self, attempt_id: str, idempotency_key: str) -> AttemptStatus:
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test did not release fake executor")
+        return AttemptStatus(
+            executor_id=self.executor_id,
+            attempt_id=attempt_id,
+            status=ExecutorStatus.RUNNING,
+        )
+
+
+class TerminalStatusExecutor(FakeInvestigationExecutor):
+    def __init__(self, status: ExecutorStatus) -> None:
+        super().__init__()
+        self._status = status
+
+    def get_status(self, attempt_id: str, idempotency_key: str) -> AttemptStatus:
+        return AttemptStatus(
+            executor_id=self.executor_id,
+            attempt_id=attempt_id,
+            status=self._status,
+        )
+
+
+def seed_expired_attempt(session_factory, workflow, executor: FakeInvestigationExecutor) -> tuple:
+    request = request_example("postgres-reconciliation")
+    task = workflow.submit_request(request)
+    attempt_id = f"{task.task_id}-a1"
+    executor.start_investigation(
+        StartInvestigationCommand(
+            request=request,
+            task_id=task.task_id,
+            attempt_id=attempt_id,
+            idempotency_key=attempt_id,
+            fencing_token=7,
+        )
+    )
+    with session_factory.begin() as session:
+        persisted_task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task.task_id))
+        persisted_task.state = TaskState.RUNNING
+        attempt = AttemptRecord(
+            attempt_id=attempt_id,
+            task_id=persisted_task.id,
+            state=AttemptState.RUNNING,
+            fencing_token=7,
+        )
+        session.add(attempt)
+        session.flush()
+        session.add(
+            ExecutorInvocationRecord(
+                attempt_id=attempt.id,
+                executor_id=executor.executor_id,
+                operation="start_investigation",
+                idempotency_key=attempt_id,
+                fencing_token=7,
+                status="RUNNING",
+            )
+        )
+        now = datetime.now(UTC)
+        session.add(
+            DispatchLeaseRecord(
+                lease_name="first_sre_dispatch",
+                lease_owner="expired-owner",
+                expires_at=now - timedelta(seconds=1),
+                heartbeat_at=now - timedelta(seconds=31),
+                fencing_token=7,
+                task_id=persisted_task.id,
+                attempt_id=attempt.id,
+            )
+        )
+    return task, attempt_id

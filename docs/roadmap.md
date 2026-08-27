@@ -36,13 +36,13 @@ is not a deployed MVP or a live SRE Platform investigation.
 | Runnable control-plane skeleton | Python 3.13 FastAPI API, Pydantic schemas, PostgreSQL persistence metadata, Alembic migrations, health/readiness endpoints, and deterministic fake executor. | Local tests and GitHub Actions. |
 | Deterministic fake workflow | Request intake persists `READY`; a bounded fake execution produces a schema-valid result and stops at `AWAITING_HUMAN_REVIEW`; explicit human completion, rejection, or follow-up is recorded. | Fake executor only; no external system is contacted. |
 | Durable request and retry history | Request and fingerprint deduplication, explicit operator-controlled retry, new attempt identity per retry, retained attempts, results, reviews, and transitions. | No automatic retry. Terminal tasks and duplicate retry decisions cannot create another attempt. |
-| Sequential dispatch safety | One database-backed dispatcher tick claims at most one eligible task through a durable global lease, monotonic fencing token, active-attempt exclusion, and a short database claim transaction released before the fake executor call. | PostgreSQL integration tests cover competing ticks, active attempts, and stale fencing tokens. |
+| Sequential dispatch and reconciliation safety | One database-backed dispatcher tick first reconciles an expired or ambiguous attempt through durable identity and status lookup, then claims at most one eligible task through a durable global lease and monotonic fencing token. Database locks are released before fake-executor calls. | PostgreSQL integration tests cover competing ticks, reconciliation recovery, active attempts, and stale fencing tokens. |
 | Fail-closed capability path | Capability checks are recorded before dispatch; rejected or exceptional checks leave a durable audit trail and retry-eligible task state as defined by the local workflow. | Fake executor capabilities only. |
 | CI validation | GitHub Actions uses Python 3.13, PostgreSQL 16, Alembic migrations, and `SRE_CONTROL_PLANE_TEST_DATABASE_URL`. | Latest accepted control-plane CI run completed `41 passed` with no skipped tests. |
 
 The local core intentionally does not implement a real investigator, Kubernetes,
 Prometheus, logs, GitOps, GitHub publication, evidence storage, GCP deployment,
-restart reconciliation, automatic retry, timeout, cancellation, or a live SRE
+automatic retry, timeout, cancellation, or a live SRE
 Platform investigation.
 
 ## First MVP Completion Boundary
@@ -73,19 +73,16 @@ incident-management platform.
 
 The remaining work is intentionally ordered and bounded:
 
-1. **Restart reconciliation and stale-attempt recovery**: reconcile durable
-   lease, heartbeat, invocation, and adapter-observable state before dispatch;
-   never automatically retry an ambiguous attempt.
-2. **Durable evidence and GitHub publication**: persist evidence references,
+1. **Durable evidence and GitHub publication**: persist evidence references,
    publish bounded findings and links to GitHub, and retain the publication
    audit trail without treating GitHub as transactional workflow state.
-3. **One real read-only executor prototype**: implement one product-neutral
+2. **One real read-only executor prototype**: implement one product-neutral
    adapter behind the existing boundary and verify its capabilities fail closed.
-4. **Minimum GCP deployment**: deploy the accepted ADR 0002 target with private
+3. **Minimum GCP deployment**: deploy the accepted ADR 0002 target with private
    exposure, bounded orchestration ticks, least privilege, and no public ingress.
-5. **Complete SRE Platform staging demonstration**: run the approved
+4. **Complete SRE Platform staging demonstration**: run the approved
    SRE-owned controlled scenario and collect only permitted read-only evidence.
-6. **Orchestrator benchmark and portfolio closeout**: execute the accepted
+5. **Orchestrator benchmark and portfolio closeout**: execute the accepted
    benchmark against the integrated candidate architecture and publish only
    evidence-supported results.
 
