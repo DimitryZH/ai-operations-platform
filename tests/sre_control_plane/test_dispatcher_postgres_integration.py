@@ -1,0 +1,135 @@
+from __future__ import annotations
+
+import json
+import os
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pytest
+from sqlalchemy import create_engine, select, text
+from sqlalchemy.orm import sessionmaker
+
+from sre_control_plane.contracts import InvestigationRequest
+from sre_control_plane.fake_executor import FakeInvestigationExecutor
+from sre_control_plane.persistence import AttemptRecord, Base, TaskRecord
+from sre_control_plane.states import AttemptState, TaskState
+from sre_control_plane.workflow import SreInvestigationWorkflow, StaleFencingToken
+
+ROOT = Path(__file__).resolve().parents[2]
+POSTGRES_TEST_URL = "SRE_CONTROL_PLANE_TEST_DATABASE_URL"
+
+
+@pytest.fixture()
+def postgres_session_factory():
+    database_url = os.environ.get(POSTGRES_TEST_URL)
+    if database_url is None:
+        pytest.skip(f"{POSTGRES_TEST_URL} is not configured")
+
+    schema_name = f"sre_dispatch_{uuid.uuid4().hex}"
+    admin_engine = create_engine(database_url, pool_pre_ping=True)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f"CREATE SCHEMA {schema_name}"))
+
+    test_engine = create_engine(
+        database_url,
+        connect_args={"options": f"-csearch_path={schema_name}"},
+        pool_pre_ping=True,
+    )
+    Base.metadata.create_all(test_engine)
+    try:
+        yield sessionmaker(bind=test_engine, expire_on_commit=False)
+    finally:
+        test_engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f"DROP SCHEMA {schema_name} CASCADE"))
+        admin_engine.dispose()
+
+
+def request_example(request_id: str) -> InvestigationRequest:
+    payload = json.loads((ROOT / "examples" / "sre-investigation-request.json").read_text())
+    payload["request_id"] = request_id
+    payload["signal"]["fingerprint"] = request_id
+    return InvestigationRequest.model_validate(payload)
+
+
+@pytest.mark.postgresql_integration
+def test_competing_ticks_hold_no_database_lock_during_adapter_call(
+    postgres_session_factory,
+) -> None:
+    executor = BlockingCapabilityExecutor()
+    first = SreInvestigationWorkflow(postgres_session_factory, executor)
+    second = SreInvestigationWorkflow(postgres_session_factory, executor)
+    task = first.submit_request(request_example("postgres-competing-ticks"))
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first_tick = pool.submit(first.run_dispatch_tick, "postgres-tick-one")
+        assert executor.started.wait(timeout=5)
+        blocked_tick = second.run_dispatch_tick("postgres-tick-two")
+        executor.release.set()
+        completed_tick = first_tick.result(timeout=5)
+
+    assert completed_tick.dispatched is True
+    assert blocked_tick.dispatched is False
+    assert blocked_tick.reason == "active_dispatch_lease"
+    with postgres_session_factory() as session:
+        attempts = list(session.scalars(select(AttemptRecord)))
+        persisted_task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task.task_id))
+    assert len(attempts) == 1
+    assert persisted_task is not None
+    assert persisted_task.state == TaskState.AWAITING_HUMAN_REVIEW
+
+
+@pytest.mark.postgresql_integration
+def test_active_attempt_excludes_a_new_dispatch_claim(postgres_session_factory) -> None:
+    workflow = SreInvestigationWorkflow(postgres_session_factory, FakeInvestigationExecutor())
+    task = workflow.submit_request(request_example("postgres-active-attempt"))
+    with postgres_session_factory.begin() as session:
+        persisted_task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task.task_id))
+        session.add(
+            AttemptRecord(
+                attempt_id=f"{task.task_id}-active",
+                task_id=persisted_task.id,
+                state=AttemptState.RUNNING,
+                fencing_token=41,
+            )
+        )
+
+    tick = workflow.run_dispatch_tick("postgres-active-tick")
+
+    assert tick.dispatched is False
+    assert tick.reason == "active_attempt_exists"
+
+
+@pytest.mark.postgresql_integration
+def test_stale_fencing_token_cannot_write_a_late_outcome(postgres_session_factory) -> None:
+    workflow = SreInvestigationWorkflow(postgres_session_factory, FakeInvestigationExecutor())
+    task = workflow.submit_request(request_example("postgres-stale-token"))
+    tick = workflow.run_dispatch_tick("postgres-stale-tick")
+    assert tick.attempt_id is not None
+    assert tick.fencing_token is not None
+
+    with pytest.raises(StaleFencingToken):
+        workflow._record_result_failure(
+            task.task_id,
+            tick.attempt_id,
+            "result_malformed:late_owner",
+            "postgres-stale-tick",
+            tick.fencing_token,
+        )
+
+    assert workflow.get_task(task.task_id).task_state == TaskState.AWAITING_HUMAN_REVIEW
+
+
+class BlockingCapabilityExecutor(FakeInvestigationExecutor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def describe_capabilities(self):
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test did not release fake executor")
+        return super().describe_capabilities()

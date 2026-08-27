@@ -13,6 +13,8 @@ from sre_control_plane.readiness import ReadinessStatus, check_database_readines
 from sre_control_plane.workflow import (
     DuplicateRequestConflict,
     DuplicateRetryConflict,
+    DispatchTickRequest,
+    DispatchTickView,
     HumanReviewRequest,
     InvalidStateTransition,
     RetryRequest,
@@ -60,10 +62,23 @@ def create_app(
 
     @app.get("/metrics")
     def metrics() -> Response:
+        dispatch_metrics = active_workflow.dispatch_metrics()
         body = (
             "# HELP sre_control_plane_info SRE control-plane skeleton build info\n"
             "# TYPE sre_control_plane_info gauge\n"
             'sre_control_plane_info{service="sre-control-plane",version="0.1.0"} 1\n'
+            "# HELP sre_control_plane_dispatch_ticks_total Bounded dispatcher ticks\n"
+            "# TYPE sre_control_plane_dispatch_ticks_total counter\n"
+            f"sre_control_plane_dispatch_ticks_total {dispatch_metrics['ticks_total']}\n"
+            "# HELP sre_control_plane_dispatch_claims_total Successful durable dispatch claims\n"
+            "# TYPE sre_control_plane_dispatch_claims_total counter\n"
+            f"sre_control_plane_dispatch_claims_total {dispatch_metrics['claims_total']}\n"
+            "# HELP sre_control_plane_dispatch_lease_blocked_total Ticks blocked by an active lease\n"
+            "# TYPE sre_control_plane_dispatch_lease_blocked_total counter\n"
+            f"sre_control_plane_dispatch_lease_blocked_total {dispatch_metrics['lease_blocked_total']}\n"
+            "# HELP sre_control_plane_stale_fencing_total Obsolete outcomes ignored\n"
+            "# TYPE sre_control_plane_stale_fencing_total counter\n"
+            f"sre_control_plane_stale_fencing_total {dispatch_metrics['stale_fencing_total']}\n"
         )
         return Response(content=body, media_type="text/plain; version=0.0.4")
 
@@ -99,6 +114,10 @@ def create_app(
         if task.duplicate_retry_submission:
             response.status_code = 200
         return task
+
+    @app.post("/internal/dispatch/tick", response_model=DispatchTickView)
+    def dispatch_tick(request: DispatchTickRequest) -> DispatchTickView:
+        return active_workflow.run_dispatch_tick(request.lease_owner)
 
     @app.post("/v1/sre-investigations/{task_id}/human-review", response_model=TaskView)
     def record_human_review(task_id: str, review: HumanReviewRequest) -> TaskView:

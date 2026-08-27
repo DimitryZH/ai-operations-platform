@@ -4,11 +4,13 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from threading import Lock
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from sre_control_plane.contracts import (
@@ -29,6 +31,7 @@ from sre_control_plane.persistence import (
     AttemptRecord,
     AttemptTransitionRecord,
     CapabilityCheckRecord,
+    DispatchLeaseRecord,
     ExecutorInvocationRecord,
     HumanReviewRecord,
     InvestigationResultRecord,
@@ -46,6 +49,9 @@ from sre_control_plane.states import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+DISPATCH_LEASE_NAME = "first_sre_dispatch"
+DISPATCH_LEASE_DURATION = timedelta(seconds=30)
 
 MUTATION_CAPABILITY_HINTS = (
     ".write",
@@ -129,6 +135,10 @@ class InvalidStateTransition(WorkflowError):
     pass
 
 
+class StaleFencingToken(WorkflowError):
+    pass
+
+
 class HumanReviewDecision(StrEnum):
     COMPLETE = "complete"
     REJECT = "reject"
@@ -167,6 +177,7 @@ class TransitionView(BaseModel):
     to_state: str
     reason: str
     actor: str
+    fencing_token: int | None = None
 
 
 class AttemptView(BaseModel):
@@ -220,12 +231,36 @@ class TaskView(BaseModel):
     reviews: list[HumanReviewView] = Field(default_factory=list)
 
 
+class DispatchTickRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lease_owner: str = Field(min_length=1, max_length=128)
+
+
+class DispatchTickView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dispatched: bool
+    reason: str
+    task_id: str | None = None
+    attempt_id: str | None = None
+    fencing_token: int | None = None
+
+
 @dataclass(frozen=True)
 class PreparedAttempt:
     command: StartInvestigationCommand
     task_id: str
     attempt_id: str
     executor_id: str
+
+
+@dataclass(frozen=True)
+class ClaimedAttempt:
+    request: InvestigationRequest
+    task_id: str
+    attempt_id: str
+    fencing_token: int
 
 
 @dataclass(frozen=True)
@@ -242,6 +277,13 @@ class SreInvestigationWorkflow:
     ) -> None:
         self._session_factory = session_factory
         self._executor = executor
+        self._dispatch_metrics = {
+            "ticks_total": 0,
+            "claims_total": 0,
+            "lease_blocked_total": 0,
+            "stale_fencing_total": 0,
+        }
+        self._dispatch_metrics_lock = Lock()
 
     def submit_request(self, request: InvestigationRequest) -> TaskView:
         payload = canonical_payload(request)
@@ -271,23 +313,7 @@ class SreInvestigationWorkflow:
             session.add_all([request_record, task])
             session.flush()
             record_task_transition(session, task, None, TaskState.READY, "request_accepted", "control-plane")
-            preparation = self._prepare_attempt(
-                session,
-                task,
-                request,
-                attempt_created_reason="attempt_created",
-                task_started_reason="fake_executor_started",
-                actor="control-plane",
-            )
-
-            if isinstance(preparation, CapabilityRejectedAttempt):
-                return self._task_view_for_request(
-                    session,
-                    request_record,
-                    failure_reason=preparation.failure_reason,
-                )
-
-        return self._run_prepared_attempt(preparation)
+            return self._task_view_for_request(session, request_record)
 
     def retry_task(self, task_id: str, retry: RetryRequest) -> TaskView:
         with self._session_factory.begin() as session:
@@ -310,13 +336,11 @@ class SreInvestigationWorkflow:
 
             assert_task_can_retry(task)
             ensure_no_active_attempt(session)
+            ensure_no_pending_retry_decision(session, task)
             previous_attempt = latest_attempt(session, task)
             if previous_attempt is None or previous_attempt.state not in TERMINAL_ATTEMPT_STATES:
                 raise InvalidStateTransition("retry requires a terminal previous attempt")
 
-            request_record = session.get(RequestRecord, task.request_id)
-            if request_record is None:
-                raise TaskNotFound("request not found for task")
             retry_decision = RetryDecisionRecord(
                 retry_id=retry.retry_id,
                 task_id=task.id,
@@ -328,41 +352,165 @@ class SreInvestigationWorkflow:
                 github_reference=retry.github_reference,
             )
             session.add(retry_decision)
-            request = InvestigationRequest.model_validate(request_record.payload)
-            preparation = self._prepare_attempt(
-                session,
-                task,
-                request,
-                attempt_created_reason="operator_retry_attempt_created",
-                task_started_reason="operator_retry_started",
-                actor=retry.actor,
-                retry_decision=retry_decision,
-            )
-            if isinstance(preparation, CapabilityRejectedAttempt):
-                return self._task_view(
-                    session,
-                    task,
-                    failure_reason=preparation.failure_reason,
+            return self._task_view(session, task)
+
+    def run_dispatch_tick(self, lease_owner: str) -> DispatchTickView:
+        self._increment_dispatch_metric("ticks_total")
+        claimed: ClaimedAttempt | None = None
+
+        with self._session_factory.begin() as session:
+            now = utc_now()
+            lease = lock_dispatch_lease(session, now)
+            if lease_is_active(lease, now):
+                self._increment_dispatch_metric("lease_blocked_total")
+                return DispatchTickView(
+                    dispatched=False,
+                    reason="active_dispatch_lease",
+                    task_id=lease_task_id(session, lease),
+                    attempt_id=lease_attempt_id(session, lease),
+                    fencing_token=lease.fencing_token,
+                )
+            if lease.task_id is not None or lease.attempt_id is not None:
+                return DispatchTickView(
+                    dispatched=False,
+                    reason="expired_lease_requires_reconciliation",
+                    task_id=lease_task_id(session, lease),
+                    attempt_id=lease_attempt_id(session, lease),
+                    fencing_token=lease.fencing_token,
                 )
 
-        return self._run_prepared_attempt(preparation)
+            active_attempt = session.scalar(
+                select(AttemptRecord)
+                .where(AttemptRecord.state.in_(ACTIVE_ATTEMPT_STATES))
+                .with_for_update()
+            )
+            if active_attempt is not None:
+                return DispatchTickView(
+                    dispatched=False,
+                    reason="active_attempt_exists",
+                    attempt_id=active_attempt.attempt_id,
+                )
 
-    def _prepare_attempt(
+            task = session.scalar(
+                select(TaskRecord)
+                .where(
+                    TaskRecord.state == TaskState.READY,
+                    or_(
+                        ~select(AttemptRecord.id)
+                        .where(AttemptRecord.task_id == TaskRecord.id)
+                        .exists(),
+                        select(RetryDecisionRecord.id)
+                        .where(
+                            RetryDecisionRecord.task_id == TaskRecord.id,
+                            RetryDecisionRecord.new_attempt_id.is_(None),
+                        )
+                        .exists(),
+                    ),
+                )
+                .order_by(TaskRecord.created_at, TaskRecord.id)
+                .with_for_update()
+            )
+            if task is None:
+                return DispatchTickView(dispatched=False, reason="no_dispatch_eligible_task")
+
+            request_record = session.get(RequestRecord, task.request_id)
+            if request_record is None:
+                raise TaskNotFound("request not found for ready task")
+            claim_dispatch_lease(lease, lease_owner, task.id, now)
+            retry_decision = pending_retry_decision(session, task)
+            claimed = self._claim_attempt(
+                session,
+                task,
+                InvestigationRequest.model_validate(request_record.payload),
+                attempt_created_reason="dispatcher_attempt_created",
+                actor=f"dispatcher:{lease_owner}",
+                fencing_token=lease.fencing_token,
+                retry_decision=retry_decision,
+            )
+            attempt = session.scalar(
+                select(AttemptRecord).where(AttemptRecord.attempt_id == claimed.attempt_id)
+            )
+            if attempt is None:
+                raise TaskNotFound("claimed attempt disappeared before dispatch")
+            lease.attempt_id = attempt.id
+            lease.heartbeat_at = now
+            self._increment_dispatch_metric("claims_total")
+            log_lifecycle(
+                "dispatch_claimed",
+                task_id=task.task_id,
+                attempt_id=attempt.attempt_id,
+                lease_owner=lease_owner,
+                fencing_token=str(lease.fencing_token),
+            )
+
+        if claimed is None:
+            raise TaskNotFound("dispatcher did not claim an attempt")
+
+        try:
+            preparation = self._prepare_claimed_attempt(claimed, lease_owner)
+        except StaleFencingToken:
+            self._increment_dispatch_metric("stale_fencing_total")
+            return DispatchTickView(
+                dispatched=False,
+                reason="stale_fencing_token_ignored",
+                task_id=claimed.task_id,
+                attempt_id=claimed.attempt_id,
+                fencing_token=claimed.fencing_token,
+            )
+
+        if isinstance(preparation, CapabilityRejectedAttempt):
+            return DispatchTickView(
+                dispatched=False,
+                reason=preparation.failure_reason,
+                task_id=preparation.task_id,
+                attempt_id=claimed.attempt_id,
+                fencing_token=claimed.fencing_token,
+            )
+
+        try:
+            self._run_prepared_attempt(preparation, lease_owner)
+        except StaleFencingToken:
+            self._increment_dispatch_metric("stale_fencing_total")
+            return DispatchTickView(
+                dispatched=False,
+                reason="stale_fencing_token_ignored",
+                task_id=preparation.task_id,
+                attempt_id=preparation.attempt_id,
+                fencing_token=preparation.command.fencing_token,
+            )
+
+        return DispatchTickView(
+            dispatched=True,
+            reason="attempt_executed",
+            task_id=preparation.task_id,
+            attempt_id=preparation.attempt_id,
+            fencing_token=preparation.command.fencing_token,
+        )
+
+    def dispatch_metrics(self) -> dict[str, int]:
+        with self._dispatch_metrics_lock:
+            return dict(self._dispatch_metrics)
+
+    def _increment_dispatch_metric(self, name: str) -> None:
+        with self._dispatch_metrics_lock:
+            self._dispatch_metrics[name] += 1
+
+    def _claim_attempt(
         self,
         session: Session,
         task: TaskRecord,
         request: InvestigationRequest,
         attempt_created_reason: str,
-        task_started_reason: str,
         actor: str,
+        fencing_token: int,
         retry_decision: RetryDecisionRecord | None = None,
-    ) -> PreparedAttempt | CapabilityRejectedAttempt:
+    ) -> ClaimedAttempt:
         attempt_number = count_attempts(session, task) + 1
         attempt = AttemptRecord(
             attempt_id=f"{task.task_id}-a{attempt_number}",
             task=task,
             state=AttemptState.CREATED,
-            fencing_token=attempt_number,
+            fencing_token=fencing_token,
         )
         session.add(attempt)
         session.flush()
@@ -370,90 +518,131 @@ class SreInvestigationWorkflow:
             retry_decision.new_attempt_id = attempt.id
         record_attempt_transition(session, attempt, None, AttemptState.CREATED, attempt_created_reason, actor)
 
+        return ClaimedAttempt(
+            request=request,
+            task_id=task.task_id,
+            attempt_id=attempt.attempt_id,
+            fencing_token=fencing_token,
+        )
+
+    def _prepare_claimed_attempt(
+        self,
+        claimed: ClaimedAttempt,
+        lease_owner: str,
+    ) -> PreparedAttempt | CapabilityRejectedAttempt:
         try:
             capability_report = self._executor.describe_capabilities()
             capability_failure = capability_rejection_reason(capability_report)
         except Exception as exc:
+            capability_report = None
             capability_failure = f"capability_verification_failed:{exc.__class__.__name__}"
+
+        with self._session_factory.begin() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == claimed.task_id))
+            attempt = session.scalar(
+                select(AttemptRecord).where(AttemptRecord.attempt_id == claimed.attempt_id)
+            )
+            if task is None or attempt is None:
+                raise TaskNotFound("claimed task or attempt disappeared before capability verification")
+            lease = assert_current_dispatch_lease(
+                session,
+                task,
+                attempt,
+                lease_owner,
+                claimed.fencing_token,
+            )
+            renew_dispatch_lease(lease, utc_now())
+
+            if capability_report is None:
+                session.add(
+                    CapabilityCheckRecord(
+                        attempt_id=attempt.id,
+                        executor_id="unverified",
+                        status="REJECTED",
+                        declared_capabilities={"items": []},
+                        denied_capabilities={"items": []},
+                        target_scope={},
+                        verification_evidence={"items": [capability_failure]},
+                    )
+                )
+                record_attempt_transition(
+                    session,
+                    attempt,
+                    AttemptState.CREATED,
+                    AttemptState.CAPABILITY_REJECTED,
+                    capability_failure,
+                    "control-plane",
+                )
+                release_dispatch_lease(lease, utc_now())
+                return CapabilityRejectedAttempt(
+                    task_id=task.task_id,
+                    failure_reason=capability_failure,
+                )
+
             session.add(
                 CapabilityCheckRecord(
                     attempt_id=attempt.id,
-                    executor_id="unverified",
-                    status="REJECTED",
-                    declared_capabilities={"items": []},
-                    denied_capabilities={"items": []},
-                    target_scope={},
-                    verification_evidence={"items": [capability_failure]},
+                    executor_id=capability_report.executor_id,
+                    status="REJECTED" if capability_failure else "PASSED",
+                    declared_capabilities={"items": capability_report.declared_capabilities},
+                    denied_capabilities={"items": capability_report.denied_capabilities},
+                    target_scope=capability_report.target_scope,
+                    verification_evidence={"items": capability_report.verification_evidence},
                 )
             )
+            if capability_failure is not None:
+                record_attempt_transition(
+                    session,
+                    attempt,
+                    AttemptState.CREATED,
+                    AttemptState.CAPABILITY_REJECTED,
+                    capability_failure,
+                    "control-plane",
+                )
+                release_dispatch_lease(lease, utc_now())
+                return CapabilityRejectedAttempt(task_id=task.task_id, failure_reason=capability_failure)
+
             record_attempt_transition(
                 session,
                 attempt,
                 AttemptState.CREATED,
-                AttemptState.CAPABILITY_REJECTED,
-                capability_failure,
+                AttemptState.CAPABILITY_CHECKED,
+                "capabilities_verified",
                 "control-plane",
             )
-            return CapabilityRejectedAttempt(
-                task_id=task.task_id,
-                failure_reason=capability_failure,
+            record_task_transition(
+                session,
+                task,
+                TaskState.READY,
+                TaskState.RUNNING,
+                "dispatcher_claimed_ready_task",
+                f"dispatcher:{lease_owner}",
+                fencing_token=claimed.fencing_token,
             )
-
-        session.add(
-            CapabilityCheckRecord(
+            invocation = ExecutorInvocationRecord(
                 attempt_id=attempt.id,
                 executor_id=capability_report.executor_id,
-                status="REJECTED" if capability_failure else "PASSED",
-                declared_capabilities={"items": capability_report.declared_capabilities},
-                denied_capabilities={"items": capability_report.denied_capabilities},
-                target_scope=capability_report.target_scope,
-                verification_evidence={"items": capability_report.verification_evidence},
+                operation="start_investigation",
+                idempotency_key=attempt.attempt_id,
+                fencing_token=claimed.fencing_token,
+                status="INTENT_RECORDED",
             )
-        )
-        if capability_failure is not None:
-            record_attempt_transition(
-                session,
-                attempt,
-                AttemptState.CREATED,
-                AttemptState.CAPABILITY_REJECTED,
-                capability_failure,
-                "control-plane",
-            )
-            return CapabilityRejectedAttempt(task_id=task.task_id, failure_reason=capability_failure)
+            session.add(invocation)
 
-        record_attempt_transition(
-            session,
-            attempt,
-            AttemptState.CREATED,
-            AttemptState.CAPABILITY_CHECKED,
-            "capabilities_verified",
-            "control-plane",
-        )
-        record_task_transition(session, task, TaskState.READY, TaskState.RUNNING, task_started_reason, actor)
-        invocation = ExecutorInvocationRecord(
-            attempt_id=attempt.id,
-            executor_id=capability_report.executor_id,
-            operation="start_investigation",
-            idempotency_key=attempt.attempt_id,
-            fencing_token=attempt_number,
-            status="INTENT_RECORDED",
-        )
-        session.add(invocation)
-
-        return PreparedAttempt(
-            command=StartInvestigationCommand(
-                request=request,
+            return PreparedAttempt(
+                command=StartInvestigationCommand(
+                    request=claimed.request,
+                    task_id=task.task_id,
+                    attempt_id=attempt.attempt_id,
+                    idempotency_key=attempt.attempt_id,
+                    fencing_token=claimed.fencing_token,
+                ),
                 task_id=task.task_id,
                 attempt_id=attempt.attempt_id,
-                idempotency_key=attempt.attempt_id,
-                fencing_token=attempt_number,
-            ),
-            task_id=task.task_id,
-            attempt_id=attempt.attempt_id,
-            executor_id=capability_report.executor_id,
-        )
+                executor_id=capability_report.executor_id,
+            )
 
-    def _run_prepared_attempt(self, prepared: PreparedAttempt) -> TaskView:
+    def _run_prepared_attempt(self, prepared: PreparedAttempt, lease_owner: str) -> TaskView:
         command = prepared.command
         task_id = prepared.task_id
         attempt_id = prepared.attempt_id
@@ -461,22 +650,49 @@ class SreInvestigationWorkflow:
         try:
             start_response = self._executor.start_investigation(command)
         except Exception as exc:
-            return self._record_dispatch_failure(task_id, attempt_id, f"dispatch_rejected:{exc.__class__.__name__}")
+            return self._record_dispatch_failure(
+                task_id,
+                attempt_id,
+                f"dispatch_rejected:{exc.__class__.__name__}",
+                lease_owner,
+                command.fencing_token,
+            )
 
         if (
             start_response.executor_id != prepared.executor_id
             or start_response.attempt_id != attempt_id
             or start_response.idempotency_key != attempt_id
+            or start_response.fencing_token != command.fencing_token
         ):
-            return self._record_dispatch_failure(task_id, attempt_id, "dispatch_rejected:identity_mismatch")
+            return self._record_dispatch_failure(
+                task_id,
+                attempt_id,
+                "dispatch_rejected:identity_mismatch",
+                lease_owner,
+                command.fencing_token,
+            )
         if start_response.status != ExecutorStatus.SUCCEEDED:
-            return self._record_dispatch_failure(task_id, attempt_id, f"dispatch_rejected:{start_response.status}")
+            return self._record_dispatch_failure(
+                task_id,
+                attempt_id,
+                f"dispatch_rejected:{start_response.status}",
+                lease_owner,
+                command.fencing_token,
+            )
 
         with self._session_factory.begin() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
             attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
             if task is None or attempt is None:
                 raise TaskNotFound("task or attempt disappeared during fake workflow execution")
+            lease = assert_current_dispatch_lease(
+                session,
+                task,
+                attempt,
+                lease_owner,
+                command.fencing_token,
+            )
+            renew_dispatch_lease(lease, utc_now())
             record_attempt_transition(
                 session,
                 attempt,
@@ -500,16 +716,35 @@ class SreInvestigationWorkflow:
             normalized_result_payload = result.model_dump(mode="json")
             identity_failure = result_identity_failure(result, task_id, attempt_id, start_response.executor_id)
         except Exception as exc:
-            return self._record_result_failure(task_id, attempt_id, f"result_malformed:{exc.__class__.__name__}")
+            return self._record_result_failure(
+                task_id,
+                attempt_id,
+                f"result_malformed:{exc.__class__.__name__}",
+                lease_owner,
+                command.fencing_token,
+            )
 
         if identity_failure is not None:
-            return self._record_result_failure(task_id, attempt_id, identity_failure)
+            return self._record_result_failure(
+                task_id,
+                attempt_id,
+                identity_failure,
+                lease_owner,
+                command.fencing_token,
+            )
 
         with self._session_factory.begin() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
             attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
             if task is None or attempt is None:
                 raise TaskNotFound("task or attempt disappeared during fake workflow execution")
+            lease = assert_current_dispatch_lease(
+                session,
+                task,
+                attempt,
+                lease_owner,
+                command.fencing_token,
+            )
             record_attempt_transition(
                 session,
                 attempt,
@@ -534,15 +769,31 @@ class SreInvestigationWorkflow:
                 TaskState.AWAITING_HUMAN_REVIEW,
                 "schema_valid_result_requires_human_review",
                 "control-plane",
+                fencing_token=command.fencing_token,
             )
+            release_dispatch_lease(lease, utc_now())
             return self._task_view(session, task)
 
-    def _record_dispatch_failure(self, task_id: str, attempt_id: str, reason: str) -> TaskView:
+    def _record_dispatch_failure(
+        self,
+        task_id: str,
+        attempt_id: str,
+        reason: str,
+        lease_owner: str,
+        fencing_token: int,
+    ) -> TaskView:
         with self._session_factory.begin() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
             attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
             if task is None or attempt is None:
                 raise TaskNotFound("task or attempt disappeared during dispatch failure handling")
+            lease = assert_current_dispatch_lease(
+                session,
+                task,
+                attempt,
+                lease_owner,
+                fencing_token,
+            )
             record_attempt_transition(
                 session,
                 attempt,
@@ -552,15 +803,38 @@ class SreInvestigationWorkflow:
                 "control-plane",
             )
             update_invocation_status(session, attempt, "DISPATCH_FAILED", reason)
-            record_task_transition(session, task, TaskState.RUNNING, TaskState.READY, reason, "control-plane")
+            record_task_transition(
+                session,
+                task,
+                TaskState.RUNNING,
+                TaskState.READY,
+                reason,
+                "control-plane",
+                fencing_token=fencing_token,
+            )
+            release_dispatch_lease(lease, utc_now())
             return self._task_view(session, task, failure_reason=reason)
 
-    def _record_result_failure(self, task_id: str, attempt_id: str, reason: str) -> TaskView:
+    def _record_result_failure(
+        self,
+        task_id: str,
+        attempt_id: str,
+        reason: str,
+        lease_owner: str,
+        fencing_token: int,
+    ) -> TaskView:
         with self._session_factory.begin() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
             attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
             if task is None or attempt is None:
                 raise TaskNotFound("task or attempt disappeared during result failure handling")
+            lease = assert_current_dispatch_lease(
+                session,
+                task,
+                attempt,
+                lease_owner,
+                fencing_token,
+            )
             record_attempt_transition(
                 session,
                 attempt,
@@ -570,7 +844,16 @@ class SreInvestigationWorkflow:
                 "control-plane",
             )
             update_invocation_status(session, attempt, "FAILED", reason)
-            record_task_transition(session, task, TaskState.RUNNING, TaskState.READY, reason, "control-plane")
+            record_task_transition(
+                session,
+                task,
+                TaskState.RUNNING,
+                TaskState.READY,
+                reason,
+                "control-plane",
+                fencing_token=fencing_token,
+            )
+            release_dispatch_lease(lease, utc_now())
             return self._task_view(session, task, failure_reason=reason)
 
     def get_task(self, task_id: str) -> TaskView:
@@ -660,6 +943,7 @@ class SreInvestigationWorkflow:
                     "human retry is allowed only from AWAITING_HUMAN_REVIEW"
                 )
             ensure_no_active_attempt(session)
+            ensure_no_pending_retry_decision(session, task)
 
             previous_attempt = latest_attempt(session, task)
             if previous_attempt is None or previous_attempt.state not in TERMINAL_ATTEMPT_STATES:
@@ -694,28 +978,7 @@ class SreInvestigationWorkflow:
                 "human_review_retry",
                 review.actor,
             )
-
-            request_record = session.get(RequestRecord, task.request_id)
-            if request_record is None:
-                raise TaskNotFound("request not found for task")
-            request = InvestigationRequest.model_validate(request_record.payload)
-            preparation = self._prepare_attempt(
-                session,
-                task,
-                request,
-                attempt_created_reason="human_retry_attempt_created",
-                task_started_reason="human_retry_started",
-                actor=review.actor,
-                retry_decision=retry_decision,
-            )
-            if isinstance(preparation, CapabilityRejectedAttempt):
-                return self._task_view(
-                    session,
-                    task,
-                    failure_reason=preparation.failure_reason,
-                )
-
-        return self._run_prepared_attempt(preparation)
+            return self._task_view(session, task)
 
     def _task_view_for_request(
         self,
@@ -816,6 +1079,7 @@ class SreInvestigationWorkflow:
                     to_state=transition.to_state,
                     reason=transition.reason,
                     actor=transition.actor,
+                    fencing_token=transition.fencing_token,
                 )
                 for transition in session.scalars(
                     select(TaskTransitionRecord)
@@ -903,6 +1167,7 @@ def transition_view(
         to_state=transition.to_state,
         reason=transition.reason,
         actor=transition.actor,
+        fencing_token=transition.fencing_token,
     )
 
 
@@ -966,6 +1231,125 @@ def ensure_no_active_attempt(session: Session) -> None:
         raise InvalidStateTransition("retry is blocked while an attempt is active")
 
 
+def ensure_no_pending_retry_decision(session: Session, task: TaskRecord) -> None:
+    if pending_retry_decision(session, task) is not None:
+        raise InvalidStateTransition("task already has a pending retry decision")
+
+
+def pending_retry_decision(session: Session, task: TaskRecord) -> RetryDecisionRecord | None:
+    return session.scalar(
+        select(RetryDecisionRecord)
+        .where(
+            RetryDecisionRecord.task_id == task.id,
+            RetryDecisionRecord.new_attempt_id.is_(None),
+        )
+        .order_by(RetryDecisionRecord.id.desc())
+    )
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def as_utc(timestamp: datetime) -> datetime:
+    if timestamp.tzinfo is None:
+        return timestamp.replace(tzinfo=UTC)
+    return timestamp.astimezone(UTC)
+
+
+def lock_dispatch_lease(session: Session, now: datetime) -> DispatchLeaseRecord:
+    lease = session.scalar(
+        select(DispatchLeaseRecord)
+        .where(DispatchLeaseRecord.lease_name == DISPATCH_LEASE_NAME)
+        .with_for_update()
+    )
+    if lease is None:
+        lease = DispatchLeaseRecord(
+            lease_name=DISPATCH_LEASE_NAME,
+            lease_owner="unclaimed",
+            expires_at=now,
+            heartbeat_at=now,
+            fencing_token=0,
+        )
+        session.add(lease)
+        session.flush()
+    return lease
+
+
+def lease_is_active(lease: DispatchLeaseRecord, now: datetime) -> bool:
+    return lease.task_id is not None and as_utc(lease.expires_at) > now
+
+
+def claim_dispatch_lease(
+    lease: DispatchLeaseRecord,
+    lease_owner: str,
+    task_id: int,
+    now: datetime,
+) -> None:
+    lease.lease_owner = lease_owner
+    lease.expires_at = now + DISPATCH_LEASE_DURATION
+    lease.heartbeat_at = now
+    lease.fencing_token += 1
+    lease.task_id = task_id
+    lease.attempt_id = None
+
+
+def release_dispatch_lease(lease: DispatchLeaseRecord, now: datetime) -> None:
+    lease.expires_at = now
+    lease.heartbeat_at = now
+    lease.task_id = None
+    lease.attempt_id = None
+
+
+def renew_dispatch_lease(lease: DispatchLeaseRecord, now: datetime) -> None:
+    lease.expires_at = now + DISPATCH_LEASE_DURATION
+    lease.heartbeat_at = now
+
+
+def lease_task_id(session: Session, lease: DispatchLeaseRecord) -> str | None:
+    if lease.task_id is None:
+        return None
+    task = session.get(TaskRecord, lease.task_id)
+    return task.task_id if task is not None else None
+
+
+def lease_attempt_id(session: Session, lease: DispatchLeaseRecord) -> str | None:
+    if lease.attempt_id is None:
+        return None
+    attempt = session.get(AttemptRecord, lease.attempt_id)
+    return attempt.attempt_id if attempt is not None else None
+
+
+def assert_current_dispatch_lease(
+    session: Session,
+    task: TaskRecord,
+    attempt: AttemptRecord,
+    lease_owner: str,
+    fencing_token: int,
+) -> DispatchLeaseRecord:
+    lease = session.scalar(
+        select(DispatchLeaseRecord)
+        .where(DispatchLeaseRecord.lease_name == DISPATCH_LEASE_NAME)
+        .with_for_update()
+    )
+    if (
+        lease is None
+        or lease.lease_owner != lease_owner
+        or lease.fencing_token != fencing_token
+        or lease.task_id != task.id
+        or lease.attempt_id != attempt.id
+        or attempt.fencing_token != fencing_token
+    ):
+        log_lifecycle(
+            "stale_fencing_token_ignored",
+            task_id=task.task_id,
+            attempt_id=attempt.attempt_id,
+            fencing_token=str(fencing_token),
+        )
+        raise StaleFencingToken("attempt outcome has an obsolete fencing token")
+    return lease
+
+
 def result_identity_failure(
     result,
     task_id: str,
@@ -1004,6 +1388,7 @@ def record_task_transition(
     to_state: str,
     reason: str,
     actor: str,
+    fencing_token: int | None = None,
 ) -> None:
     assert_transition_allowed(ALLOWED_TASK_TRANSITIONS, from_state, to_state)
     assert_record_state(task.state, from_state)
@@ -1015,6 +1400,7 @@ def record_task_transition(
             to_state=to_state,
             reason=reason,
             actor=actor,
+            fencing_token=fencing_token,
         )
     )
     log_lifecycle("task_transition", task_id=task.task_id, from_state=from_state, to_state=to_state, reason=reason, actor=actor)

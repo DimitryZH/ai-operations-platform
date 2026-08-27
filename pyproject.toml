@@ -26,6 +26,9 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "postgresql_integration: requires SRE_CONTROL_PLANE_TEST_DATABASE_URL",
+]
 
 [tool.setuptools.packages.find]
 include = ["sre_control_plane*"]

@@ -14,16 +14,16 @@ Included:
 - Alembic migration for a fresh local PostgreSQL database
 - product-neutral executor interface
 - deterministic fake executor for tests and local development
-- one deterministic local fake-executor workflow from request intake to human
-  review
-- explicit operator-controlled retry for retry-eligible local fake tasks
+- a database-backed sequential dispatcher with a durable global lease and
+  monotonic fencing token
+- one bounded local fake-executor workflow from dispatcher tick to human review
+- explicit operator-controlled retry that queues retry-eligible local fake tasks
 - liveness and readiness endpoints
 
 Excluded:
 
 - real investigator or HolmesGPT integration
-- full dispatcher, lease, reconciliation, automatic retry, and restart recovery
-  workflows
+- restart reconciliation, automatic retry, timeout, and cancellation workflows
 - Kubernetes, cloud resources, deployment, or SRE Platform repository changes
 
 ## Local Run
@@ -73,7 +73,7 @@ Invoke-RestMethod `
   http://127.0.0.1:8000/v1/sre-investigations/validate
 ```
 
-Run one deterministic fake investigation:
+Queue one deterministic fake investigation:
 
 ```powershell
 $task = Invoke-RestMethod `
@@ -85,7 +85,22 @@ $task = Invoke-RestMethod `
 $task.task_state
 ```
 
-The expected task state after the fake investigation is
+The accepted task is persisted in `READY`; intake does not create an attempt,
+verify capabilities, or invoke an executor.
+
+Run one bounded dispatcher tick:
+
+```powershell
+$tick = Invoke-RestMethod `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"lease_owner":"local-tick-001"}' `
+  http://127.0.0.1:8000/internal/dispatch/tick
+
+$tick
+```
+
+The expected task state after the successful fake execution is
 `AWAITING_HUMAN_REVIEW`.
 
 Inspect task state:
@@ -114,6 +129,9 @@ Invoke-RestMethod `
   "http://127.0.0.1:8000/v1/sre-investigations/$($task.task_id)/human-review"
 ```
 
+The retry decision returns the task to `READY`; run another dispatcher tick to
+create and execute its new attempt.
+
 Retry an eligible task that has returned to `READY` after a failed attempt:
 
 ```powershell
@@ -124,10 +142,21 @@ Invoke-RestMethod `
   "http://127.0.0.1:8000/v1/sre-investigations/$($task.task_id)/retry"
 ```
 
+This operator retry only records a durable decision while the task remains
+`READY`; it also requires a subsequent dispatcher tick.
+
 Run tests:
 
 ```powershell
 python -m pytest
+```
+
+Run the PostgreSQL dispatcher integration tests against an explicitly selected
+local database:
+
+```powershell
+$env:SRE_CONTROL_PLANE_TEST_DATABASE_URL = "postgresql+psycopg://sre_control_plane:sre_control_plane@localhost:5432/sre_control_plane"
+python -m pytest -m postgresql_integration
 ```
 
 ## Readiness Semantics
@@ -147,11 +176,26 @@ secret-reading capabilities. It never accesses external systems.
 
 ## Workflow Boundary
 
-`POST /v1/sre-investigations` accepts only the canonical MVP request shape,
-persists one task and first attempt, verifies fake executor capabilities,
-records transition rows, invokes the fake executor once, validates the
-normalized result, persists the result, and stops the task at
-`AWAITING_HUMAN_REVIEW`.
+`POST /v1/sre-investigations` accepts only the canonical MVP request shape and
+persists one `READY` task. It does not create an attempt or call the fake
+executor. A retry request and a human `retry` decision also only persist
+retry-eligible work in `READY`.
+
+`POST /internal/dispatch/tick` is a short, bounded orchestration operation. It
+uses the durable `first_sre_dispatch` lease row to atomically claim the oldest
+`READY` task, increments its monotonic fencing token, records a `CREATED`
+attempt, then commits and releases the database lock before capability
+verification. After a successful fail-closed capability check, it records the
+durable invocation intent before calling the fake executor. The owner updates
+the lease heartbeat and expiry while it persists the bounded handshake. A
+non-expired lease prevents a competing tick from claiming work. The current
+owner and fencing token are verified before capability, dispatch, and result
+state is persisted, so an obsolete owner cannot write a late outcome.
+
+This first dispatcher does not implement restart reconciliation. An expired
+lease still associated with a task or attempt returns
+`expired_lease_requires_reconciliation` and does not dispatch, retry, or alter
+the in-flight state automatically.
 
 Repeated submission of the same `request_id` with the same payload returns the
 existing task. A repeated operational event with the same `signal.fingerprint`
@@ -162,28 +206,32 @@ The workflow records deterministic failure states when the fake executor cannot
 accept dispatch or cannot return a schema-valid result. Dispatch failure moves
 the attempt to `DISPATCH_FAILED` and the task back to `READY`; malformed or
 identity-mismatched results move the attempt to `FAILED` and the task back to
-`READY`. A result is persisted only when its `task_id`, `attempt_id`, and
-`executor_id` match the current workflow identity.
+`READY`. A task with a terminal non-success attempt is not dispatch-eligible
+again until an operator or human reviewer records an explicit retry decision.
+A result is persisted only when its `task_id`, `attempt_id`, and `executor_id`
+match the current workflow identity.
 
 The human-review endpoint accepts explicit `complete`, `reject`, or `retry`
 decisions while the task is in `AWAITING_HUMAN_REVIEW`. `complete` transitions
 the task to `COMPLETED`; `reject` transitions it to terminal `FAILED`; `retry`
-requires a `retry_id`, records the human review, transitions the task back to
-`READY`, creates a new attempt, repeats capability verification, and runs the
-fake executor again.
+requires a `retry_id`, records the human review, and transitions the task back
+to `READY`. The next dispatcher tick creates the new attempt, repeats
+capability verification, and invokes the fake executor.
 
 `POST /v1/sre-investigations/{task_id}/retry` allows an operator to retry a task
 that is already in `READY` after a terminal non-success attempt. Every accepted
-retry creates a new `attempt_id` and keeps previous attempts, transitions,
+retry decision is durable; the following dispatcher tick creates a new
+`attempt_id` and keeps previous attempts, transitions,
 capability checks, retry decisions, reviews, and results. Reusing the same
 `retry_id` with the same task, actor, rationale, source, decision type, and
 GitHub reference returns the existing task state and creates no additional
 attempt. Reusing it with different decision semantics returns HTTP `409`.
 Terminal tasks and tasks with active attempts reject retry requests.
 
-Capability verification exceptions fail closed. The retry decision, new
-attempt, rejected capability check, and terminal `CAPABILITY_REJECTED` attempt
-state remain durable while the task remains retry-eligible in `READY`.
+Capability verification exceptions fail closed. The new attempt, rejected
+capability check, and terminal `CAPABILITY_REJECTED` attempt state remain
+durable while the task remains retry-eligible in `READY`. When the attempt was
+claimed from an explicit retry, its retry decision remains durable as well.
 
 Task responses retain the compatible latest `attempt`, `result`, and
 `attempt_transitions` fields. They also expose ordered `attempts`, `results`,
