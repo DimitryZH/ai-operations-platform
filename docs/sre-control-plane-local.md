@@ -200,14 +200,22 @@ then commits before calling the executor's status lookup by the durable
 lease and cannot claim another attempt while status lookup is in progress.
 
 A confirmed `accepted`, `queued`, or `running` executor status preserves the
-same attempt, renews its recovered lease, and blocks new dispatch. A confirmed
-schema-valid result is persisted as `SUCCEEDED` and moves the task to
-`AWAITING_HUMAN_REVIEW`. Confirmed executor `failed`, `timed_out`, or
-`cancelled` statuses transition the attempt to the matching terminal state and
-return the parent task to `READY`. The terminal `STALE` state is used when the
+same attempt, renews its recovered lease, and blocks new dispatch. The adapter
+status contract distinguishes `dispatch_failed` from `failed`: a confirmed
+`dispatch_failed` status for a `CAPABILITY_CHECKED` attempt becomes terminal
+`DISPATCH_FAILED`; a contradictory dispatch failure after acceptance is
+treated as `STALE`. A schema-valid `succeeded` or `partial` result is persisted
+as `SUCCEEDED` and moves the task to `AWAITING_HUMAN_REVIEW`. A schema-valid
+`failed` result is retained as audit evidence, transitions the attempt to
+terminal `FAILED`, and returns the task to `READY`. Confirmed executor
+`failed`, `timed_out`, or `cancelled` statuses transition the attempt to the
+matching terminal state and return the parent task to `READY`. The terminal
+`STALE` state is used when the
 invocation identity is missing, status lookup is unavailable or malformed, the
 executor reports `stale`, or a confirmed success cannot produce a schema-valid
-result. In every non-success terminal outcome the recovered lease is released.
+result. Status and result payloads are revalidated against the canonical
+schemas before persistence. In every non-success terminal outcome the recovered
+lease is released.
 
 Reconciliation never creates a replacement attempt. A task returned to `READY`
 after `FAILED`, `TIMED_OUT`, `CANCELLED`, or `STALE` remains ineligible for
