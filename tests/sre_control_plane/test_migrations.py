@@ -135,7 +135,7 @@ def test_revision_ids_fit_alembic_version_column() -> None:
 
 
 @pytest.mark.postgresql_integration
-def test_postgresql_upgrade_from_initial_revision_to_head() -> None:
+def test_postgresql_upgrade_from_initial_revision_to_head(monkeypatch) -> None:
     database_url = os.environ.get(POSTGRES_TEST_URL)
     if database_url is None:
         pytest.skip(f"{POSTGRES_TEST_URL} is not configured")
@@ -152,14 +152,23 @@ def test_postgresql_upgrade_from_initial_revision_to_head() -> None:
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
     config.set_main_option("sqlalchemy.url", migration_url_text.replace("%", "%%"))
+    config.set_main_option("version_table_schema", schema_name)
+    monkeypatch.setenv("DATABASE_URL", migration_url_text)
     try:
         command.upgrade(config, "0001_initial_sre_control_plane")
         command.upgrade(config, "head")
         verification_engine = create_engine(migration_url, pool_pre_ping=True)
         try:
             with verification_engine.connect() as connection:
-                revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-            columns = {column["name"] for column in inspect(verification_engine).get_columns("github_publications")}
+                revision = connection.scalar(
+                    text(f"SELECT version_num FROM {schema_name}.alembic_version")
+                )
+            columns = {
+                column["name"]
+                for column in inspect(verification_engine).get_columns(
+                    "github_publications", schema=schema_name
+                )
+            }
         finally:
             verification_engine.dispose()
     finally:
