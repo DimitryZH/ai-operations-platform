@@ -60,8 +60,8 @@ from sre_control_plane.persistence import (
 from sre_control_plane.publisher import (
     FakePublisher,
     PublicationRequest,
+    PublicationError,
     Publisher,
-    validate_publication_receipt,
 )
 from sre_control_plane.states import (
     ACTIVE_ATTEMPT_STATES,
@@ -990,6 +990,9 @@ class SreInvestigationWorkflow:
         with self._dispatch_metrics_lock:
             return dict(self._dispatch_metrics)
 
+    def publication_metrics(self) -> dict[str, int]:
+        return self._publisher.metrics()
+
     def _increment_dispatch_metric(self, name: str) -> None:
         with self._dispatch_metrics_lock:
             self._dispatch_metrics[name] += 1
@@ -1382,7 +1385,7 @@ class SreInvestigationWorkflow:
             publication_payload = publication_payload_for_result(result.payload, stored.artifact_uri)
             payload_sha256 = hashlib.sha256(canonical_json(publication_payload).encode("utf-8")).hexdigest()
             self._set_publication_payload_hash(publication_id, claim_token, payload_sha256)
-            receipt = validate_publication_receipt(
+            receipt = self._publisher.validate_receipt(
                 self._publisher.publish(
                     PublicationRequest(
                         idempotency_key=request.idempotency_key,
@@ -1392,9 +1395,12 @@ class SreInvestigationWorkflow:
                 )
             )
         except Exception as exc:
+            error_category = (
+                exc.error_category if isinstance(exc, PublicationError) else type(exc).__name__[:64]
+            )
             return self._finalize_publication(
                 task_id, publication_id, claim_token, "FAILED", None,
-                f"{type(exc).__name__}"[:64], "publication_failed_retryable",
+                error_category, "publication_failed_retryable",
             )
 
         return self._finalize_publication(

@@ -16,7 +16,12 @@ from sre_control_plane.contracts import InvestigationRequest
 from sre_control_plane.evidence import LocalFilesystemEvidenceStore
 from sre_control_plane.executor import AttemptStatus, ExecutorStatus, StartInvestigationCommand
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
-from sre_control_plane.publisher import FakePublisher
+from sre_control_plane.publisher import (
+    FakePublisher,
+    GitHubHttpResponse,
+    GitHubPublicationConfig,
+    GitHubPublisher,
+)
 from sre_control_plane.persistence import (
     AttemptRecord,
     Base,
@@ -247,6 +252,46 @@ def test_concurrent_publication_requests_share_a_fenced_durable_claim(
     assert intent.active_claim_token is None
 
 
+@pytest.mark.postgresql_integration
+def test_postgresql_github_publication_adapter_is_concurrent_and_append_only(
+    postgres_session_factory,
+    tmp_path: Path,
+) -> None:
+    transport = BlockingGitHubTransport()
+    publisher = GitHubPublisher(
+        GitHubPublicationConfig(
+            repository="DimitryZH/ai-operations-platform",
+            issue_number=41,
+            token="test-token",
+        ),
+        transport,
+    )
+    workflow = SreInvestigationWorkflow(
+        postgres_session_factory,
+        FakeInvestigationExecutor(),
+        evidence_store=LocalFilesystemEvidenceStore(tmp_path / "github-evidence"),
+        publisher=publisher,
+    )
+    task = workflow.submit_request(request_example("postgres-github-publication"))
+    workflow.run_dispatch_tick("postgres-github-evidence-tick")
+    request = EvidencePublicationRequest(idempotency_key="postgres-github-publication")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(workflow.publish_evidence, task.task_id, request)
+        assert transport.post_started.wait(timeout=5)
+        second = pool.submit(workflow.publish_evidence, task.task_id, request)
+        pending_view = second.result(timeout=5)
+        assert pending_view.publications[0].status == "PENDING"
+        transport.release_post.set()
+        completed_view = first.result(timeout=5)
+
+    assert transport.post_calls == 1
+    assert completed_view.publications[0].status == "PUBLISHED"
+    assert completed_view.publications[0].github_reference.endswith("#issuecomment-101")
+    with postgres_session_factory() as session:
+        assert len(list(session.scalars(select(GitHubPublicationRecord)))) == 1
+
+
 class BlockingCapabilityExecutor(FakeInvestigationExecutor):
     def __init__(self) -> None:
         super().__init__()
@@ -273,6 +318,28 @@ class BlockingPublisher(FakePublisher):
         if not self.release.wait(timeout=5):
             raise TimeoutError("test did not release fake publisher")
         return super().publish(request)
+
+
+class BlockingGitHubTransport:
+    def __init__(self) -> None:
+        self.post_started = threading.Event()
+        self.release_post = threading.Event()
+        self.post_calls = 0
+
+    def request(self, method, path, headers, body):
+        if method == "GET":
+            return GitHubHttpResponse(200, {}, b"[]")
+        self.post_calls += 1
+        self.post_started.set()
+        if not self.release_post.wait(timeout=5):
+            raise TimeoutError("test did not release GitHub publisher")
+        comment_body = json.loads(body)["body"]
+        response = {
+            "id": 101,
+            "html_url": "https://github.com/DimitryZH/ai-operations-platform/issues/41#issuecomment-101",
+            "body": comment_body,
+        }
+        return GitHubHttpResponse(201, {}, json.dumps(response).encode("utf-8"))
 
 
 class BlockingStatusExecutor(FakeInvestigationExecutor):

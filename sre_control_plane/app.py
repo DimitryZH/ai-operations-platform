@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from fastapi import FastAPI, HTTPException, Response
 
-from sre_control_plane.config import Settings, load_settings
+from sre_control_plane.config import Settings, create_publisher, load_settings
 from sre_control_plane.contracts import InvestigationRequest
 from sre_control_plane.database import create_session_factory
 from sre_control_plane.executor import CapabilityReport
@@ -43,6 +43,7 @@ def create_app(
     active_workflow = workflow or SreInvestigationWorkflow(
         create_session_factory(active_settings.database_url),
         fake_executor,
+        publisher=create_publisher(active_settings),
     )
 
     app = FastAPI(
@@ -65,6 +66,7 @@ def create_app(
     @app.get("/metrics")
     def metrics() -> Response:
         dispatch_metrics = active_workflow.dispatch_metrics()
+        publication_metrics = active_workflow.publication_metrics()
         body = (
             "# HELP sre_control_plane_info SRE control-plane skeleton build info\n"
             "# TYPE sre_control_plane_info gauge\n"
@@ -81,6 +83,13 @@ def create_app(
             "# HELP sre_control_plane_stale_fencing_total Obsolete outcomes ignored\n"
             "# TYPE sre_control_plane_stale_fencing_total counter\n"
             f"sre_control_plane_stale_fencing_total {dispatch_metrics['stale_fencing_total']}\n"
+            "# HELP sre_control_plane_publication_calls_total Publication adapter calls\n"
+            "# TYPE sre_control_plane_publication_calls_total counter\n"
+            f"sre_control_plane_publication_calls_total {publication_metrics['calls_total']}\n"
+            "# HELP sre_control_plane_publication_failures_total Publication adapter failures by classification\n"
+            "# TYPE sre_control_plane_publication_failures_total counter\n"
+            f"sre_control_plane_publication_failures_total{{classification=\"retryable\"}} {publication_metrics['retryable_failures_total']}\n"
+            f"sre_control_plane_publication_failures_total{{classification=\"terminal\"}} {publication_metrics['terminal_failures_total']}\n"
         )
         return Response(content=body, media_type="text/plain; version=0.0.4")
 

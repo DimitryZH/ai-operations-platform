@@ -2,7 +2,7 @@
 
 This document describes the first locally runnable skeleton for the accepted
 SRE investigation MVP contract. It does not connect to HolmesGPT, Kubernetes,
-Prometheus, real GitHub publication, cloud resources, or the SRE Platform runtime.
+Prometheus, cloud resources, or the SRE Platform runtime.
 
 ## Scope
 
@@ -20,6 +20,8 @@ Included:
 - explicit operator-controlled retry that queues retry-eligible local fake tasks
 - a deterministic sanitized JSON evidence package through a bounded local filesystem adapter
 - durable evidence metadata and local fake-publication audit history
+- an opt-in, single-target GitHub Issue publication adapter behind the
+  product-neutral publisher interface
 - liveness and readiness endpoints
 
 Excluded:
@@ -294,3 +296,42 @@ investigation result, task state, attempt state, or lifecycle transitions.
 Reusing the same idempotency key with the same semantic payload reuses the
 existing artifact/publication reference. Reusing it for another task, attempt,
 or payload returns a conflict.
+
+### GitHub Publication Adapter
+
+`FakePublisher` remains the default. The GitHub adapter is selected only when
+all of these environment variables are present; any partial configuration fails
+closed during startup:
+
+```powershell
+$env:SRE_CONTROL_PLANE_GITHUB_REPOSITORY = "owner/repository"
+$env:SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER = "123"
+$env:SRE_CONTROL_PLANE_GITHUB_TOKEN = "provided-outside-the-repository"
+```
+
+The adapter can call only the configured `owner/repository` and Issue number.
+It lists at most 100 comments, writes a deterministic Markdown summary bounded
+to 16 KiB, and includes a hidden marker derived from the publication
+idempotency key and semantic payload SHA-256. A matching marker reuses the
+existing comment; a marker for the same key with another payload fails closed.
+Returned comment ID, body, URL, repository path, Issue number, and URL fragment
+are validated before a durable reference is recorded.
+
+Authentication, authorization, validation, malformed-response, and unexpected
+target failures are terminal. Rate-limit, network, timeout, and server failures
+are retryable. Both classes persist append-only failure history without changing
+the investigation result or task/attempt lifecycle. Metrics expose publication
+calls and retryable or terminal failure counters; structured logs omit tokens.
+
+The live smoke test is deliberately disabled by default. It requires an
+explicit operator approval immediately before use and all three variables above
+plus:
+
+```powershell
+$env:SRE_CONTROL_PLANE_GITHUB_LIVE_SMOKE = "1"
+python -m pytest -m github_live_smoke
+```
+
+It writes only one bounded marked comment to the configured dedicated Issue and
+repeats the request to verify reuse. Do not set this opt-in without the required
+human approval.
