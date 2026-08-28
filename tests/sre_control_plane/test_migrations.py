@@ -57,6 +57,7 @@ def test_initial_migration_creates_control_plane_tables(
         "executor_invocations",
         "evidence_artifacts",
         "github_publications",
+        "publication_intents",
         "human_reviews",
         "retry_decisions",
         "control_locks",
@@ -65,7 +66,7 @@ def test_initial_migration_creates_control_plane_tables(
     } <= tables
     assert "decision_type" in retry_decision_columns
     assert "fencing_token" in task_transition_columns
-    assert {"payload_sha256", "error_category"} <= publication_columns
+    assert {"payload_sha256", "error_category", "publication_intent_id", "attempt_sequence"} <= publication_columns
     assert dispatch_lease_name == "first_sre_dispatch"
 
 
@@ -134,6 +135,61 @@ def test_revision_ids_fit_alembic_version_column() -> None:
     assert all(isinstance(revision, str) and len(revision) <= 32 for revision in revisions)
 
 
+def test_populated_evidence_upgrade_and_downgrade_preserve_legacy_rows(tmp_path: Path, monkeypatch) -> None:
+    database_url = f"sqlite:///{tmp_path / 'populated-control-plane.db'}"
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    config = Config(str(ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(ROOT / "alembic"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.upgrade(config, "0005_add_dispatch_lease_fencing")
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO requests (id, request_id, payload, status) "
+                "VALUES (1, 'legacy-request', '{}', 'ACCEPTED')"
+            ))
+            connection.execute(text(
+                "INSERT INTO tasks (id, task_id, request_id, state) "
+                "VALUES (1, 'legacy-task', 1, 'AWAITING_HUMAN_REVIEW')"
+            ))
+            connection.execute(text(
+                "INSERT INTO attempts (id, attempt_id, task_id, state) "
+                "VALUES (1, 'legacy-attempt', 1, 'SUCCEEDED')"
+            ))
+            connection.execute(text(
+                "INSERT INTO evidence_artifacts "
+                "(id, attempt_id, artifact_uri, sha256, content_type, sanitization_status, retention_policy) "
+                "VALUES (1, 1, 'local://evidence/old.json', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', "
+                "'application/json', 'SANITIZED', 'local-development-30d'), "
+                "(2, 1, 'local://evidence/new.json', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', "
+                "'application/json', 'SANITIZED', 'local-development-30d')"
+            ))
+            connection.execute(text(
+                "INSERT INTO github_publications "
+                "(id, task_id, attempt_id, idempotency_key, github_reference, status) "
+                "VALUES (1, 1, 1, 'legacy-publication', 'fake://publication/aaaaaaaaaaaaaaaa', 'PUBLISHED')"
+            ))
+        command.upgrade(config, "head")
+        with engine.begin() as connection:
+            assert connection.scalar(text("SELECT count(*) FROM evidence_artifacts")) == 1
+            assert connection.scalar(text("SELECT sha256 FROM evidence_artifacts")) == "b" * 64
+            intent_id = connection.scalar(text("SELECT id FROM publication_intents"))
+            connection.execute(text(
+                "INSERT INTO github_publications "
+                "(task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
+                "github_reference, payload_sha256, status) "
+                "VALUES (1, 1, :intent_id, 'legacy-publication', 2, NULL, "
+                "'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'PENDING')"
+            ), {"intent_id": intent_id})
+        command.downgrade(config, "0005_add_dispatch_lease_fencing")
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT count(*) FROM github_publications")) == 1
+            assert connection.scalar(text("SELECT github_reference IS NOT NULL FROM github_publications")) == 1
+    finally:
+        engine.dispose()
+
+
 @pytest.mark.postgresql_integration
 def test_postgresql_upgrade_from_initial_revision_to_head(monkeypatch) -> None:
     database_url = os.environ.get(POSTGRES_TEST_URL)
@@ -177,4 +233,75 @@ def test_postgresql_upgrade_from_initial_revision_to_head(monkeypatch) -> None:
         admin_engine.dispose()
 
     assert revision == "0006_evidence_publication"
-    assert {"payload_sha256", "error_category"} <= columns
+    assert {"payload_sha256", "error_category", "publication_intent_id", "attempt_sequence"} <= columns
+
+
+@pytest.mark.postgresql_integration
+def test_postgresql_populated_evidence_upgrade_and_downgrade(monkeypatch) -> None:
+    database_url = os.environ.get(POSTGRES_TEST_URL)
+    if database_url is None:
+        pytest.skip(f"{POSTGRES_TEST_URL} is not configured")
+
+    schema_name = f"sre_migration_populated_{uuid.uuid4().hex}"
+    admin_engine = create_engine(database_url, pool_pre_ping=True)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f"CREATE SCHEMA {schema_name}"))
+    migration_url = make_url(database_url).update_query_dict({"options": f"-csearch_path={schema_name}"})
+    migration_url_text = migration_url.render_as_string(hide_password=False)
+    config = Config(str(ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(ROOT / "alembic"))
+    config.set_main_option("sqlalchemy.url", migration_url_text.replace("%", "%%"))
+    config.set_main_option("version_table_schema", schema_name)
+    monkeypatch.setenv("DATABASE_URL", migration_url_text)
+    try:
+        command.upgrade(config, "0005_add_dispatch_lease_fencing")
+        verification_engine = create_engine(migration_url, pool_pre_ping=True)
+        try:
+            with verification_engine.begin() as connection:
+                connection.execute(text(
+                    "INSERT INTO requests (id, request_id, payload, status) "
+                    "VALUES (1, 'legacy-request', '{}'::json, 'ACCEPTED')"
+                ))
+                connection.execute(text(
+                    "INSERT INTO tasks (id, task_id, request_id, state) "
+                    "VALUES (1, 'legacy-task', 1, 'AWAITING_HUMAN_REVIEW')"
+                ))
+                connection.execute(text(
+                    "INSERT INTO attempts (id, attempt_id, task_id, state) "
+                    "VALUES (1, 'legacy-attempt', 1, 'SUCCEEDED')"
+                ))
+                connection.execute(text(
+                    "INSERT INTO evidence_artifacts "
+                    "(id, attempt_id, artifact_uri, sha256, content_type, sanitization_status, retention_policy) "
+                    "VALUES (1, 1, 'local://evidence/old.json', repeat('a', 64), 'application/json', "
+                    "'SANITIZED', 'local-development-30d'), "
+                    "(2, 1, 'local://evidence/new.json', repeat('b', 64), 'application/json', "
+                    "'SANITIZED', 'local-development-30d')"
+                ))
+                connection.execute(text(
+                    "INSERT INTO github_publications "
+                    "(id, task_id, attempt_id, idempotency_key, github_reference, status) "
+                    "VALUES (1, 1, 1, 'legacy-publication', 'fake://publication/aaaaaaaaaaaaaaaa', 'PUBLISHED')"
+                ))
+            command.upgrade(config, "head")
+            with verification_engine.begin() as connection:
+                assert connection.scalar(text("SELECT count(*) FROM evidence_artifacts")) == 1
+                assert connection.scalar(text("SELECT sha256 FROM evidence_artifacts")) == "b" * 64
+                intent_id = connection.scalar(text("SELECT id FROM publication_intents"))
+                connection.execute(text(
+                    "INSERT INTO github_publications "
+                    "(task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
+                    "github_reference, payload_sha256, status) "
+                    "VALUES (1, 1, :intent_id, 'legacy-publication', 2, NULL, repeat('c', 64), 'PENDING')"
+                ), {"intent_id": intent_id})
+            command.downgrade(config, "0005_add_dispatch_lease_fencing")
+            with verification_engine.connect() as connection:
+                assert connection.scalar(text("SELECT count(*) FROM github_publications")) == 1
+                assert connection.scalar(text("SELECT github_reference IS NOT NULL FROM github_publications"))
+                assert "publication_intents" not in inspect(verification_engine).get_table_names(schema=schema_name)
+        finally:
+            verification_engine.dispose()
+    finally:
+        with admin_engine.begin() as connection:
+            connection.execute(text(f"DROP SCHEMA {schema_name} CASCADE"))
+        admin_engine.dispose()

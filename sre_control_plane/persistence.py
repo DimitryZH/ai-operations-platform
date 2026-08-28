@@ -178,7 +178,11 @@ class GitHubPublicationRecord(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False)
     attempt_id: Mapped[int | None] = mapped_column(ForeignKey("attempts.id"), nullable=True)
+    publication_intent_id: Mapped[int] = mapped_column(
+        ForeignKey("publication_intents.id"), nullable=False
+    )
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    attempt_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     github_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
     payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -186,7 +190,31 @@ class GitHubPublicationRecord(Base):
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("idempotency_key", name="uq_github_publications_idempotency_key"),
+        UniqueConstraint(
+            "publication_intent_id",
+            "attempt_sequence",
+            name="uq_github_publications_intent_sequence",
+        ),
+    )
+
+
+class PublicationIntentRecord(Base):
+    __tablename__ = "publication_intents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    attempt_id: Mapped[int] = mapped_column(ForeignKey("attempts.id"), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    fencing_token: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    active_claim_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    github_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_publication_intents_idempotency_key"),
     )
 
 

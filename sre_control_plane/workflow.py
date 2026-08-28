@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -11,7 +12,8 @@ from threading import Lock
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from sre_control_plane.contracts import (
@@ -27,9 +29,11 @@ from sre_control_plane.contracts import (
 from sre_control_plane.evidence import (
     EVIDENCE_CONTENT_TYPE,
     EvidenceStore,
+    EvidenceStoreError,
     LocalFilesystemEvidenceStore,
     StoredEvidence,
     build_evidence_package,
+    validate_stored_evidence,
 )
 from sre_control_plane.executor import (
     CapabilityReport,
@@ -47,12 +51,18 @@ from sre_control_plane.persistence import (
     GitHubPublicationRecord,
     HumanReviewRecord,
     InvestigationResultRecord,
+    PublicationIntentRecord,
     RequestRecord,
     RetryDecisionRecord,
     TaskRecord,
     TaskTransitionRecord,
 )
-from sre_control_plane.publisher import FakePublisher, PublicationRequest, Publisher
+from sre_control_plane.publisher import (
+    FakePublisher,
+    PublicationRequest,
+    Publisher,
+    validate_publication_receipt,
+)
 from sre_control_plane.states import (
     ACTIVE_ATTEMPT_STATES,
     TERMINAL_ATTEMPT_STATES,
@@ -254,6 +264,7 @@ class PublicationHistoryView(BaseModel):
 
     attempt_id: str | None
     idempotency_key: str
+    attempt_sequence: int
     payload_sha256: str
     status: str
     github_reference: str | None
@@ -1356,88 +1367,136 @@ class SreInvestigationWorkflow:
                 raise TaskNotFound(f"task not found: {task_id}")
             attempt, result, package_payload = self._publication_snapshot(session, task)
 
-        package = build_evidence_package(package_payload)
-        stored = self._store_evidence(task_id, attempt.attempt_id, package)
-        publication_payload = publication_payload_for_result(result.payload, stored.artifact_uri)
-        payload_sha256 = hashlib.sha256(
-            canonical_json(publication_payload).encode("utf-8")
-        ).hexdigest()
-
-        with self._session_factory.begin() as session:
-            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
-            attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt.attempt_id))
-            if task is None or attempt is None:
-                raise TaskNotFound("task or attempt disappeared during publication")
-            publication = session.scalar(
-                select(GitHubPublicationRecord).where(
-                    GitHubPublicationRecord.idempotency_key == request.idempotency_key
-                )
-            )
-            if publication is not None:
-                if (
-                    publication.task_id != task.id
-                    or publication.attempt_id != attempt.id
-                    or publication.payload_sha256 != payload_sha256
-                ):
-                    raise PublicationConflict(
-                        "publication idempotency_key already exists with different semantics"
-                    )
-                if publication.status == "PUBLISHED":
-                    return self._task_view(session, task)
-                publication.status = "PENDING"
-                publication.error_category = None
-            else:
-                publication = GitHubPublicationRecord(
-                    task_id=task.id,
-                    attempt_id=attempt.id,
-                    idempotency_key=request.idempotency_key,
-                    payload_sha256=payload_sha256,
-                    github_reference=None,
-                    status="PENDING",
-                )
-                session.add(publication)
+        # Persist the intent and acquire its durable claim before any adapter call.
+        package_hash = hashlib.sha256(canonical_json(package_payload).encode("utf-8")).hexdigest()
+        claim = self._claim_publication(
+            task_id, attempt.attempt_id, request.idempotency_key, package_hash
+        )
+        if claim is None:
+            return self.get_task(task_id)
+        claim_token, publication_id = claim
 
         try:
-            receipt = self._publisher.publish(
-                PublicationRequest(
-                    idempotency_key=request.idempotency_key,
-                    payload_sha256=payload_sha256,
-                    payload=publication_payload,
+            package = build_evidence_package(package_payload)
+            stored = self._store_evidence(attempt.attempt_id, package)
+            publication_payload = publication_payload_for_result(result.payload, stored.artifact_uri)
+            payload_sha256 = hashlib.sha256(canonical_json(publication_payload).encode("utf-8")).hexdigest()
+            self._set_publication_payload_hash(publication_id, claim_token, payload_sha256)
+            receipt = validate_publication_receipt(
+                self._publisher.publish(
+                    PublicationRequest(
+                        idempotency_key=request.idempotency_key,
+                        payload_sha256=payload_sha256,
+                        payload=publication_payload,
+                    )
                 )
             )
         except Exception as exc:
-            with self._session_factory.begin() as session:
-                task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
-                publication = session.scalar(
-                    select(GitHubPublicationRecord).where(
-                        GitHubPublicationRecord.idempotency_key == request.idempotency_key
-                    )
-                )
-                if task is None or publication is None:
-                    raise TaskNotFound("task or publication disappeared during failure handling") from exc
-                publication.status = "FAILED"
-                publication.error_category = type(exc).__name__[:64]
-                return self._task_view(
-                    session,
-                    task,
-                    failure_reason="publication_failed_retryable",
-                )
+            return self._finalize_publication(
+                task_id, publication_id, claim_token, "FAILED", None,
+                f"{type(exc).__name__}"[:64], "publication_failed_retryable",
+            )
 
+        return self._finalize_publication(
+            task_id, publication_id, claim_token, "PUBLISHED", receipt.reference, None, None
+        )
+
+    def _set_publication_payload_hash(
+        self, publication_id: int, claim_token: str, payload_sha256: str
+    ) -> None:
+        with self._session_factory.begin() as session:
+            publication = session.get(GitHubPublicationRecord, publication_id)
+            if publication is None:
+                raise TaskNotFound("publication disappeared before publisher invocation")
+            intent = session.get(PublicationIntentRecord, publication.publication_intent_id)
+            if intent is None or intent.active_claim_token != claim_token:
+                raise PublicationConflict("publication claim was superseded before publisher invocation")
+            publication.payload_sha256 = payload_sha256
+
+    def _claim_publication(
+        self, task_id: str, attempt_id: str, idempotency_key: str, payload_sha256: str
+    ) -> tuple[str, int] | None:
+        """Create or lock a logical publication; external work is deliberately outside this transaction."""
+        for _ in range(2):
+            try:
+                with self._session_factory.begin() as session:
+                    task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+                    attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
+                    if task is None or attempt is None:
+                        raise TaskNotFound("task or attempt disappeared during publication")
+                    intent = session.scalar(
+                        select(PublicationIntentRecord)
+                        .where(PublicationIntentRecord.idempotency_key == idempotency_key)
+                        .with_for_update()
+                    )
+                    if intent is None:
+                        intent = PublicationIntentRecord(
+                            task_id=task.id, attempt_id=attempt.id,
+                            idempotency_key=idempotency_key, payload_sha256=payload_sha256,
+                            status="PENDING", fencing_token=0, active_claim_token=None,
+                            github_reference=None,
+                        )
+                        session.add(intent)
+                        session.flush()
+                    elif (
+                        intent.task_id != task.id or intent.attempt_id != attempt.id
+                        or intent.payload_sha256 != payload_sha256
+                    ):
+                        raise PublicationConflict(
+                            "publication idempotency_key already exists with different semantics"
+                        )
+                    if intent.status == "PUBLISHED" or intent.active_claim_token is not None:
+                        return None
+                    intent.fencing_token += 1
+                    claim_token = uuid.uuid4().hex
+                    intent.active_claim_token = claim_token
+                    sequence = (session.scalar(
+                        select(func.max(GitHubPublicationRecord.attempt_sequence)).where(
+                            GitHubPublicationRecord.publication_intent_id == intent.id
+                        )
+                    ) or 0) + 1
+                    publication = GitHubPublicationRecord(
+                        task_id=task.id, attempt_id=attempt.id, publication_intent_id=intent.id,
+                        idempotency_key=idempotency_key, attempt_sequence=sequence,
+                        payload_sha256=payload_sha256, github_reference=None, status="PENDING",
+                        error_category=None,
+                    )
+                    session.add(publication)
+                    session.flush()
+                    return claim_token, publication.id
+            except IntegrityError:
+                # A competing creator won the intent unique key; read it on the next iteration.
+                continue
+        raise PublicationConflict("publication intent could not be claimed safely")
+
+    def _finalize_publication(
+        self, task_id: str, publication_id: int, claim_token: str, status: str,
+        reference: str | None, error_category: str | None, failure_reason: str | None,
+    ) -> TaskView:
         with self._session_factory.begin() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
-            publication = session.scalar(
-                select(GitHubPublicationRecord).where(
-                    GitHubPublicationRecord.idempotency_key == request.idempotency_key
-                )
-            )
+            publication = session.get(GitHubPublicationRecord, publication_id)
             if task is None or publication is None:
                 raise TaskNotFound("task or publication disappeared during completion handling")
-            publication.status = "PUBLISHED"
-            publication.github_reference = receipt.reference
-            publication.error_category = None
-            return self._task_view(session, task)
+            intent = session.scalar(
+                select(PublicationIntentRecord)
+                .where(PublicationIntentRecord.id == publication.publication_intent_id)
+                .with_for_update()
+            )
+            if intent is None:
+                raise TaskNotFound("publication intent disappeared during completion handling")
+            if intent.active_claim_token != claim_token or intent.status == "PUBLISHED":
+                return self._task_view(session, task)
+            publication.status = status
+            publication.github_reference = reference
+            publication.error_category = error_category
+            intent.active_claim_token = None
+            intent.status = status
+            if status == "PUBLISHED":
+                intent.github_reference = reference
+            return self._task_view(session, task, failure_reason=failure_reason)
 
-    def _store_evidence(self, task_id: str, attempt_id: str, package) -> StoredEvidence:
+    def _store_evidence(self, attempt_id: str, package) -> StoredEvidence:
         with self._session_factory() as session:
             attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
             if attempt is None:
@@ -1456,37 +1515,48 @@ class SreInvestigationWorkflow:
                     retention_policy=existing.retention_policy,
                 )
 
-        stored = self._evidence_store.store(package)
-        if (
-            stored.sha256 != package.sha256
-            or stored.content_type != EVIDENCE_CONTENT_TYPE
-            or stored.sanitization_status != "SANITIZED"
-        ):
-            raise PublicationConflict("evidence store returned invalid artifact metadata")
-        with self._session_factory.begin() as session:
-            attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
-            if attempt is None:
-                raise TaskNotFound(f"attempt not found: {attempt_id}")
-            existing = session.scalar(
-                select(EvidenceArtifactRecord).where(EvidenceArtifactRecord.attempt_id == attempt.id)
-            )
-            if existing is not None:
-                if existing.sha256 != package.sha256:
-                    raise PublicationConflict("attempt already has evidence with different content")
+        stored = validate_stored_evidence(self._evidence_store.store(package), package)
+        try:
+            with self._session_factory.begin() as session:
+                attempt = session.scalar(
+                    select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id)
+                )
+                if attempt is None:
+                    raise TaskNotFound(f"attempt not found: {attempt_id}")
+                existing = session.scalar(
+                    select(EvidenceArtifactRecord).where(EvidenceArtifactRecord.attempt_id == attempt.id)
+                )
+                if existing is not None:
+                    if existing.sha256 != package.sha256:
+                        raise PublicationConflict("attempt already has evidence with different content")
+                    return StoredEvidence(
+                        existing.artifact_uri, existing.sha256, existing.content_type,
+                        existing.sanitization_status, existing.retention_policy,
+                    )
+                session.add(
+                    EvidenceArtifactRecord(
+                        attempt_id=attempt.id,
+                        artifact_uri=stored.artifact_uri,
+                        sha256=stored.sha256,
+                        content_type=stored.content_type,
+                        sanitization_status=stored.sanitization_status,
+                        retention_policy=stored.retention_policy,
+                    )
+                )
+                session.flush()
+        except IntegrityError:
+            with self._session_factory() as session:
+                existing = session.scalar(
+                    select(EvidenceArtifactRecord).join(AttemptRecord).where(
+                        AttemptRecord.attempt_id == attempt_id
+                    )
+                )
+                if existing is None or existing.sha256 != package.sha256:
+                    raise PublicationConflict("concurrent evidence artifact has different content")
                 return StoredEvidence(
                     existing.artifact_uri, existing.sha256, existing.content_type,
                     existing.sanitization_status, existing.retention_policy,
                 )
-            session.add(
-                EvidenceArtifactRecord(
-                    attempt_id=attempt.id,
-                    artifact_uri=stored.artifact_uri,
-                    sha256=stored.sha256,
-                    content_type=stored.content_type,
-                    sanitization_status=stored.sanitization_status,
-                    retention_policy=stored.retention_policy,
-                )
-            )
         return stored
 
     def _publication_snapshot(
@@ -1840,6 +1910,7 @@ class SreInvestigationWorkflow:
                         else None
                     ),
                     idempotency_key=item.idempotency_key,
+                    attempt_sequence=item.attempt_sequence,
                     payload_sha256=item.payload_sha256,
                     status=item.status,
                     github_reference=item.github_reference,
