@@ -148,13 +148,14 @@ def test_postgresql_upgrade_from_initial_revision_to_head() -> None:
     migration_url = make_url(database_url).update_query_dict(
         {"options": f"-csearch_path={schema_name}"}
     )
+    migration_url_text = migration_url.render_as_string(hide_password=False)
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
-    config.set_main_option("sqlalchemy.url", str(migration_url).replace("%", "%%"))
+    config.set_main_option("sqlalchemy.url", migration_url_text.replace("%", "%%"))
     try:
         command.upgrade(config, "0001_initial_sre_control_plane")
         command.upgrade(config, "head")
-        verification_engine = create_engine(str(migration_url), pool_pre_ping=True)
+        verification_engine = create_engine(migration_url, pool_pre_ping=True)
         try:
             with verification_engine.connect() as connection:
                 revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
