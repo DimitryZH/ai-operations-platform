@@ -15,8 +15,10 @@ from sre_control_plane.workflow import (
     DuplicateRetryConflict,
     DispatchTickRequest,
     DispatchTickView,
+    EvidencePublicationRequest,
     HumanReviewRequest,
     InvalidStateTransition,
+    PublicationConflict,
     RetryRequest,
     SreInvestigationWorkflow,
     TaskNotFound,
@@ -102,6 +104,18 @@ def create_app(
             return active_workflow.get_task(task_id)
         except TaskNotFound as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(
+        "/v1/sre-investigations/{task_id}/evidence-publication",
+        response_model=TaskView,
+    )
+    def publish_evidence(task_id: str, publication: EvidencePublicationRequest) -> TaskView:
+        try:
+            return active_workflow.publish_evidence(task_id, publication)
+        except TaskNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (InvalidStateTransition, PublicationConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/v1/sre-investigations/{task_id}/retry", response_model=TaskView, status_code=201)
     def retry_investigation(task_id: str, retry: RetryRequest, response: Response) -> TaskView:

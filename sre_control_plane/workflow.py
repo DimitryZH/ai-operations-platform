@@ -3,14 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from pathlib import Path
 from threading import Lock
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from sre_control_plane.contracts import (
@@ -23,6 +26,15 @@ from sre_control_plane.contracts import (
     InvestigationResult,
     ResultStatus,
 )
+from sre_control_plane.evidence import (
+    EVIDENCE_CONTENT_TYPE,
+    EvidenceStore,
+    EvidenceStoreError,
+    LocalFilesystemEvidenceStore,
+    StoredEvidence,
+    build_evidence_package,
+    validate_stored_evidence,
+)
 from sre_control_plane.executor import (
     CapabilityReport,
     ExecutorStatus,
@@ -34,13 +46,22 @@ from sre_control_plane.persistence import (
     AttemptTransitionRecord,
     CapabilityCheckRecord,
     DispatchLeaseRecord,
+    EvidenceArtifactRecord,
     ExecutorInvocationRecord,
+    GitHubPublicationRecord,
     HumanReviewRecord,
     InvestigationResultRecord,
+    PublicationIntentRecord,
     RequestRecord,
     RetryDecisionRecord,
     TaskRecord,
     TaskTransitionRecord,
+)
+from sre_control_plane.publisher import (
+    FakePublisher,
+    PublicationRequest,
+    Publisher,
+    validate_publication_receipt,
 )
 from sre_control_plane.states import (
     ACTIVE_ATTEMPT_STATES,
@@ -131,6 +152,10 @@ class DuplicateRetryConflict(WorkflowError):
     pass
 
 
+class PublicationConflict(WorkflowError):
+    pass
+
+
 class TaskNotFound(WorkflowError):
     pass
 
@@ -172,6 +197,12 @@ class RetryRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=128)
     rationale: str = Field(min_length=1, max_length=2000)
     github_reference: str | None = Field(default=None, max_length=512)
+
+
+class EvidencePublicationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: str = Field(min_length=1, max_length=128)
 
 
 class TransitionView(BaseModel):
@@ -217,6 +248,49 @@ class HumanReviewView(BaseModel):
     github_reference: str | None
 
 
+class EvidenceArtifactView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_id: str
+    artifact_uri: str
+    sha256: str
+    content_type: str
+    sanitization_status: str
+    retention_policy: str
+
+
+class PublicationHistoryView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_id: str | None
+    idempotency_key: str
+    attempt_sequence: int
+    payload_sha256: str
+    status: str
+    github_reference: str | None
+    error_category: str | None
+
+
+class CapabilityCheckHistoryView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_id: str | None
+    executor_id: str
+    status: str
+
+
+class ExecutorInvocationHistoryView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_id: str
+    executor_id: str
+    operation: str
+    idempotency_key: str
+    fencing_token: int
+    status: str
+    error_category: str | None
+
+
 class TaskView(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -233,6 +307,10 @@ class TaskView(BaseModel):
     attempts: list[AttemptHistoryView] = Field(default_factory=list)
     results: list[ResultHistoryView] = Field(default_factory=list)
     reviews: list[HumanReviewView] = Field(default_factory=list)
+    evidence_artifacts: list[EvidenceArtifactView] = Field(default_factory=list)
+    publications: list[PublicationHistoryView] = Field(default_factory=list)
+    capability_checks: list[CapabilityCheckHistoryView] = Field(default_factory=list)
+    executor_invocations: list[ExecutorInvocationHistoryView] = Field(default_factory=list)
 
 
 class DispatchTickRequest(BaseModel):
@@ -287,9 +365,13 @@ class SreInvestigationWorkflow:
         self,
         session_factory: sessionmaker[Session],
         executor: InvestigationExecutor,
+        evidence_store: EvidenceStore | None = None,
+        publisher: Publisher | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._executor = executor
+        self._evidence_store = evidence_store or LocalFilesystemEvidenceStore(Path("var/evidence"))
+        self._publisher = publisher or FakePublisher()
         self._dispatch_metrics = {
             "ticks_total": 0,
             "claims_total": 0,
@@ -1273,6 +1355,244 @@ class SreInvestigationWorkflow:
             release_dispatch_lease(lease, utc_now())
             return self._task_view(session, task, failure_reason=reason)
 
+    def publish_evidence(
+        self,
+        task_id: str,
+        request: EvidencePublicationRequest,
+    ) -> TaskView:
+        """Package and publish completed fake evidence without mutating workflow state."""
+        with self._session_factory() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+            if task is None:
+                raise TaskNotFound(f"task not found: {task_id}")
+            attempt, result, package_payload = self._publication_snapshot(session, task)
+
+        # Persist the intent and acquire its durable claim before any adapter call.
+        package_hash = hashlib.sha256(canonical_json(package_payload).encode("utf-8")).hexdigest()
+        claim = self._claim_publication(
+            task_id, attempt.attempt_id, request.idempotency_key, package_hash
+        )
+        if claim is None:
+            return self.get_task(task_id)
+        claim_token, publication_id = claim
+
+        try:
+            package = build_evidence_package(package_payload)
+            stored = self._store_evidence(attempt.attempt_id, package)
+            publication_payload = publication_payload_for_result(result.payload, stored.artifact_uri)
+            payload_sha256 = hashlib.sha256(canonical_json(publication_payload).encode("utf-8")).hexdigest()
+            self._set_publication_payload_hash(publication_id, claim_token, payload_sha256)
+            receipt = validate_publication_receipt(
+                self._publisher.publish(
+                    PublicationRequest(
+                        idempotency_key=request.idempotency_key,
+                        payload_sha256=payload_sha256,
+                        payload=publication_payload,
+                    )
+                )
+            )
+        except Exception as exc:
+            return self._finalize_publication(
+                task_id, publication_id, claim_token, "FAILED", None,
+                f"{type(exc).__name__}"[:64], "publication_failed_retryable",
+            )
+
+        return self._finalize_publication(
+            task_id, publication_id, claim_token, "PUBLISHED", receipt.reference, None, None
+        )
+
+    def _set_publication_payload_hash(
+        self, publication_id: int, claim_token: str, payload_sha256: str
+    ) -> None:
+        with self._session_factory.begin() as session:
+            publication = session.get(GitHubPublicationRecord, publication_id)
+            if publication is None:
+                raise TaskNotFound("publication disappeared before publisher invocation")
+            intent = session.get(PublicationIntentRecord, publication.publication_intent_id)
+            if intent is None or intent.active_claim_token != claim_token:
+                raise PublicationConflict("publication claim was superseded before publisher invocation")
+            publication.payload_sha256 = payload_sha256
+
+    def _claim_publication(
+        self, task_id: str, attempt_id: str, idempotency_key: str, payload_sha256: str
+    ) -> tuple[str, int] | None:
+        """Create or lock a logical publication; external work is deliberately outside this transaction."""
+        for _ in range(2):
+            try:
+                with self._session_factory.begin() as session:
+                    task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+                    attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
+                    if task is None or attempt is None:
+                        raise TaskNotFound("task or attempt disappeared during publication")
+                    intent = session.scalar(
+                        select(PublicationIntentRecord)
+                        .where(PublicationIntentRecord.idempotency_key == idempotency_key)
+                        .with_for_update()
+                    )
+                    if intent is None:
+                        intent = PublicationIntentRecord(
+                            task_id=task.id, attempt_id=attempt.id,
+                            idempotency_key=idempotency_key, payload_sha256=payload_sha256,
+                            status="PENDING", fencing_token=0, active_claim_token=None,
+                            github_reference=None,
+                        )
+                        session.add(intent)
+                        session.flush()
+                    elif (
+                        intent.task_id != task.id or intent.attempt_id != attempt.id
+                        or intent.payload_sha256 != payload_sha256
+                    ):
+                        raise PublicationConflict(
+                            "publication idempotency_key already exists with different semantics"
+                        )
+                    if intent.status == "PUBLISHED" or intent.active_claim_token is not None:
+                        return None
+                    intent.fencing_token += 1
+                    claim_token = uuid.uuid4().hex
+                    intent.active_claim_token = claim_token
+                    sequence = (session.scalar(
+                        select(func.max(GitHubPublicationRecord.attempt_sequence)).where(
+                            GitHubPublicationRecord.publication_intent_id == intent.id
+                        )
+                    ) or 0) + 1
+                    publication = GitHubPublicationRecord(
+                        task_id=task.id, attempt_id=attempt.id, publication_intent_id=intent.id,
+                        idempotency_key=idempotency_key, attempt_sequence=sequence,
+                        payload_sha256=payload_sha256, github_reference=None, status="PENDING",
+                        error_category=None,
+                    )
+                    session.add(publication)
+                    session.flush()
+                    return claim_token, publication.id
+            except IntegrityError:
+                # A competing creator won the intent unique key; read it on the next iteration.
+                continue
+        raise PublicationConflict("publication intent could not be claimed safely")
+
+    def _finalize_publication(
+        self, task_id: str, publication_id: int, claim_token: str, status: str,
+        reference: str | None, error_category: str | None, failure_reason: str | None,
+    ) -> TaskView:
+        with self._session_factory.begin() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+            publication = session.get(GitHubPublicationRecord, publication_id)
+            if task is None or publication is None:
+                raise TaskNotFound("task or publication disappeared during completion handling")
+            intent = session.scalar(
+                select(PublicationIntentRecord)
+                .where(PublicationIntentRecord.id == publication.publication_intent_id)
+                .with_for_update()
+            )
+            if intent is None:
+                raise TaskNotFound("publication intent disappeared during completion handling")
+            if intent.active_claim_token != claim_token or intent.status == "PUBLISHED":
+                return self._task_view(session, task)
+            publication.status = status
+            publication.github_reference = reference
+            publication.error_category = error_category
+            intent.active_claim_token = None
+            intent.status = status
+            if status == "PUBLISHED":
+                intent.github_reference = reference
+            return self._task_view(session, task, failure_reason=failure_reason)
+
+    def _store_evidence(self, attempt_id: str, package) -> StoredEvidence:
+        with self._session_factory() as session:
+            attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
+            if attempt is None:
+                raise TaskNotFound(f"attempt not found: {attempt_id}")
+            existing = session.scalar(
+                select(EvidenceArtifactRecord).where(EvidenceArtifactRecord.attempt_id == attempt.id)
+            )
+            if existing is not None:
+                if existing.sha256 != package.sha256:
+                    raise PublicationConflict("attempt already has evidence with different content")
+                return StoredEvidence(
+                    artifact_uri=existing.artifact_uri,
+                    sha256=existing.sha256,
+                    content_type=existing.content_type,
+                    sanitization_status=existing.sanitization_status,
+                    retention_policy=existing.retention_policy,
+                )
+
+        stored = validate_stored_evidence(self._evidence_store.store(package), package)
+        try:
+            with self._session_factory.begin() as session:
+                attempt = session.scalar(
+                    select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id)
+                )
+                if attempt is None:
+                    raise TaskNotFound(f"attempt not found: {attempt_id}")
+                existing = session.scalar(
+                    select(EvidenceArtifactRecord).where(EvidenceArtifactRecord.attempt_id == attempt.id)
+                )
+                if existing is not None:
+                    if existing.sha256 != package.sha256:
+                        raise PublicationConflict("attempt already has evidence with different content")
+                    return StoredEvidence(
+                        existing.artifact_uri, existing.sha256, existing.content_type,
+                        existing.sanitization_status, existing.retention_policy,
+                    )
+                session.add(
+                    EvidenceArtifactRecord(
+                        attempt_id=attempt.id,
+                        artifact_uri=stored.artifact_uri,
+                        sha256=stored.sha256,
+                        content_type=stored.content_type,
+                        sanitization_status=stored.sanitization_status,
+                        retention_policy=stored.retention_policy,
+                    )
+                )
+                session.flush()
+        except IntegrityError:
+            with self._session_factory() as session:
+                existing = session.scalar(
+                    select(EvidenceArtifactRecord).join(AttemptRecord).where(
+                        AttemptRecord.attempt_id == attempt_id
+                    )
+                )
+                if existing is None or existing.sha256 != package.sha256:
+                    raise PublicationConflict("concurrent evidence artifact has different content")
+                return StoredEvidence(
+                    existing.artifact_uri, existing.sha256, existing.content_type,
+                    existing.sanitization_status, existing.retention_policy,
+                )
+        return stored
+
+    def _publication_snapshot(
+        self, session: Session, task: TaskRecord
+    ) -> tuple[AttemptRecord, InvestigationResultRecord, dict]:
+        attempt = latest_attempt(session, task)
+        if attempt is None or attempt.state != AttemptState.SUCCEEDED:
+            raise InvalidStateTransition("evidence publication requires a succeeded attempt")
+        result = session.scalar(
+            select(InvestigationResultRecord).where(InvestigationResultRecord.attempt_id == attempt.id)
+        )
+        if result is None or result.status not in {ResultStatus.SUCCEEDED, ResultStatus.PARTIAL}:
+            raise InvalidStateTransition("evidence publication requires a succeeded or partial result")
+        normalized_result = InvestigationResult.model_validate(result.payload).model_dump(mode="json")
+        request = session.get(RequestRecord, task.request_id)
+        if request is None:
+            raise TaskNotFound("request not found for evidence publication")
+        return attempt, result, {
+            "schema_version": "1.0",
+            "package_type": "sre_investigation_evidence",
+            "request": request.payload,
+            "task": {
+                "task_id": task.task_id,
+                "state": task.state,
+                "timeline": timeline_payload(session, TaskTransitionRecord, "task_id", task.id),
+            },
+            "attempt": {
+                "attempt_id": attempt.attempt_id,
+                "state": attempt.state,
+                "timeline": timeline_payload(session, AttemptTransitionRecord, "attempt_id", attempt.id),
+                "capability_checks": capability_payload(session, attempt.id),
+                "executor_invocations": invocation_payload(session, attempt.id),
+            },
+            "result": normalized_result,
+        }
+
     def get_task(self, task_id: str) -> TaskView:
         with self._session_factory() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
@@ -1473,6 +1793,39 @@ class SreInvestigationWorkflow:
                 .order_by(HumanReviewRecord.id)
             )
         )
+        artifacts = list(
+            session.scalars(
+                select(EvidenceArtifactRecord)
+                .join(AttemptRecord, EvidenceArtifactRecord.attempt_id == AttemptRecord.id)
+                .where(AttemptRecord.task_id == task.id)
+                .order_by(EvidenceArtifactRecord.id)
+            )
+        )
+        publications = list(
+            session.scalars(
+                select(GitHubPublicationRecord)
+                .where(GitHubPublicationRecord.task_id == task.id)
+                .order_by(GitHubPublicationRecord.id)
+            )
+        )
+        capability_checks = list(
+            session.scalars(
+                select(CapabilityCheckRecord)
+                .where(CapabilityCheckRecord.attempt_id.in_(attempt_ids))
+                .order_by(CapabilityCheckRecord.id)
+            )
+            if attempt_ids
+            else []
+        )
+        invocations = list(
+            session.scalars(
+                select(ExecutorInvocationRecord)
+                .where(ExecutorInvocationRecord.attempt_id.in_(attempt_ids))
+                .order_by(ExecutorInvocationRecord.id)
+            )
+            if attempt_ids
+            else []
+        )
         return TaskView(
             request_id=request_record.request_id if request_record else "",
             task_id=task.task_id,
@@ -1537,6 +1890,57 @@ class SreInvestigationWorkflow:
                     github_reference=item.github_reference,
                 )
                 for item in reviews
+            ],
+            evidence_artifacts=[
+                EvidenceArtifactView(
+                    attempt_id=attempt_id_by_record_id[item.attempt_id],
+                    artifact_uri=item.artifact_uri,
+                    sha256=item.sha256,
+                    content_type=item.content_type,
+                    sanitization_status=item.sanitization_status,
+                    retention_policy=item.retention_policy,
+                )
+                for item in artifacts
+            ],
+            publications=[
+                PublicationHistoryView(
+                    attempt_id=(
+                        attempt_id_by_record_id.get(item.attempt_id)
+                        if item.attempt_id is not None
+                        else None
+                    ),
+                    idempotency_key=item.idempotency_key,
+                    attempt_sequence=item.attempt_sequence,
+                    payload_sha256=item.payload_sha256,
+                    status=item.status,
+                    github_reference=item.github_reference,
+                    error_category=item.error_category,
+                )
+                for item in publications
+            ],
+            capability_checks=[
+                CapabilityCheckHistoryView(
+                    attempt_id=(
+                        attempt_id_by_record_id.get(item.attempt_id)
+                        if item.attempt_id is not None
+                        else None
+                    ),
+                    executor_id=item.executor_id,
+                    status=item.status,
+                )
+                for item in capability_checks
+            ],
+            executor_invocations=[
+                ExecutorInvocationHistoryView(
+                    attempt_id=attempt_id_by_record_id[item.attempt_id],
+                    executor_id=item.executor_id,
+                    operation=item.operation,
+                    idempotency_key=item.idempotency_key,
+                    fencing_token=item.fencing_token,
+                    status=item.status,
+                    error_category=item.error_category,
+                )
+                for item in invocations
             ],
         )
 
@@ -1975,6 +2379,79 @@ def canonical_payload(request: InvestigationRequest) -> dict:
 
 def canonical_json(payload: dict) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def timeline_payload(session: Session, model, foreign_key: str, record_id: int) -> list[dict]:
+    column = getattr(model, foreign_key)
+    return [
+        {
+            "from_state": item.from_state,
+            "to_state": item.to_state,
+            "reason": item.reason,
+            "actor": item.actor,
+            "fencing_token": item.fencing_token,
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+        }
+        for item in session.scalars(select(model).where(column == record_id).order_by(model.id))
+    ]
+
+
+def capability_payload(session: Session, attempt_id: int) -> list[dict]:
+    return [
+        {
+            "executor_id": item.executor_id,
+            "status": item.status,
+            "declared_capabilities": item.declared_capabilities,
+            "denied_capabilities": item.denied_capabilities,
+            "target_scope": item.target_scope,
+            "verification_evidence": item.verification_evidence,
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+        }
+        for item in session.scalars(
+            select(CapabilityCheckRecord)
+            .where(CapabilityCheckRecord.attempt_id == attempt_id)
+            .order_by(CapabilityCheckRecord.id)
+        )
+    ]
+
+
+def invocation_payload(session: Session, attempt_id: int) -> list[dict]:
+    return [
+        {
+            "executor_id": item.executor_id,
+            "operation": item.operation,
+            "idempotency_key": item.idempotency_key,
+            "fencing_token": item.fencing_token,
+            "status": item.status,
+            "error_category": item.error_category,
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+        }
+        for item in session.scalars(
+            select(ExecutorInvocationRecord)
+            .where(ExecutorInvocationRecord.attempt_id == attempt_id)
+            .order_by(ExecutorInvocationRecord.id)
+        )
+    ]
+
+
+def publication_payload_for_result(result_payload: dict, artifact_uri: str) -> dict:
+    result = InvestigationResult.model_validate(result_payload)
+    return {
+        "status": result.status,
+        "summary": result.summary,
+        "findings": [
+            {
+                "finding_id": finding.finding_id,
+                "statement": finding.statement,
+                "evidence_ids": finding.evidence_ids,
+                "limitations": finding.limitations,
+            }
+            for finding in result.findings
+        ],
+        "evidence_references": [artifact_uri],
+        "limitations": result.limitations,
+        "human_review": "Explicit human review and closeout are required.",
+    }
 
 
 def stable_id(prefix: Literal["task"], value: str) -> str:

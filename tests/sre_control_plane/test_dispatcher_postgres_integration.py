@@ -13,17 +13,25 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from sre_control_plane.contracts import InvestigationRequest
+from sre_control_plane.evidence import LocalFilesystemEvidenceStore
 from sre_control_plane.executor import AttemptStatus, ExecutorStatus, StartInvestigationCommand
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
+from sre_control_plane.publisher import FakePublisher
 from sre_control_plane.persistence import (
     AttemptRecord,
     Base,
     DispatchLeaseRecord,
     ExecutorInvocationRecord,
+    GitHubPublicationRecord,
+    PublicationIntentRecord,
     TaskRecord,
 )
 from sre_control_plane.states import AttemptState, TaskState
-from sre_control_plane.workflow import SreInvestigationWorkflow, StaleFencingToken
+from sre_control_plane.workflow import (
+    EvidencePublicationRequest,
+    SreInvestigationWorkflow,
+    StaleFencingToken,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_TEST_URL = "SRE_CONTROL_PLANE_TEST_DATABASE_URL"
@@ -160,6 +168,85 @@ def test_stale_fencing_token_cannot_write_a_late_outcome(postgres_session_factor
     assert view.attempt.state == AttemptState.FAILED
 
 
+@pytest.mark.postgresql_integration
+def test_evidence_publication_history_is_durable_and_adapter_call_is_unlocked(
+    postgres_session_factory,
+    tmp_path: Path,
+) -> None:
+    publisher = BlockingPublisher()
+    workflow = SreInvestigationWorkflow(
+        postgres_session_factory,
+        FakeInvestigationExecutor(),
+        evidence_store=LocalFilesystemEvidenceStore(tmp_path / "evidence"),
+        publisher=publisher,
+    )
+    task = workflow.submit_request(request_example("postgres-evidence-publication"))
+    workflow.run_dispatch_tick("postgres-evidence-tick")
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(
+            workflow.publish_evidence,
+            task.task_id,
+            EvidencePublicationRequest(idempotency_key="postgres-publication"),
+        )
+        assert publisher.started.wait(timeout=5)
+        with postgres_session_factory() as session:
+            persisted_task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task.task_id))
+            pending = session.scalar(select(ExecutorInvocationRecord).limit(1))
+        assert persisted_task is not None
+        assert persisted_task.state == TaskState.AWAITING_HUMAN_REVIEW
+        assert pending is not None
+        publisher.release.set()
+        view = future.result(timeout=5)
+
+    assert view.publications[0].status == "PUBLISHED"
+    assert view.evidence_artifacts[0].sanitization_status == "SANITIZED"
+
+
+@pytest.mark.postgresql_integration
+def test_concurrent_publication_requests_share_a_fenced_durable_claim(
+    postgres_session_factory,
+    tmp_path: Path,
+) -> None:
+    publisher = BlockingPublisher()
+    workflow = SreInvestigationWorkflow(
+        postgres_session_factory,
+        FakeInvestigationExecutor(),
+        evidence_store=LocalFilesystemEvidenceStore(tmp_path / "concurrent-evidence"),
+        publisher=publisher,
+    )
+    task = workflow.submit_request(request_example("postgres-concurrent-publication"))
+    workflow.run_dispatch_tick("postgres-concurrent-evidence-tick")
+    request = EvidencePublicationRequest(idempotency_key="postgres-concurrent-publication")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(workflow.publish_evidence, task.task_id, request)
+        assert publisher.started.wait(timeout=5)
+        second = pool.submit(workflow.publish_evidence, task.task_id, request)
+        pending_view = second.result(timeout=5)
+        assert pending_view.publications[0].status == "PENDING"
+        publisher.release.set()
+        completed_view = first.result(timeout=5)
+
+    assert publisher.calls == 1
+    assert completed_view.publications[0].status == "PUBLISHED"
+    with postgres_session_factory() as session:
+        publication = session.scalar(select(GitHubPublicationRecord))
+        intent = session.scalar(select(PublicationIntentRecord))
+    assert publication is not None and intent is not None
+    stale_view = workflow._finalize_publication(
+        task.task_id,
+        publication.id,
+        "obsolete-claim-token",
+        "FAILED",
+        None,
+        "PublicationError",
+        "ignored",
+    )
+    assert stale_view.publications[0].status == "PUBLISHED"
+    assert intent.active_claim_token is None
+
+
 class BlockingCapabilityExecutor(FakeInvestigationExecutor):
     def __init__(self) -> None:
         super().__init__()
@@ -171,6 +258,21 @@ class BlockingCapabilityExecutor(FakeInvestigationExecutor):
         if not self.release.wait(timeout=5):
             raise TimeoutError("test did not release fake executor")
         return super().describe_capabilities()
+
+
+class BlockingPublisher(FakePublisher):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def publish(self, request):
+        self.calls += 1
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test did not release fake publisher")
+        return super().publish(request)
 
 
 class BlockingStatusExecutor(FakeInvestigationExecutor):
