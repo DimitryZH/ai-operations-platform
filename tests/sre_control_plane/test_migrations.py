@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import os
+import uuid
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 
 ROOT = Path(__file__).resolve().parents[2]
+POSTGRES_TEST_URL = "SRE_CONTROL_PLANE_TEST_DATABASE_URL"
 
 
 def test_initial_migration_creates_control_plane_tables(
@@ -117,3 +122,49 @@ def test_retry_decision_type_migration_preserves_existing_audit_rows(
         engine.dispose()
 
     assert decision_type == "retry"
+
+
+def test_revision_ids_fit_alembic_version_column() -> None:
+    revisions = []
+    for path in sorted((ROOT / "alembic" / "versions").glob("*.py")):
+        namespace: dict[str, object] = {}
+        exec(path.read_text(), namespace)
+        revisions.append(namespace["revision"])
+
+    assert all(isinstance(revision, str) and len(revision) <= 32 for revision in revisions)
+
+
+@pytest.mark.postgresql_integration
+def test_postgresql_upgrade_from_initial_revision_to_head() -> None:
+    database_url = os.environ.get(POSTGRES_TEST_URL)
+    if database_url is None:
+        pytest.skip(f"{POSTGRES_TEST_URL} is not configured")
+
+    schema_name = f"sre_migrations_{uuid.uuid4().hex}"
+    admin_engine = create_engine(database_url, pool_pre_ping=True)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f"CREATE SCHEMA {schema_name}"))
+
+    migration_url = make_url(database_url).update_query_dict(
+        {"options": f"-csearch_path={schema_name}"}
+    )
+    config = Config(str(ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(ROOT / "alembic"))
+    config.set_main_option("sqlalchemy.url", str(migration_url))
+    try:
+        command.upgrade(config, "0001_initial_sre_control_plane")
+        command.upgrade(config, "head")
+        verification_engine = create_engine(str(migration_url), pool_pre_ping=True)
+        try:
+            with verification_engine.connect() as connection:
+                revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+            columns = {column["name"] for column in inspect(verification_engine).get_columns("github_publications")}
+        finally:
+            verification_engine.dispose()
+    finally:
+        with admin_engine.begin() as connection:
+            connection.execute(text(f"DROP SCHEMA {schema_name} CASCADE"))
+        admin_engine.dispose()
+
+    assert revision == "0006_evidence_publication"
+    assert {"payload_sha256", "error_category"} <= columns

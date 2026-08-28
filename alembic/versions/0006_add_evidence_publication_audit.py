@@ -1,13 +1,13 @@
 """add evidence and publication audit fields
 
-Revision ID: 0006_add_evidence_publication_audit
+Revision ID: 0006_evidence_publication
 Revises: 0005_add_dispatch_lease_fencing
 """
 
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0006_add_evidence_publication_audit"
+revision = "0006_evidence_publication"
 down_revision = "0005_add_dispatch_lease_fencing"
 branch_labels = None
 depends_on = None
