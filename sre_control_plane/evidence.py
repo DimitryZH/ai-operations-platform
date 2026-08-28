@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -142,10 +143,18 @@ class LocalFilesystemEvidenceStore:
         target = (self._root / filename).resolve()
         if target.parent != self._root:
             raise EvidenceStoreError("evidence path escapes configured root")
-        if target.exists() and target.read_bytes() != package.content:
-            raise EvidenceStoreError("existing evidence artifact has different content")
-        if not target.exists():
-            target.write_bytes(package.content)
+        try:
+            with target.open("xb") as artifact_file:
+                artifact_file.write(package.content)
+        except FileExistsError:
+            # A concurrent local writer may have created the file but not yet
+            # completed its bounded write. Never accept different content.
+            for _ in range(10):
+                if target.read_bytes() == package.content:
+                    break
+                time.sleep(0.01)
+            else:
+                raise EvidenceStoreError("existing evidence artifact has different content")
         return StoredEvidence(
             artifact_uri=f"local://evidence/{filename}",
             sha256=package.sha256,

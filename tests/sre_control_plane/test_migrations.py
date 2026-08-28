@@ -177,9 +177,9 @@ def test_populated_evidence_upgrade_and_downgrade_preserve_legacy_rows(tmp_path:
             intent_id = connection.scalar(text("SELECT id FROM publication_intents"))
             connection.execute(text(
                 "INSERT INTO github_publications "
-                "(task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
+                "(id, task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
                 "github_reference, payload_sha256, status) "
-                "VALUES (1, 1, :intent_id, 'legacy-publication', 2, NULL, "
+                "VALUES (2, 1, 1, :intent_id, 'legacy-publication', 2, NULL, "
                 "'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'PENDING')"
             ), {"intent_id": intent_id})
         command.downgrade(config, "0005_add_dispatch_lease_fencing")
@@ -290,9 +290,9 @@ def test_postgresql_populated_evidence_upgrade_and_downgrade(monkeypatch) -> Non
                 intent_id = connection.scalar(text("SELECT id FROM publication_intents"))
                 connection.execute(text(
                     "INSERT INTO github_publications "
-                    "(task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
+                    "(id, task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
                     "github_reference, payload_sha256, status) "
-                    "VALUES (1, 1, :intent_id, 'legacy-publication', 2, NULL, repeat('c', 64), 'PENDING')"
+                    "VALUES (2, 1, 1, :intent_id, 'legacy-publication', 2, NULL, repeat('c', 64), 'PENDING')"
                 ), {"intent_id": intent_id})
             command.downgrade(config, "0005_add_dispatch_lease_fencing")
             with verification_engine.connect() as connection:
