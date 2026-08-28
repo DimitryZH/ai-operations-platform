@@ -150,7 +150,7 @@ def test_postgresql_upgrade_from_initial_revision_to_head() -> None:
     )
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
-    config.set_main_option("sqlalchemy.url", str(migration_url))
+    config.set_main_option("sqlalchemy.url", str(migration_url).replace("%", "%%"))
     try:
         command.upgrade(config, "0001_initial_sre_control_plane")
         command.upgrade(config, "head")
