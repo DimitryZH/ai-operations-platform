@@ -203,7 +203,8 @@ class PublicationIntentRecord(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable=False)
-    attempt_id: Mapped[int] = mapped_column(ForeignKey("attempts.id"), nullable=False)
+    # Legacy publication audit rows may be task-scoped and have no producing attempt.
+    attempt_id: Mapped[int | None] = mapped_column(ForeignKey("attempts.id"), nullable=True)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
     payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)

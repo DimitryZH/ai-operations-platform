@@ -170,11 +170,25 @@ def test_populated_evidence_upgrade_and_downgrade_preserve_legacy_rows(tmp_path:
                 "(id, task_id, attempt_id, idempotency_key, github_reference, status) "
                 "VALUES (1, 1, 1, 'legacy-publication', 'fake://publication/aaaaaaaaaaaaaaaa', 'PUBLISHED')"
             ))
+            connection.execute(text(
+                "INSERT INTO github_publications "
+                "(id, task_id, attempt_id, idempotency_key, github_reference, status) "
+                "VALUES (3, 1, NULL, 'legacy-task-publication', "
+                "'fake://publication/dddddddddddddddd', 'PUBLISHED')"
+            ))
         command.upgrade(config, "head")
         with engine.begin() as connection:
             assert connection.scalar(text("SELECT count(*) FROM evidence_artifacts")) == 1
             assert connection.scalar(text("SELECT sha256 FROM evidence_artifacts")) == "b" * 64
             intent_id = connection.scalar(text("SELECT id FROM publication_intents"))
+            assert connection.scalar(text(
+                "SELECT attempt_id IS NULL FROM publication_intents "
+                "WHERE idempotency_key = 'legacy-task-publication'"
+            )) == 1
+            assert connection.scalar(text(
+                "SELECT attempt_id IS NULL FROM github_publications "
+                "WHERE idempotency_key = 'legacy-task-publication'"
+            )) == 1
             connection.execute(text(
                 "INSERT INTO github_publications "
                 "(id, task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
@@ -184,8 +198,12 @@ def test_populated_evidence_upgrade_and_downgrade_preserve_legacy_rows(tmp_path:
             ), {"intent_id": intent_id})
         command.downgrade(config, "0005_add_dispatch_lease_fencing")
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT count(*) FROM github_publications")) == 1
+            assert connection.scalar(text("SELECT count(*) FROM github_publications")) == 2
             assert connection.scalar(text("SELECT github_reference IS NOT NULL FROM github_publications")) == 1
+            assert connection.scalar(text(
+                "SELECT attempt_id IS NULL FROM github_publications "
+                "WHERE idempotency_key = 'legacy-task-publication'"
+            )) == 1
     finally:
         engine.dispose()
 
@@ -283,11 +301,25 @@ def test_postgresql_populated_evidence_upgrade_and_downgrade(monkeypatch) -> Non
                     "(id, task_id, attempt_id, idempotency_key, github_reference, status) "
                     "VALUES (1, 1, 1, 'legacy-publication', 'fake://publication/aaaaaaaaaaaaaaaa', 'PUBLISHED')"
                 ))
+                connection.execute(text(
+                    "INSERT INTO github_publications "
+                    "(id, task_id, attempt_id, idempotency_key, github_reference, status) "
+                    "VALUES (3, 1, NULL, 'legacy-task-publication', "
+                    "'fake://publication/dddddddddddddddd', 'PUBLISHED')"
+                ))
             command.upgrade(config, "head")
             with verification_engine.begin() as connection:
                 assert connection.scalar(text("SELECT count(*) FROM evidence_artifacts")) == 1
                 assert connection.scalar(text("SELECT sha256 FROM evidence_artifacts")) == "b" * 64
                 intent_id = connection.scalar(text("SELECT id FROM publication_intents"))
+                assert connection.scalar(text(
+                    "SELECT attempt_id IS NULL FROM publication_intents "
+                    "WHERE idempotency_key = 'legacy-task-publication'"
+                ))
+                assert connection.scalar(text(
+                    "SELECT attempt_id IS NULL FROM github_publications "
+                    "WHERE idempotency_key = 'legacy-task-publication'"
+                ))
                 connection.execute(text(
                     "INSERT INTO github_publications "
                     "(id, task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
@@ -296,8 +328,12 @@ def test_postgresql_populated_evidence_upgrade_and_downgrade(monkeypatch) -> Non
                 ), {"intent_id": intent_id})
             command.downgrade(config, "0005_add_dispatch_lease_fencing")
             with verification_engine.connect() as connection:
-                assert connection.scalar(text("SELECT count(*) FROM github_publications")) == 1
+                assert connection.scalar(text("SELECT count(*) FROM github_publications")) == 2
                 assert connection.scalar(text("SELECT github_reference IS NOT NULL FROM github_publications"))
+                assert connection.scalar(text(
+                    "SELECT attempt_id IS NULL FROM github_publications "
+                    "WHERE idempotency_key = 'legacy-task-publication'"
+                ))
                 assert "publication_intents" not in inspect(verification_engine).get_table_names(schema=schema_name)
         finally:
             verification_engine.dispose()

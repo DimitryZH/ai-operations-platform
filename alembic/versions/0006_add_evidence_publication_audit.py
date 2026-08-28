@@ -28,7 +28,9 @@ def upgrade() -> None:
         "publication_intents",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("task_id", sa.Integer(), sa.ForeignKey("tasks.id"), nullable=False),
-        sa.Column("attempt_id", sa.Integer(), sa.ForeignKey("attempts.id"), nullable=False),
+        # Pre-0006 publication audit rows may be task-scoped. Preserve their
+        # NULL attempt identity rather than inventing a producing attempt.
+        sa.Column("attempt_id", sa.Integer(), sa.ForeignKey("attempts.id"), nullable=True),
         sa.Column("idempotency_key", sa.String(length=128), nullable=False),
         sa.Column("payload_sha256", sa.String(length=64), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False),

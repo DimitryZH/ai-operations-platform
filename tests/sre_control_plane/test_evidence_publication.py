@@ -14,6 +14,7 @@ from sre_control_plane.contracts import InvestigationRequest
 from sre_control_plane.evidence import (
     EvidenceStoreError,
     LocalFilesystemEvidenceStore,
+    MAX_EVIDENCE_PACKAGE_BYTES,
     StoredEvidence,
     build_evidence_package,
 )
@@ -218,17 +219,39 @@ def test_invalid_publisher_receipt_has_controlled_failure(session_factory, tmp_p
     assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
 
 
-def test_oversized_evidence_package_has_durable_failure_history(session_factory, tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("payload_extension", "idempotency_key"),
+    [
+        ({"bounded_padding": "x" * (MAX_EVIDENCE_PACKAGE_BYTES + 1)}, "oversized"),
+        ({"bounded_collection": ["entry"] * 101}, "collection-bound"),
+    ],
+)
+def test_evidence_bounds_have_durable_failure_history(
+    session_factory, tmp_path: Path, monkeypatch, payload_extension, idempotency_key,
+) -> None:
     workflow, task = completed_workflow(session_factory, tmp_path)
-    monkeypatch.setattr("sre_control_plane.workflow.build_evidence_package", lambda _: (_ for _ in ()).throw(
-        EvidenceStoreError("evidence package exceeds the bounded byte-size limit")
-    ))
+    original_snapshot = workflow._publication_snapshot
 
-    view = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key="oversized"))
+    def expanded_snapshot(session, task_record):
+        attempt, result, payload = original_snapshot(session, task_record)
+        return attempt, result, {**payload, **payload_extension}
+
+    monkeypatch.setattr(workflow, "_publication_snapshot", expanded_snapshot)
+    with session_factory() as session:
+        result_before = session.scalar(select(InvestigationResultRecord))
+        assert result_before is not None
+        result_payload_before = result_before.payload
+
+    view = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key=idempotency_key))
 
     assert view.failure_reason == "publication_failed_retryable"
     assert view.publications[0].status == "FAILED"
     assert view.evidence_artifacts == []
+    assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
+    assert view.attempt is not None and view.attempt.state == AttemptState.SUCCEEDED
+    with session_factory() as session:
+        result_after = session.scalar(select(InvestigationResultRecord))
+    assert result_after is not None and result_after.payload == result_payload_before
 
 
 def test_late_failure_cannot_overwrite_confirmed_publication(session_factory, tmp_path: Path) -> None:
