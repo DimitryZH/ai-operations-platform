@@ -62,6 +62,7 @@ from sre_control_plane.publisher import (
     PublicationRequest,
     PublicationError,
     Publisher,
+    TerminalPublicationError,
 )
 from sre_control_plane.states import (
     ACTIVE_ATTEMPT_STATES,
@@ -1395,12 +1396,10 @@ class SreInvestigationWorkflow:
                 )
             )
         except Exception as exc:
-            error_category = (
-                exc.error_category if isinstance(exc, PublicationError) else type(exc).__name__[:64]
-            )
+            status, error_category, failure_reason = publication_failure_outcome(exc)
             return self._finalize_publication(
-                task_id, publication_id, claim_token, "FAILED", None,
-                error_category, "publication_failed_retryable",
+                task_id, publication_id, claim_token, status, None,
+                error_category, failure_reason,
             )
 
         return self._finalize_publication(
@@ -1435,6 +1434,7 @@ class SreInvestigationWorkflow:
                         .where(PublicationIntentRecord.idempotency_key == idempotency_key)
                         .with_for_update()
                     )
+                    is_new_intent = intent is None
                     if intent is None:
                         intent = PublicationIntentRecord(
                             task_id=task.id, attempt_id=attempt.id,
@@ -1451,7 +1451,10 @@ class SreInvestigationWorkflow:
                         raise PublicationConflict(
                             "publication idempotency_key already exists with different semantics"
                         )
-                    if intent.status == "PUBLISHED" or intent.active_claim_token is not None:
+                    if (
+                        intent.active_claim_token is not None
+                        or (not is_new_intent and intent.status != "FAILED_RETRYABLE")
+                    ):
                         return None
                     intent.fencing_token += 1
                     claim_token = uuid.uuid4().hex
@@ -2467,3 +2470,11 @@ def stable_id(prefix: Literal["task"], value: str) -> str:
 
 def log_lifecycle(event: str, **fields: str | None) -> None:
     LOGGER.info(json.dumps({"event": event, **fields}, sort_keys=True))
+
+
+def publication_failure_outcome(exc: Exception) -> tuple[str, str, str]:
+    if isinstance(exc, TerminalPublicationError):
+        return "FAILED_TERMINAL", exc.error_category, "publication_failed_terminal"
+    if isinstance(exc, PublicationError):
+        return "FAILED_RETRYABLE", exc.error_category, "publication_failed_retryable"
+    return "FAILED_RETRYABLE", type(exc).__name__[:64], "publication_failed_retryable"

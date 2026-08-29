@@ -25,14 +25,17 @@ def load_settings() -> Settings:
     token = os.environ.get("SRE_CONTROL_PLANE_GITHUB_TOKEN")
     configured = [value is not None for value in (repository, issue_number, token)]
     if any(configured) and not all(configured):
-        raise ValueError("GitHub publication requires repository, Issue number, and token together")
+        raise ValueError("GitHub publication configuration is incomplete")
     github_publication = None
     if all(configured):
-        github_publication = GitHubPublicationConfig(
-            repository=repository,
-            issue_number=int(issue_number),
-            token=token,
-        )
+        try:
+            github_publication = GitHubPublicationConfig(
+                repository=repository,
+                issue_number=int(issue_number),
+                token=token,
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError("GitHub publication configuration is invalid") from exc
     return Settings(
         service_name=os.environ.get("SRE_CONTROL_PLANE_SERVICE_NAME", "sre-control-plane"),
         database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL),

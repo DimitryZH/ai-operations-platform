@@ -291,7 +291,8 @@ results, reviews, transitions, evidence artifacts, and publications.
 
 Evidence-store and publisher calls occur outside database transactions. A
 storage error creates no publication record; a publisher error records a
-retryable `FAILED` publication outcome. Neither outcome rewrites the durable
+retryable `FAILED_RETRYABLE` or terminal `FAILED_TERMINAL` publication outcome.
+Only the former may receive another durable publication claim. Neither outcome rewrites the durable
 investigation result, task state, attempt state, or lifecycle transitions.
 Reusing the same idempotency key with the same semantic payload reuses the
 existing artifact/publication reference. Reusing it for another task, attempt,
@@ -310,18 +311,25 @@ $env:SRE_CONTROL_PLANE_GITHUB_TOKEN = "provided-outside-the-repository"
 ```
 
 The adapter can call only the configured `owner/repository` and Issue number.
-It lists at most 100 comments, writes a deterministic Markdown summary bounded
-to 16 KiB, and includes a hidden marker derived from the publication
-idempotency key and semantic payload SHA-256. A matching marker reuses the
-existing comment; a marker for the same key with another payload fails closed.
-Returned comment ID, body, URL, repository path, Issue number, and URL fragment
+It lists comments through at most three validated pages of 100 entries. Every
+pagination URL must use the GitHub API origin and the exact configured comment
+path; an unsafe or truncated page sequence fails closed without a write. The
+transport does not follow redirects: every `3xx` response is terminal and no
+second request is made. It writes deterministic Markdown bounded to 16 KiB and
+includes one final hidden marker derived from the publication idempotency key
+and semantic payload SHA-256. Marker-like or HTML-comment input is rejected;
+a matching canonical final marker reuses the existing comment, while ambiguity
+or a marker for the same key with another payload fails closed. Returned comment
+ID, body, exact repository path, exact Issue number, and canonical URL fragment
 are validated before a durable reference is recorded.
 
-Authentication, authorization, validation, malformed-response, and unexpected
-target failures are terminal. Rate-limit, network, timeout, and server failures
-are retryable. Both classes persist append-only failure history without changing
-the investigation result or task/attempt lifecycle. Metrics expose publication
-calls and retryable or terminal failure counters; structured logs omit tokens.
+Authentication, authorization, redirects, validation, malformed-response, and
+unexpected target failures are terminal. Rate-limit, network, timeout, and
+server failures are retryable. Both classes persist append-only failure history
+without changing the investigation result or task/attempt lifecycle. The token
+is excluded from configuration representations, startup errors, logs, metrics,
+and durable history. Metrics expose publication calls and retryable or terminal
+failure counters; structured logs omit tokens.
 
 The live smoke test is deliberately disabled by default. It requires an
 explicit operator approval immediately before use and all three variables above

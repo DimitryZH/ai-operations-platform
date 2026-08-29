@@ -292,6 +292,38 @@ def test_postgresql_github_publication_adapter_is_concurrent_and_append_only(
         assert len(list(session.scalars(select(GitHubPublicationRecord)))) == 1
 
 
+@pytest.mark.postgresql_integration
+def test_postgresql_terminal_github_publication_failure_cannot_be_retried(
+    postgres_session_factory,
+    tmp_path: Path,
+) -> None:
+    transport = TerminalGitHubTransport()
+    workflow = SreInvestigationWorkflow(
+        postgres_session_factory,
+        FakeInvestigationExecutor(),
+        evidence_store=LocalFilesystemEvidenceStore(tmp_path / "terminal-github-evidence"),
+        publisher=GitHubPublisher(
+            GitHubPublicationConfig(
+                repository="DimitryZH/ai-operations-platform", issue_number=41, token="test-token"
+            ),
+            transport,
+        ),
+    )
+    task = workflow.submit_request(request_example("postgres-terminal-github-publication"))
+    workflow.run_dispatch_tick("postgres-terminal-github-evidence-tick")
+    request = EvidencePublicationRequest(idempotency_key="postgres-terminal-github-publication")
+
+    failed = workflow.publish_evidence(task.task_id, request)
+    repeated = workflow.publish_evidence(task.task_id, request)
+
+    assert failed.failure_reason == "publication_failed_terminal"
+    assert failed.publications[0].status == "FAILED_TERMINAL"
+    assert repeated.publications[0].status == "FAILED_TERMINAL"
+    assert transport.calls == 1
+    with postgres_session_factory() as session:
+        assert len(list(session.scalars(select(GitHubPublicationRecord)))) == 1
+
+
 class BlockingCapabilityExecutor(FakeInvestigationExecutor):
     def __init__(self) -> None:
         super().__init__()
@@ -340,6 +372,15 @@ class BlockingGitHubTransport:
             "body": comment_body,
         }
         return GitHubHttpResponse(201, {}, json.dumps(response).encode("utf-8"))
+
+
+class TerminalGitHubTransport:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def request(self, method, path, headers, body):
+        self.calls += 1
+        return GitHubHttpResponse(401, {}, b'{"message":"denied"}')
 
 
 class BlockingStatusExecutor(FakeInvestigationExecutor):

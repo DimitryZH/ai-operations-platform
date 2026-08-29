@@ -26,7 +26,12 @@ from sre_control_plane.persistence import (
     InvestigationResultRecord,
     PublicationIntentRecord,
 )
-from sre_control_plane.publisher import FakePublisher, PublicationError, PublicationReceipt
+from sre_control_plane.publisher import (
+    FakePublisher,
+    PublicationError,
+    PublicationReceipt,
+    TerminalPublicationError,
+)
 from sre_control_plane.states import AttemptState, TaskState
 from sre_control_plane.workflow import (
     EvidencePublicationRequest,
@@ -104,11 +109,11 @@ def test_publication_failure_is_retryable_without_lifecycle_mutation(session_fac
     assert failed.failure_reason == "publication_failed_retryable"
     assert failed.task_state == TaskState.AWAITING_HUMAN_REVIEW
     assert failed.attempt is not None and failed.attempt.state == AttemptState.SUCCEEDED
-    assert failed.publications[0].status == "FAILED"
+    assert failed.publications[0].status == "FAILED_RETRYABLE"
 
     publisher.fail = False
     retried = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key="publication-1"))
-    assert [publication.status for publication in retried.publications] == ["FAILED", "PUBLISHED"]
+    assert [publication.status for publication in retried.publications] == ["FAILED_RETRYABLE", "PUBLISHED"]
     assert [publication.attempt_sequence for publication in retried.publications] == [1, 2]
     assert len(retried.evidence_artifacts) == 1
 
@@ -152,6 +157,16 @@ class FailingPublisher(FakePublisher):
         return super().publish(request)
 
 
+class TerminalFailingPublisher(FakePublisher):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def publish(self, request):
+        self.calls += 1
+        raise TerminalPublicationError("terminal publication rejection")
+
+
 def test_concurrent_requests_share_one_durable_publisher_claim(session_factory, tmp_path: Path) -> None:
     publisher = BlockingPublisher()
     workflow, task = completed_workflow(session_factory, tmp_path, publisher)
@@ -190,7 +205,7 @@ def test_evidence_store_failure_is_durable_and_does_not_change_lifecycle(session
     assert view.failure_reason == "publication_failed_retryable"
     assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
     assert view.attempt is not None and view.attempt.state == AttemptState.SUCCEEDED
-    assert view.publications[0].status == "FAILED"
+    assert view.publications[0].status == "FAILED_RETRYABLE"
     assert view.publications[0].error_category == "EvidenceStoreError"
     assert view.evidence_artifacts == []
 
@@ -203,7 +218,7 @@ def test_invalid_evidence_store_response_has_controlled_failure(session_factory,
     view = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key="invalid-store"))
 
     assert view.failure_reason == "publication_failed_retryable"
-    assert view.publications[0].status == "FAILED"
+    assert view.publications[0].status == "FAILED_RETRYABLE"
     assert view.evidence_artifacts == []
 
 
@@ -215,7 +230,7 @@ def test_invalid_publisher_receipt_has_controlled_failure(session_factory, tmp_p
     view = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key="invalid-receipt"))
 
     assert view.failure_reason == "publication_failed_retryable"
-    assert view.publications[0].status == "FAILED"
+    assert view.publications[0].status == "FAILED_RETRYABLE"
     assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
 
 
@@ -245,7 +260,7 @@ def test_evidence_bounds_have_durable_failure_history(
     view = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key=idempotency_key))
 
     assert view.failure_reason == "publication_failed_retryable"
-    assert view.publications[0].status == "FAILED"
+    assert view.publications[0].status == "FAILED_RETRYABLE"
     assert view.evidence_artifacts == []
     assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
     assert view.attempt is not None and view.attempt.state == AttemptState.SUCCEEDED
@@ -262,10 +277,26 @@ def test_late_failure_cannot_overwrite_confirmed_publication(session_factory, tm
     assert publication is not None
 
     view = workflow._finalize_publication(
-        task.task_id, publication.id, "obsolete-claim", "FAILED", None, "PublicationError", "ignored"
+        task.task_id, publication.id, "obsolete-claim", "FAILED_RETRYABLE", None, "PublicationError", "ignored"
     )
 
     assert view.publications[0].status == "PUBLISHED"
+
+
+def test_terminal_publication_failure_is_durable_and_cannot_be_reclaimed(session_factory, tmp_path: Path) -> None:
+    publisher = TerminalFailingPublisher()
+    workflow, task = completed_workflow(session_factory, tmp_path, publisher)
+
+    failed = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key="terminal-publication"))
+    repeated = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key="terminal-publication"))
+
+    assert failed.failure_reason == "publication_failed_terminal"
+    assert failed.publications[0].status == "FAILED_TERMINAL"
+    assert failed.publications[0].error_category == "publication:terminal"
+    assert repeated.publications[0].status == "FAILED_TERMINAL"
+    assert publisher.calls == 1
+    assert repeated.task_state == TaskState.AWAITING_HUMAN_REVIEW
+    assert repeated.attempt is not None and repeated.attempt.state == AttemptState.SUCCEEDED
 
 
 def test_concurrent_artifact_creation_keeps_one_durable_artifact(session_factory, tmp_path: Path) -> None:

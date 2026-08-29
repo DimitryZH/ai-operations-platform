@@ -104,6 +104,100 @@ def test_malformed_or_wrong_target_comment_fails_closed() -> None:
         GitHubPublisher(config(), QueueTransport([response(200, []), response(201, malformed)])).publish(request)
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://github.com/DimitryZH/ai-operations-platform/issues/410#issuecomment-101",
+        "https://github.com/other/repository/issues/41#issuecomment-101",
+        "https://github.com/DimitryZH/ai-operations-platform/issues/41",
+        "https://github.com/DimitryZH/ai-operations-platform/issues/41#issuecomment-101-extra",
+        "https://github.com/DimitryZH/ai-operations-platform/issues/41#issuecomment-102",
+    ],
+)
+def test_comment_url_requires_exact_target_and_identity(url: str) -> None:
+    request = publication_request()
+    malformed = comment_payload(request)
+    malformed["html_url"] = url
+    with pytest.raises(TerminalPublicationError):
+        GitHubPublisher(config(), QueueTransport([response(200, []), response(201, malformed)])).publish(request)
+
+
+@pytest.mark.parametrize("status", [301, 302, 307, 308])
+def test_redirects_fail_closed_without_following_or_second_request(status: int) -> None:
+    transport = QueueTransport([response(status, {"message": "redirect"}, {"Location": "https://external.example/comments"})])
+    with pytest.raises(TerminalPublicationError):
+        GitHubPublisher(config(), transport).publish(publication_request())
+    assert len(transport.calls) == 1
+    assert transport.calls[0][2]["Authorization"] == "Bearer test-token"
+
+
+def test_terminal_failure_metrics_are_not_reported_as_retryable() -> None:
+    publisher = GitHubPublisher(config(), QueueTransport([response(401, {"message": "denied"})]))
+    with pytest.raises(TerminalPublicationError):
+        publisher.publish(publication_request())
+    assert publisher.metrics()["terminal_failures_total"] == 1
+    assert publisher.metrics()["retryable_failures_total"] == 0
+
+
+def test_marker_on_second_safe_page_is_reused_without_post() -> None:
+    request = publication_request()
+    next_link = "<https://api.github.com/repos/DimitryZH/ai-operations-platform/issues/41/comments?per_page=100&page=2>; rel=\"next\""
+    transport = QueueTransport([
+        response(200, [], {"Link": next_link}),
+        response(200, [comment_payload(request)]),
+    ])
+
+    GitHubPublisher(config(), transport).publish(request)
+
+    assert [call[:2] for call in transport.calls] == [
+        ("GET", "/repos/DimitryZH/ai-operations-platform/issues/41/comments?per_page=100"),
+        ("GET", "/repos/DimitryZH/ai-operations-platform/issues/41/comments?per_page=100&page=2"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "<https://external.example/comments?page=2>; rel=\"next\"",
+        "<https://api.github.com/repos/DimitryZH/ai-operations-platform/issues/410/comments?per_page=100&page=2>; rel=\"next\"",
+        "not-a-link",
+    ],
+)
+def test_unsafe_pagination_link_fails_closed_without_post(link: str) -> None:
+    with pytest.raises(TerminalPublicationError):
+        GitHubPublisher(config(), QueueTransport([response(200, [], {"Link": link})])).publish(publication_request())
+
+
+def test_pagination_bound_fails_closed_without_post() -> None:
+    link = "<https://api.github.com/repos/DimitryZH/ai-operations-platform/issues/41/comments?per_page=100&page={}>; rel=\"next\""
+    transport = QueueTransport([
+        response(200, [], {"Link": link.format(2)}),
+        response(200, [], {"Link": link.format(3)}),
+        response(200, [], {"Link": link.format(4)}),
+    ])
+    with pytest.raises(TerminalPublicationError):
+        GitHubPublisher(config(), transport).publish(publication_request())
+    assert len(transport.calls) == 3
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda payload: payload.__setitem__("summary", "safe <!-- injected -->"),
+        lambda payload: payload["findings"][0].__setitem__("statement", "safe <!-- injected -->"),
+        lambda payload: payload.__setitem__("limitations", ["safe <!-- injected -->"]),
+        lambda payload: payload.__setitem__("human_review", "safe <!-- injected -->"),
+    ],
+)
+def test_marker_injection_in_payload_fails_closed_without_network(mutate) -> None:
+    request = publication_request()
+    mutate(request.payload)
+    transport = QueueTransport([])
+    with pytest.raises(TerminalPublicationError):
+        GitHubPublisher(config(), transport).publish(request)
+    assert transport.calls == []
+
+
 def test_invalid_payload_and_transport_error_have_explicit_failure_classes() -> None:
     request = publication_request()
     request.payload["evidence_references"] = ["https://unsafe.example/evidence"]
@@ -124,8 +218,8 @@ class QueueTransport:
         return self._responses.pop(0)
 
 
-def response(status: int, payload: object) -> GitHubHttpResponse:
-    return GitHubHttpResponse(status=status, headers={}, body=json.dumps(payload).encode("utf-8"))
+def response(status: int, payload: object, headers: dict[str, str] | None = None) -> GitHubHttpResponse:
+    return GitHubHttpResponse(status=status, headers=headers or {}, body=json.dumps(payload).encode("utf-8"))
 
 
 class RaisingTransport:

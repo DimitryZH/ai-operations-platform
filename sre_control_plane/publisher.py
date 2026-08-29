@@ -4,12 +4,12 @@ import hashlib
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Lock
-from typing import Literal, Protocol
+from typing import Protocol
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -19,8 +19,10 @@ MAX_GITHUB_MARKDOWN_BYTES = 16 * 1024
 MAX_GITHUB_FINDINGS = 20
 MAX_GITHUB_EVIDENCE_REFERENCES = 10
 MAX_GITHUB_LIMITATIONS = 20
+MAX_GITHUB_COMMENT_PAGES = 3
 _REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _MARKER_PATTERN = re.compile(r"<!-- sre-control-plane-publication:v1:([a-f0-9]{32}):([a-f0-9]{64}) -->")
+_MARKER_PREFIX = "sre-control-plane-publication:"
 
 
 class PublicationError(RuntimeError):
@@ -72,19 +74,27 @@ class PublicationReceiptContract(BaseModel):
         return value
 
 
-class GitHubPublicationConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-    repository: str = Field(min_length=3, max_length=256)
-    issue_number: int = Field(gt=0)
-    token: str = Field(min_length=1, max_length=4096, repr=False)
-    api_url: Literal[GITHUB_API_URL] = GITHUB_API_URL
+@dataclass(frozen=True)
+class GitHubPublicationConfig:
+    """Configuration that deliberately keeps credentials out of validation output."""
 
-    @field_validator("repository")
-    @classmethod
-    def validate_repository(cls, value: str) -> str:
-        if not _REPOSITORY_PATTERN.fullmatch(value):
-            raise ValueError("repository must use owner/repository form")
-        return value
+    repository: str
+    issue_number: int
+    token: str = field(repr=False)
+    api_url: str = GITHUB_API_URL
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.repository, str)
+            or not _REPOSITORY_PATTERN.fullmatch(self.repository)
+            or not isinstance(self.issue_number, int)
+            or isinstance(self.issue_number, bool)
+            or self.issue_number <= 0
+            or not isinstance(self.token, str)
+            or not self.token
+            or self.api_url != GITHUB_API_URL
+        ):
+            raise ValueError("GitHub publication configuration is invalid")
 
 
 class GitHubPublicationPayload(BaseModel):
@@ -98,6 +108,9 @@ class GitHubPublicationPayload(BaseModel):
 
     @model_validator(mode="after")
     def validate_safe_values(self) -> "GitHubPublicationPayload":
+        for text in _published_text_values(self):
+            if "<!--" in text or "-->" in text or _MARKER_PREFIX in text:
+                raise ValueError("GitHub publication text must not contain HTML comments or markers")
         for reference in self.evidence_references:
             parsed = urlparse(reference)
             if parsed.scheme != "local" or parsed.netloc != "evidence" or ".." in parsed.path:
@@ -134,11 +147,12 @@ class GitHubTransport(Protocol):
 class UrllibGitHubTransport:
     def __init__(self, api_url: str) -> None:
         self._api_url = api_url.rstrip("/")
+        self._opener = build_opener(_NoRedirectHandler())
 
     def request(self, method: str, path: str, headers: dict[str, str], body: bytes | None) -> GitHubHttpResponse:
         request = Request(self._api_url + path, data=body, headers=headers, method=method)
         try:
-            with urlopen(request, timeout=10) as response:  # nosec B310: config validates the API endpoint
+            with self._opener.open(request, timeout=10) as response:  # nosec B310: config validates the API endpoint
                 return GitHubHttpResponse(response.status, dict(response.headers.items()), response.read())
         except HTTPError as exc:
             return GitHubHttpResponse(exc.code, dict(exc.headers.items()), exc.read())
@@ -184,7 +198,10 @@ class GitHubPublisher:
         markdown = render_github_markdown(payload, marker)
         self._increment("calls_total")
         for comment in self._list_comments():
-            comment_marker = extract_marker(comment.body)
+            try:
+                comment_marker = extract_marker(comment.body)
+            except ValueError as exc:
+                self._terminal("GitHub comment contains an ambiguous publication marker", exc)
             if comment_marker is None or comment_marker[0] != marker_key_digest(request.idempotency_key):
                 continue
             if comment_marker[1] != request.payload_sha256:
@@ -217,14 +234,24 @@ class GitHubPublisher:
         return f"/repos/{self._config.repository}/issues/{self._config.issue_number}/comments"
 
     def _list_comments(self) -> list[GitHubCommentResponse]:
-        response = self._request("GET", self._comments_path + "?per_page=100", None)
-        try:
-            raw_comments = json.loads(response.body)
-            if not isinstance(raw_comments, list) or len(raw_comments) > 100:
-                raise ValueError("unexpected comment list")
-            return [validate_github_comment(comment) for comment in raw_comments]
-        except Exception as exc:
-            self._terminal("GitHub returned malformed comment-list data", exc)
+        comments: list[GitHubCommentResponse] = []
+        path = self._comments_path + "?per_page=100"
+        for page in range(MAX_GITHUB_COMMENT_PAGES):
+            response = self._request("GET", path, None)
+            try:
+                raw_comments = json.loads(response.body)
+                if not isinstance(raw_comments, list) or len(raw_comments) > 100:
+                    raise ValueError("unexpected comment list")
+                comments.extend(validate_github_comment(comment) for comment in raw_comments)
+                next_path = self._next_page_path(response.headers.get("Link"))
+            except Exception as exc:
+                self._terminal("GitHub returned malformed comment-list data", exc)
+            if next_path is None:
+                return comments
+            if page + 1 == MAX_GITHUB_COMMENT_PAGES:
+                self._terminal("GitHub comment pagination exceeded its safe bound")
+            path = next_path
+        raise AssertionError("bounded pagination loop must return or fail")
 
     def _request(self, method: str, path: str, payload: dict | None) -> GitHubHttpResponse:
         body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") if payload else None
@@ -237,6 +264,8 @@ class GitHubPublisher:
             raise
         except Exception as exc:
             self._retryable("GitHub transport request failed", exc)
+        if 300 <= response.status < 400:
+            self._terminal("GitHub redirect response is not allowed")
         if 200 <= response.status < 300:
             return response
         if response.status in {408, 429} or response.status >= 500 or (response.status == 403 and response.headers.get("x-ratelimit-remaining") == "0"):
@@ -250,16 +279,50 @@ class GitHubPublisher:
             self._terminal("GitHub returned malformed comment data", exc)
 
     def _receipt_for_comment(self, comment: GitHubCommentResponse) -> PublicationReceipt:
-        self._validate_comment_url(comment.html_url)
+        self._validate_comment_url(comment.html_url, comment.id)
         return PublicationReceipt(reference=comment.html_url)
 
-    def _validate_comment_url(self, reference: str) -> None:
+    def _validate_comment_url(self, reference: str, comment_id: int | None = None) -> None:
         parsed = urlparse(reference)
         expected_path = f"/{self._config.repository}/issues/{self._config.issue_number}"
-        if parsed.scheme != "https" or parsed.netloc != "github.com" or not parsed.path.startswith(expected_path):
+        if (
+            parsed.scheme != "https"
+            or parsed.netloc != "github.com"
+            or parsed.path != expected_path
+            or parsed.params
+            or parsed.query
+        ):
             self._terminal("GitHub comment URL is outside the allowlisted publication target")
-        if not re.fullmatch(r"issuecomment-[0-9]+", parsed.fragment):
+        match = re.fullmatch(r"issuecomment-([1-9][0-9]*)", parsed.fragment)
+        if match is None or (comment_id is not None and int(match.group(1)) != comment_id):
             self._terminal("GitHub comment URL is missing its comment identity")
+
+    def _next_page_path(self, link_header: str | None) -> str | None:
+        if not link_header:
+            return None
+        links = [item.strip() for item in link_header.split(",")]
+        next_links = [item for item in links if re.search(r';\s*rel="next"$', item)]
+        if len(next_links) != 1:
+            raise ValueError("GitHub pagination Link header is malformed")
+        match = re.fullmatch(r'<([^>]+)>;\s*rel="next"', next_links[0])
+        if match is None:
+            raise ValueError("GitHub pagination Link header is malformed")
+        parsed = urlparse(match.group(1))
+        if (
+            parsed.scheme != "https"
+            or parsed.netloc != "api.github.com"
+            or parsed.path != self._comments_path
+            or parsed.params
+            or parsed.fragment
+        ):
+            raise ValueError("GitHub pagination target is outside the allowlist")
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        if set(query) - {"page", "per_page"} or query.get("per_page") != ["100"]:
+            raise ValueError("GitHub pagination target is malformed")
+        page_values = query.get("page")
+        if page_values is None or len(page_values) != 1 or not re.fullmatch(r"[1-9][0-9]*", page_values[0]):
+            raise ValueError("GitHub pagination target is malformed")
+        return self._comments_path + "?" + urlencode({"per_page": "100", "page": page_values[0]})
 
     def _increment(self, name: str) -> None:
         with self._metrics_lock:
@@ -290,8 +353,15 @@ def marker_key_digest(idempotency_key: str) -> str:
 
 
 def extract_marker(markdown: str) -> tuple[str, str] | None:
-    match = _MARKER_PATTERN.search(markdown)
-    return match.groups() if match else None
+    if _MARKER_PREFIX not in markdown:
+        return None
+    matches = list(_MARKER_PATTERN.finditer(markdown))
+    if len(matches) != 1:
+        raise ValueError("publication marker is malformed")
+    match = matches[0]
+    if match.start() == 0 or markdown[match.start() - 1] != "\n" or match.end() != len(markdown):
+        raise ValueError("publication marker is not the final canonical line")
+    return match.groups()
 
 
 def render_github_markdown(payload: GitHubPublicationPayload | dict, marker: str) -> str:
@@ -334,3 +404,15 @@ def validate_github_comment(value: object) -> GitHubCommentResponse:
 
 def _empty_metrics() -> dict[str, int]:
     return {"calls_total": 0, "created_total": 0, "reused_total": 0, "retryable_failures_total": 0, "terminal_failures_total": 0}
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _published_text_values(payload: GitHubPublicationPayload) -> list[str]:
+    values = [payload.status, payload.summary, payload.human_review, *payload.evidence_references, *payload.limitations]
+    for finding in payload.findings:
+        values.extend([finding.finding_id, finding.statement, *finding.evidence_ids, *finding.limitations])
+    return values
