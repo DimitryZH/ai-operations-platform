@@ -2,7 +2,7 @@
 
 This document describes the first locally runnable skeleton for the accepted
 SRE investigation MVP contract. It does not connect to HolmesGPT, Kubernetes,
-Prometheus, real GitHub publication, cloud resources, or the SRE Platform runtime.
+Prometheus, cloud resources, or the SRE Platform runtime.
 
 ## Scope
 
@@ -20,6 +20,8 @@ Included:
 - explicit operator-controlled retry that queues retry-eligible local fake tasks
 - a deterministic sanitized JSON evidence package through a bounded local filesystem adapter
 - durable evidence metadata and local fake-publication audit history
+- an opt-in, single-target GitHub Issue publication adapter behind the
+  product-neutral publisher interface
 - liveness and readiness endpoints
 
 Excluded:
@@ -289,8 +291,61 @@ results, reviews, transitions, evidence artifacts, and publications.
 
 Evidence-store and publisher calls occur outside database transactions. A
 storage error creates no publication record; a publisher error records a
-retryable `FAILED` publication outcome. Neither outcome rewrites the durable
+retryable `FAILED_RETRYABLE` or terminal `FAILED_TERMINAL` publication outcome.
+Only the former may receive another durable publication claim. Neither outcome rewrites the durable
 investigation result, task state, attempt state, or lifecycle transitions.
 Reusing the same idempotency key with the same semantic payload reuses the
 existing artifact/publication reference. Reusing it for another task, attempt,
 or payload returns a conflict.
+
+### GitHub Publication Adapter
+
+`FakePublisher` remains the default. The GitHub adapter is selected only when
+all of these environment variables are present; any partial configuration fails
+closed during startup:
+
+```powershell
+$env:SRE_CONTROL_PLANE_GITHUB_REPOSITORY = "owner/repository"
+$env:SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER = "123"
+$env:SRE_CONTROL_PLANE_GITHUB_TOKEN = "provided-outside-the-repository"
+```
+
+The adapter can call only the configured `owner/repository` and Issue number.
+It normalizes GitHub response-header names before classification. It lists comments through at most three validated pages of 100 entries. Every
+pagination URL must use the GitHub API origin and the exact configured comment
+path; an unsafe or truncated page sequence fails closed without a write. The
+transport does not follow redirects: every `3xx` response is terminal and no
+second request is made. It writes deterministic Markdown bounded to 16 KiB and
+includes one final hidden marker derived from the publication idempotency key
+and semantic payload SHA-256. Marker-like or HTML-comment input is rejected;
+a matching canonical final marker reuses the existing comment, while ambiguity
+or a marker for the same key with another payload fails closed. Returned comment
+ID, body, exact repository path, exact Issue number, and canonical URL fragment
+are validated before a durable reference is recorded.
+
+Authentication, authorization, redirects, validation, malformed-response, and
+unexpected target failures are terminal. Rate-limit, network, timeout, and
+server failures are retryable. Both classes persist append-only failure history
+without changing the investigation result or task/attempt lifecycle. The token
+is excluded from configuration representations, startup errors, logs, metrics,
+and durable history. Metrics expose publication calls and retryable or terminal
+failure counters; structured logs omit tokens.
+
+Revision `0007_publication_failure_states` normalizes the legacy `FAILED`
+publication status introduced by revision 0006 to `FAILED_RETRYABLE` for both
+logical publication intents and append-only publication outcomes. During a
+rolling upgrade, runtime also treats the legacy value as retry-eligible. The
+downgrade restores only normalized retryable values to `FAILED`.
+
+The live smoke test is deliberately disabled by default. It requires an
+explicit operator approval immediately before use and all three variables above
+plus:
+
+```powershell
+$env:SRE_CONTROL_PLANE_GITHUB_LIVE_SMOKE = "1"
+python -m pytest -m github_live_smoke
+```
+
+It writes only one bounded marked comment to the configured dedicated Issue and
+repeats the request to verify reuse. Do not set this opt-in without the required
+human approval.

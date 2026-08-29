@@ -9,6 +9,10 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import sessionmaker
+
+from sre_control_plane.fake_executor import FakeInvestigationExecutor
+from sre_control_plane.workflow import SreInvestigationWorkflow
 
 ROOT = Path(__file__).resolve().parents[2]
 POSTGRES_TEST_URL = "SRE_CONTROL_PLANE_TEST_DATABASE_URL"
@@ -135,6 +139,76 @@ def test_revision_ids_fit_alembic_version_column() -> None:
     assert all(isinstance(revision, str) and len(revision) <= 32 for revision in revisions)
 
 
+def test_legacy_failed_publication_upgrade_downgrade_and_retryable_claim(tmp_path: Path, monkeypatch) -> None:
+    database_url = f"sqlite:///{tmp_path / 'legacy-failed-publication.db'}"
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    config = migration_config(database_url)
+    command.upgrade(config, "0006_evidence_publication")
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            seed_legacy_failed_publication(connection, sqlite=True)
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert legacy_publication_statuses(connection) == ("FAILED_RETRYABLE", "FAILED_RETRYABLE")
+        command.downgrade(config, "0006_evidence_publication")
+        with engine.connect() as connection:
+            assert legacy_publication_statuses(connection) == ("FAILED", "FAILED")
+        command.upgrade(config, "head")
+
+        workflow = SreInvestigationWorkflow(sessionmaker(bind=engine, expire_on_commit=False), FakeInvestigationExecutor())
+        claim = workflow._claim_publication("legacy-task", "legacy-attempt", "legacy-publication", "a" * 64)
+        assert claim is not None
+        claim_token, publication_id = claim
+        view = workflow._finalize_publication(
+            "legacy-task", publication_id, claim_token, "PUBLISHED", "fake://publication/aaaaaaaaaaaaaaaa", None, None
+        )
+        assert [item.status for item in view.publications] == ["FAILED_RETRYABLE", "PUBLISHED"]
+    finally:
+        engine.dispose()
+
+
+def migration_config(database_url: str) -> Config:
+    config = Config(str(ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(ROOT / "alembic"))
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    return config
+
+
+def seed_legacy_failed_publication(connection, sqlite: bool) -> None:
+    payload = "'{}'" if sqlite else "'{}'::json"
+    connection.execute(text(
+        "INSERT INTO requests (id, request_id, payload, status) "
+        f"VALUES (1, 'legacy-request', {payload}, 'ACCEPTED')"
+    ))
+    connection.execute(text(
+        "INSERT INTO tasks (id, task_id, request_id, state) "
+        "VALUES (1, 'legacy-task', 1, 'AWAITING_HUMAN_REVIEW')"
+    ))
+    connection.execute(text(
+        "INSERT INTO attempts (id, attempt_id, task_id, state) "
+        "VALUES (1, 'legacy-attempt', 1, 'SUCCEEDED')"
+    ))
+    connection.execute(text(
+        "INSERT INTO publication_intents "
+        "(id, task_id, attempt_id, idempotency_key, payload_sha256, status, fencing_token) "
+        "VALUES (1, 1, 1, 'legacy-publication', :payload_sha256, 'FAILED', 0)"
+    ), {"payload_sha256": "a" * 64})
+    connection.execute(text(
+        "INSERT INTO github_publications "
+        "(id, task_id, attempt_id, publication_intent_id, idempotency_key, attempt_sequence, "
+        "github_reference, payload_sha256, status, error_category) "
+        "VALUES (1, 1, 1, 1, 'legacy-publication', 1, NULL, :payload_sha256, 'FAILED', 'publication:retryable')"
+    ), {"payload_sha256": "a" * 64})
+
+
+def legacy_publication_statuses(connection) -> tuple[str, str]:
+    return (
+        connection.scalar(text("SELECT status FROM publication_intents WHERE id = 1")),
+        connection.scalar(text("SELECT status FROM github_publications WHERE id = 1")),
+    )
+
+
 def test_populated_evidence_upgrade_and_downgrade_preserve_legacy_rows(tmp_path: Path, monkeypatch) -> None:
     database_url = f"sqlite:///{tmp_path / 'populated-control-plane.db'}"
     monkeypatch.delenv("DATABASE_URL", raising=False)
@@ -250,8 +324,55 @@ def test_postgresql_upgrade_from_initial_revision_to_head(monkeypatch) -> None:
             connection.execute(text(f"DROP SCHEMA {schema_name} CASCADE"))
         admin_engine.dispose()
 
-    assert revision == "0006_evidence_publication"
+    assert revision == "0007_publication_failure_states"
     assert {"payload_sha256", "error_category", "publication_intent_id", "attempt_sequence"} <= columns
+
+
+@pytest.mark.postgresql_integration
+def test_postgresql_legacy_failed_publication_upgrade_downgrade_and_retryable_claim(monkeypatch) -> None:
+    database_url = os.environ.get(POSTGRES_TEST_URL)
+    if database_url is None:
+        pytest.skip(f"{POSTGRES_TEST_URL} is not configured")
+
+    schema_name = f"sre_migration_failed_{uuid.uuid4().hex}"
+    admin_engine = create_engine(database_url, pool_pre_ping=True)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f"CREATE SCHEMA {schema_name}"))
+    migration_url = make_url(database_url).update_query_dict({"options": f"-csearch_path={schema_name}"})
+    migration_url_text = migration_url.render_as_string(hide_password=False)
+    config = migration_config(migration_url_text)
+    config.set_main_option("version_table_schema", schema_name)
+    monkeypatch.setenv("DATABASE_URL", migration_url_text)
+    try:
+        command.upgrade(config, "0006_evidence_publication")
+        verification_engine = create_engine(migration_url, pool_pre_ping=True)
+        try:
+            with verification_engine.begin() as connection:
+                seed_legacy_failed_publication(connection, sqlite=False)
+            command.upgrade(config, "head")
+            with verification_engine.connect() as connection:
+                assert legacy_publication_statuses(connection) == ("FAILED_RETRYABLE", "FAILED_RETRYABLE")
+            command.downgrade(config, "0006_evidence_publication")
+            with verification_engine.connect() as connection:
+                assert legacy_publication_statuses(connection) == ("FAILED", "FAILED")
+            command.upgrade(config, "head")
+
+            workflow = SreInvestigationWorkflow(
+                sessionmaker(bind=verification_engine, expire_on_commit=False), FakeInvestigationExecutor()
+            )
+            claim = workflow._claim_publication("legacy-task", "legacy-attempt", "legacy-publication", "a" * 64)
+            assert claim is not None
+            claim_token, publication_id = claim
+            view = workflow._finalize_publication(
+                "legacy-task", publication_id, claim_token, "PUBLISHED", "fake://publication/aaaaaaaaaaaaaaaa", None, None
+            )
+            assert [item.status for item in view.publications] == ["FAILED_RETRYABLE", "PUBLISHED"]
+        finally:
+            verification_engine.dispose()
+    finally:
+        with admin_engine.begin() as connection:
+            connection.execute(text(f"DROP SCHEMA {schema_name} CASCADE"))
+        admin_engine.dispose()
 
 
 @pytest.mark.postgresql_integration

@@ -60,8 +60,9 @@ from sre_control_plane.persistence import (
 from sre_control_plane.publisher import (
     FakePublisher,
     PublicationRequest,
+    PublicationError,
     Publisher,
-    validate_publication_receipt,
+    TerminalPublicationError,
 )
 from sre_control_plane.states import (
     ACTIVE_ATTEMPT_STATES,
@@ -990,6 +991,9 @@ class SreInvestigationWorkflow:
         with self._dispatch_metrics_lock:
             return dict(self._dispatch_metrics)
 
+    def publication_metrics(self) -> dict[str, int]:
+        return self._publisher.metrics()
+
     def _increment_dispatch_metric(self, name: str) -> None:
         with self._dispatch_metrics_lock:
             self._dispatch_metrics[name] += 1
@@ -1382,7 +1386,7 @@ class SreInvestigationWorkflow:
             publication_payload = publication_payload_for_result(result.payload, stored.artifact_uri)
             payload_sha256 = hashlib.sha256(canonical_json(publication_payload).encode("utf-8")).hexdigest()
             self._set_publication_payload_hash(publication_id, claim_token, payload_sha256)
-            receipt = validate_publication_receipt(
+            receipt = self._publisher.validate_receipt(
                 self._publisher.publish(
                     PublicationRequest(
                         idempotency_key=request.idempotency_key,
@@ -1392,9 +1396,10 @@ class SreInvestigationWorkflow:
                 )
             )
         except Exception as exc:
+            status, error_category, failure_reason = publication_failure_outcome(exc)
             return self._finalize_publication(
-                task_id, publication_id, claim_token, "FAILED", None,
-                f"{type(exc).__name__}"[:64], "publication_failed_retryable",
+                task_id, publication_id, claim_token, status, None,
+                error_category, failure_reason,
             )
 
         return self._finalize_publication(
@@ -1429,6 +1434,7 @@ class SreInvestigationWorkflow:
                         .where(PublicationIntentRecord.idempotency_key == idempotency_key)
                         .with_for_update()
                     )
+                    is_new_intent = intent is None
                     if intent is None:
                         intent = PublicationIntentRecord(
                             task_id=task.id, attempt_id=attempt.id,
@@ -1445,7 +1451,10 @@ class SreInvestigationWorkflow:
                         raise PublicationConflict(
                             "publication idempotency_key already exists with different semantics"
                         )
-                    if intent.status == "PUBLISHED" or intent.active_claim_token is not None:
+                    if (
+                        intent.active_claim_token is not None
+                        or (not is_new_intent and intent.status not in {"FAILED_RETRYABLE", "FAILED"})
+                    ):
                         return None
                     intent.fencing_token += 1
                     claim_token = uuid.uuid4().hex
@@ -2461,3 +2470,11 @@ def stable_id(prefix: Literal["task"], value: str) -> str:
 
 def log_lifecycle(event: str, **fields: str | None) -> None:
     LOGGER.info(json.dumps({"event": event, **fields}, sort_keys=True))
+
+
+def publication_failure_outcome(exc: Exception) -> tuple[str, str, str]:
+    if isinstance(exc, TerminalPublicationError):
+        return "FAILED_TERMINAL", exc.error_category, "publication_failed_terminal"
+    if isinstance(exc, PublicationError):
+        return "FAILED_RETRYABLE", exc.error_category, "publication_failed_retryable"
+    return "FAILED_RETRYABLE", type(exc).__name__[:64], "publication_failed_retryable"
