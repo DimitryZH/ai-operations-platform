@@ -1453,7 +1453,7 @@ class SreInvestigationWorkflow:
                         )
                     if (
                         intent.active_claim_token is not None
-                        or (not is_new_intent and intent.status != "FAILED_RETRYABLE")
+                        or (not is_new_intent and intent.status not in {"FAILED_RETRYABLE", "FAILED"})
                     ):
                         return None
                     intent.fencing_token += 1

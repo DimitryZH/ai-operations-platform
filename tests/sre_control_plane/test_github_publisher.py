@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import threading
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
@@ -11,6 +14,7 @@ from sre_control_plane.publisher import (
     PublicationRequest,
     RetryablePublicationError,
     TerminalPublicationError,
+    UrllibGitHubTransport,
     publication_marker,
     render_github_markdown,
 )
@@ -155,6 +159,27 @@ def test_marker_on_second_safe_page_is_reused_without_post() -> None:
     ]
 
 
+@pytest.mark.parametrize("header_name", ["link", "LiNk", "LINK"])
+def test_marker_on_second_page_is_reused_for_case_insensitive_link_header(header_name: str) -> None:
+    request = publication_request()
+    next_link = "<https://api.github.com/repos/DimitryZH/ai-operations-platform/issues/41/comments?per_page=100&page=2>; rel=\"next\""
+    transport = QueueTransport([
+        response(200, [], {header_name: next_link}),
+        response(200, [comment_payload(request)]),
+    ])
+
+    GitHubPublisher(config(), transport).publish(request)
+
+    assert len(transport.calls) == 2
+
+
+@pytest.mark.parametrize("header_name", ["x-ratelimit-remaining", "X-RateLimit-Remaining", "X-RaTeLiMiT-ReMaInInG"])
+def test_rate_limit_header_is_case_insensitive(header_name: str) -> None:
+    transport = QueueTransport([response(403, {"message": "rate limited"}, {header_name: "0"})])
+    with pytest.raises(RetryablePublicationError):
+        GitHubPublisher(config(), transport).publish(publication_request())
+
+
 @pytest.mark.parametrize(
     "link",
     [
@@ -225,3 +250,49 @@ def response(status: int, payload: object, headers: dict[str, str] | None = None
 class RaisingTransport:
     def request(self, method, path, headers, body):
         raise OSError("test network unavailable")
+
+
+@pytest.mark.parametrize("status", [301, 302, 307, 308])
+def test_urllib_transport_does_not_follow_redirect_or_forward_authorization(status: int) -> None:
+    received_authorization: list[str | None] = []
+
+    class TargetHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            received_authorization.append(self.headers.get("Authorization"))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, format, *args):
+            return
+
+    with local_server(TargetHandler) as target:
+        target_url = f"http://127.0.0.1:{target.server_port}/target"
+
+        class RedirectHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(status)
+                self.send_header("Location", target_url)
+                self.end_headers()
+
+            def log_message(self, format, *args):
+                return
+
+        with local_server(RedirectHandler) as redirector:
+            transport = UrllibGitHubTransport(f"http://127.0.0.1:{redirector.server_port}")
+            response_value = transport.request("GET", "/start", {"Authorization": "Bearer recognizable-test-token"}, None)
+
+    assert response_value.status == status
+    assert received_authorization == []
+
+
+@contextmanager
+def local_server(handler):
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()

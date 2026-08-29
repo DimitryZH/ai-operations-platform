@@ -139,6 +139,9 @@ class GitHubHttpResponse:
     headers: dict[str, str]
     body: bytes
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "headers", {name.lower(): value for name, value in self.headers.items()})
+
 
 class GitHubTransport(Protocol):
     def request(self, method: str, path: str, headers: dict[str, str], body: bytes | None) -> GitHubHttpResponse: ...
@@ -243,7 +246,7 @@ class GitHubPublisher:
                 if not isinstance(raw_comments, list) or len(raw_comments) > 100:
                     raise ValueError("unexpected comment list")
                 comments.extend(validate_github_comment(comment) for comment in raw_comments)
-                next_path = self._next_page_path(response.headers.get("Link"))
+                next_path = self._next_page_path(response.headers.get("link"))
             except Exception as exc:
                 self._terminal("GitHub returned malformed comment-list data", exc)
             if next_path is None:

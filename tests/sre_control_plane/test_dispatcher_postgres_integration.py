@@ -21,6 +21,7 @@ from sre_control_plane.publisher import (
     GitHubHttpResponse,
     GitHubPublicationConfig,
     GitHubPublisher,
+    PublicationError,
 )
 from sre_control_plane.persistence import (
     AttemptRecord,
@@ -324,6 +325,31 @@ def test_postgresql_terminal_github_publication_failure_cannot_be_retried(
         assert len(list(session.scalars(select(GitHubPublicationRecord)))) == 1
 
 
+@pytest.mark.postgresql_integration
+def test_postgresql_retryable_publication_failure_then_success_is_append_only(
+    postgres_session_factory,
+    tmp_path: Path,
+) -> None:
+    publisher = RetryableThenSuccessfulPublisher()
+    workflow = SreInvestigationWorkflow(
+        postgres_session_factory,
+        FakeInvestigationExecutor(),
+        evidence_store=LocalFilesystemEvidenceStore(tmp_path / "retryable-github-evidence"),
+        publisher=publisher,
+    )
+    task = workflow.submit_request(request_example("postgres-retryable-publication"))
+    workflow.run_dispatch_tick("postgres-retryable-publication-tick")
+    request = EvidencePublicationRequest(idempotency_key="postgres-retryable-publication")
+
+    failed = workflow.publish_evidence(task.task_id, request)
+    published = workflow.publish_evidence(task.task_id, request)
+
+    assert failed.failure_reason == "publication_failed_retryable"
+    assert [item.status for item in published.publications] == ["FAILED_RETRYABLE", "PUBLISHED"]
+    assert [item.attempt_sequence for item in published.publications] == [1, 2]
+    assert publisher.calls == 2
+
+
 class BlockingCapabilityExecutor(FakeInvestigationExecutor):
     def __init__(self) -> None:
         super().__init__()
@@ -381,6 +407,18 @@ class TerminalGitHubTransport:
     def request(self, method, path, headers, body):
         self.calls += 1
         return GitHubHttpResponse(401, {}, b'{"message":"denied"}')
+
+
+class RetryableThenSuccessfulPublisher(FakePublisher):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def publish(self, request):
+        self.calls += 1
+        if self.calls == 1:
+            raise PublicationError("bounded retryable failure")
+        return super().publish(request)
 
 
 class BlockingStatusExecutor(FakeInvestigationExecutor):

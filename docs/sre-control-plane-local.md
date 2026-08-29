@@ -311,7 +311,7 @@ $env:SRE_CONTROL_PLANE_GITHUB_TOKEN = "provided-outside-the-repository"
 ```
 
 The adapter can call only the configured `owner/repository` and Issue number.
-It lists comments through at most three validated pages of 100 entries. Every
+It normalizes GitHub response-header names before classification. It lists comments through at most three validated pages of 100 entries. Every
 pagination URL must use the GitHub API origin and the exact configured comment
 path; an unsafe or truncated page sequence fails closed without a write. The
 transport does not follow redirects: every `3xx` response is terminal and no
@@ -330,6 +330,12 @@ without changing the investigation result or task/attempt lifecycle. The token
 is excluded from configuration representations, startup errors, logs, metrics,
 and durable history. Metrics expose publication calls and retryable or terminal
 failure counters; structured logs omit tokens.
+
+Revision `0007_publication_failure_states` normalizes the legacy `FAILED`
+publication status introduced by revision 0006 to `FAILED_RETRYABLE` for both
+logical publication intents and append-only publication outcomes. During a
+rolling upgrade, runtime also treats the legacy value as retry-eligible. The
+downgrade restores only normalized retryable values to `FAILED`.
 
 The live smoke test is deliberately disabled by default. It requires an
 explicit operator approval immediately before use and all three variables above
