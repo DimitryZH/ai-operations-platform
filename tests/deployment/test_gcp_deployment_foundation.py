@@ -27,9 +27,19 @@ def test_terraform_keeps_runtime_private_and_scheduler_authenticated() -> None:
     assert "google_cloud_run_v2_service_iam_member" in source
     assert "roles/run.invoker" in source
     assert "oidc_token" in source
-    assert 'uri         = "${google_cloud_run_v2_service.control_plane.uri}/internal/dispatch/tick"' in source
+    assert 'uri         = "${google_cloud_run_v2_service.control_plane[0].uri}/internal/dispatch/tick"' in source
     assert "allUsers" not in source
     assert "allAuthenticatedUsers" not in source
+
+
+def test_runtime_requires_explicit_database_secret_version_and_pauses_scheduler() -> None:
+    source = terraform_source()
+
+    assert 'variable "database_secret_version"' in source
+    assert 'version = var.database_secret_version' in source
+    assert 'version = "latest"' not in source
+    assert 'paused      = !var.scheduler_enabled' in source
+    assert "scheduler_activation_confirmed" in source
 
 
 def test_terraform_uses_private_durable_resources_without_secret_values() -> None:
@@ -62,3 +72,15 @@ def test_terraform_example_contains_only_placeholders() -> None:
     assert "replace-with-reviewed-project-id" in example
     assert "token" not in example.lower()
     assert "password" not in example.lower()
+
+
+def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> None:
+    runbook = (REPOSITORY_ROOT / "gcp" / "sre-control-plane" / "README.md").read_text(encoding="utf-8")
+
+    assert "**Bootstrap phase:**" in runbook
+    assert "**Out-of-band secret phase:**" in runbook
+    assert "**Image phase:**" in runbook
+    assert "**Runtime phase:**" in runbook
+    assert "scheduler_activation_confirmed = true" in runbook
+    assert "migration job succeeded and readiness was verified" in runbook
+    assert "external operator workstation" in runbook

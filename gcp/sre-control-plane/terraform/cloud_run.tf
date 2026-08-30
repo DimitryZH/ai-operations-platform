@@ -1,4 +1,5 @@
 resource "google_cloud_run_v2_service" "control_plane" {
+  count    = var.deployment_phase == "runtime" ? 1 : 0
   name     = local.resource_name
   location = var.region
   ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY"
@@ -34,7 +35,7 @@ resource "google_cloud_run_v2_service" "control_plane" {
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.database_url.secret_id
-            version = "latest"
+            version = var.database_secret_version
           }
         }
       }
@@ -67,6 +68,11 @@ resource "google_cloud_run_v2_service" "control_plane" {
       condition     = var.executor_mode == "fake" && var.github_publisher_mode == "fake"
       error_message = "This foundation deploys only fake adapters."
     }
+
+    precondition {
+      condition     = var.container_image != null && var.database_secret_version != null
+      error_message = "runtime deployment requires an immutable container_image and an explicit database_secret_version."
+    }
   }
 
   depends_on = [
@@ -76,6 +82,7 @@ resource "google_cloud_run_v2_service" "control_plane" {
 }
 
 resource "google_cloud_run_v2_job" "migrate" {
+  count    = var.deployment_phase == "runtime" ? 1 : 0
   name     = "${local.resource_name}-migrate"
   location = var.region
   labels   = local.labels
@@ -104,7 +111,7 @@ resource "google_cloud_run_v2_job" "migrate" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.database_url.secret_id
-              version = "latest"
+              version = var.database_secret_version
             }
           }
         }
@@ -119,8 +126,9 @@ resource "google_cloud_run_v2_job" "migrate" {
 }
 
 resource "google_cloud_run_v2_service_iam_member" "scheduler_invoker" {
-  name     = google_cloud_run_v2_service.control_plane.name
-  location = google_cloud_run_v2_service.control_plane.location
+  count    = var.deployment_phase == "runtime" ? 1 : 0
+  name     = google_cloud_run_v2_service.control_plane[0].name
+  location = google_cloud_run_v2_service.control_plane[0].location
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.scheduler.email}"
 }

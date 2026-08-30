@@ -34,11 +34,46 @@ variable "name_prefix" {
 variable "container_image" {
   description = "Immutable Artifact Registry image URI pinned to a sha256 digest."
   type        = string
+  default     = null
 
   validation {
-    condition     = can(regex("^[a-z0-9-]+-docker\\.pkg\\.dev/.+@sha256:[0-9a-fA-F]{64}$", var.container_image))
-    error_message = "container_image must be an Artifact Registry URI pinned by an immutable @sha256 digest."
+    condition     = var.container_image == null || can(regex("^[a-z0-9-]+-docker\\.pkg\\.dev/.+@sha256:[0-9a-fA-F]{64}$", var.container_image))
+    error_message = "container_image must be null or an Artifact Registry URI pinned by an immutable @sha256 digest."
   }
+}
+
+variable "deployment_phase" {
+  description = "bootstrap creates prerequisites only; runtime creates Cloud Run, migration job, and paused scheduler."
+  type        = string
+  default     = "bootstrap"
+
+  validation {
+    condition     = contains(["bootstrap", "runtime"], var.deployment_phase)
+    error_message = "deployment_phase must be bootstrap or runtime."
+  }
+}
+
+variable "database_secret_version" {
+  description = "Explicit existing Secret Manager version for DATABASE_URL. The value is a version number, never the secret value."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.database_secret_version == null || can(regex("^[1-9][0-9]*$", var.database_secret_version))
+    error_message = "database_secret_version must be a positive numeric Secret Manager version."
+  }
+}
+
+variable "scheduler_enabled" {
+  description = "Keep the scheduler paused until migration and authenticated readiness verification have succeeded."
+  type        = bool
+  default     = false
+}
+
+variable "scheduler_activation_confirmed" {
+  description = "Explicit reviewed acknowledgement that migration and authenticated readiness verification succeeded before scheduler activation."
+  type        = bool
+  default     = false
 }
 
 variable "cloud_sql_tier" {

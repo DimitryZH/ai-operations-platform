@@ -3,7 +3,7 @@ project_id      = "replace-with-reviewed-project-id"
 region          = "us-central1"
 environment     = "staging"
 name_prefix     = "sre-control-plane"
-container_image = "us-central1-docker.pkg.dev/replace-with-reviewed-project-id/sre-control-plane/sre-control-plane@sha256:replace-with-64-hex-digest"
+deployment_phase = "bootstrap"
 
 # Both are intentionally locked to fake adapters in this foundation.
 executor_mode         = "fake"

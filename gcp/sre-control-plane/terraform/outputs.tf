@@ -1,10 +1,10 @@
 output "cloud_run_service_name" {
-  value       = google_cloud_run_v2_service.control_plane.name
+  value       = try(google_cloud_run_v2_service.control_plane[0].name, null)
   description = "Private Cloud Run service name. No public invoker is granted."
 }
 
 output "migration_job_name" {
-  value       = google_cloud_run_v2_job.migrate.name
+  value       = try(google_cloud_run_v2_job.migrate[0].name, null)
   description = "Controlled migration job name; execute only after reviewed deployment approval."
 }
 
