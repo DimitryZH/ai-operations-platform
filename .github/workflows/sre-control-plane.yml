@@ -4,9 +4,13 @@ on:
   pull_request:
     paths:
       - ".github/workflows/sre-control-plane.yml"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "gcp/sre-control-plane/**"
       - "alembic/**"
       - "sre_control_plane/**"
       - "tests/sre_control_plane/**"
+      - "tests/deployment/**"
       - "pyproject.toml"
   push:
 
@@ -35,8 +39,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - uses: hashicorp/setup-terraform@v3
       - name: Install dependencies
         run: python -m pip install -e ".[dev]"
+      - name: Check GCP Terraform foundation
+        run: |
+          terraform -chdir=gcp/sre-control-plane/terraform fmt -check -recursive
+          terraform -chdir=gcp/sre-control-plane/terraform init -backend=false
+          terraform -chdir=gcp/sre-control-plane/terraform validate
+      - name: Build control-plane container
+        run: docker build --tag sre-control-plane:ci .
       - name: Apply migrations
         run: alembic upgrade head
       - name: Run tests

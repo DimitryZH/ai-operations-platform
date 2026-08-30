@@ -1,0 +1,16 @@
+# Apply only after the reviewed bootstrap phase, out-of-band database secret
+# version creation, and immutable image push. Do not commit this file.
+project_id              = "replace-with-reviewed-project-id"
+region                  = "us-central1"
+environment             = "staging"
+name_prefix             = "sre-control-plane"
+deployment_phase        = "runtime"
+container_image         = "us-central1-docker.pkg.dev/replace-with-reviewed-project-id/sre-control-plane/sre-control-plane@sha256:replace-with-64-hex-digest"
+database_secret_version = "1"
+
+# The Scheduler resource is created paused. Activation is a later, separate
+# reviewed change after the migration job and internal readiness check pass.
+scheduler_enabled              = false
+scheduler_activation_confirmed = false
+executor_mode                  = "fake"
+github_publisher_mode          = "fake"

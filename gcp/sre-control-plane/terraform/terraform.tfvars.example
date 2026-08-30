@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars only in an approved local workspace. Do not commit it.
+project_id      = "replace-with-reviewed-project-id"
+region          = "us-central1"
+environment     = "staging"
+name_prefix     = "sre-control-plane"
+deployment_phase = "bootstrap"
+
+# Both are intentionally locked to fake adapters in this foundation.
+executor_mode         = "fake"
+github_publisher_mode = "fake"

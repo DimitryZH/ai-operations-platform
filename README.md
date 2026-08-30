@@ -80,6 +80,7 @@ ai-operations-platform/
 - [Roadmap](docs/roadmap.md)
 - [Initial Migration Closeout](docs/migration-closeout.md)
 - [Stateful Agent Runtime](gcp/stateful-agent-runtime/README.md)
+- [SRE Control-Plane GCP Deployment Foundation](gcp/sre-control-plane/README.md)
 - [Context Lifecycle Foundation](platform/context/README.md)
 
 ## Scope Boundaries
