@@ -20,6 +20,7 @@ from sre_control_plane.holmesgpt_executor import (
     HolmesGptHttpConfig,
     HolmesGptHttpExecutor,
     HolmesGptHttpResponse,
+    HolmesGptExecutorError,
     HolmesGptRejected,
     HolmesGptUnavailable,
     UrllibHolmesGptTransport,
@@ -32,8 +33,16 @@ from sre_control_plane.persistence import Base
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def response(status: int, payload: object) -> HolmesGptHttpResponse:
-    return HolmesGptHttpResponse(status=status, headers={}, body=json.dumps(payload).encode("utf-8"))
+def response(
+    status: int,
+    payload: object,
+    headers: dict[str, str] | None = None,
+) -> HolmesGptHttpResponse:
+    return HolmesGptHttpResponse(
+        status=status,
+        headers=headers if headers is not None else {"Content-Type": "application/json"},
+        body=json.dumps(payload).encode("utf-8"),
+    )
 
 
 @pytest.fixture()
@@ -219,6 +228,33 @@ def test_unavailable_response_is_controlled_without_exposing_body() -> None:
     assert "token" not in str(exc_info.value)
 
 
+@pytest.mark.parametrize("headers", [
+    {},
+    {"Content-Type": "text/plain"},
+    {"Content-Type": "application json"},
+    {"Content-Type": "application/json, text/plain"},
+])
+def test_successful_response_requires_json_compatible_content_type(headers: dict[str, str]) -> None:
+    invocation = command()
+    adapter, _ = executor([response(200, {"analysis": result_payload(invocation)}, headers)])
+
+    with pytest.raises(HolmesGptRejected):
+        adapter.start_investigation(invocation)
+
+
+def test_successful_response_accepts_json_compatible_content_type() -> None:
+    invocation = command()
+    adapter, _ = executor([
+        response(
+            200,
+            {"analysis": result_payload(invocation)},
+            {"Content-Type": "application/vnd.holmes+json; charset=utf-8"},
+        )
+    ])
+
+    assert adapter.start_investigation(invocation).status == ExecutorStatus.SUCCEEDED
+
+
 @pytest.mark.parametrize("redirect_status", [301, 302, 307, 308])
 def test_urllib_transport_does_not_follow_local_redirects(redirect_status: int) -> None:
     target_calls: list[str] = []
@@ -267,6 +303,111 @@ def test_unsafe_evidence_and_missing_mutation_denial_fail_closed() -> None:
         adapter.describe_capabilities()
 
 
+def test_controlled_errors_do_not_chain_or_expose_adapter_secrets(caplog, session_factory) -> None:
+    secret = "recognizable-adapter-secret"
+    malformed_report = CapabilityReport.model_construct(executor_id=secret)
+    malformed_adapter, _ = executor([], malformed_report)
+    assert_secret_safe_error(secret, caplog, lambda: malformed_adapter.describe_capabilities())
+
+    invocation = command()
+    malformed_analysis, _ = executor([
+        response(200, {"analysis": {"untrusted": secret}})
+    ])
+    assert_secret_safe_error(secret, caplog, lambda: malformed_analysis.start_investigation(invocation))
+
+    transport_error_adapter = HolmesGptHttpExecutor(
+        HolmesGptHttpConfig(
+            endpoint="http://127.0.0.1:18080",
+            local_test_mode=True,
+            capability_report=local_capabilities(),
+        ),
+        SecretTransport(secret),
+    )
+    assert_secret_safe_error(secret, caplog, lambda: transport_error_adapter.start_investigation(invocation))
+
+    workflow = SreInvestigationWorkflow(session_factory, transport_error_adapter)
+    task = workflow.submit_request(invocation.request)
+    view = workflow.run_dispatch_tick("secret-safe-dispatch")
+    durable_view = workflow.get_task(task.task_id)
+
+    assert view.reason == "attempt_executed"
+    assert durable_view.task_state == TaskState.READY
+    assert durable_view.attempt is not None and durable_view.attempt.state == AttemptState.DISPATCH_FAILED
+    assert secret not in json.dumps(durable_view.model_dump(mode="json"))
+    assert secret not in caplog.text
+
+
+def test_secret_bearing_adapter_failures_never_enter_durable_state(caplog, session_factory) -> None:
+    secret = "durable-adapter-secret"
+    adapters = [
+        HolmesGptHttpExecutor(
+            HolmesGptHttpConfig(
+                endpoint="http://127.0.0.1:18080",
+                local_test_mode=True,
+                capability_report=CapabilityReport.model_construct(executor_id=secret),
+            ),
+            QueueTransport([]),
+        ),
+        executor([response(200, {"analysis": {"untrusted": secret}})])[0],
+        HolmesGptHttpExecutor(
+            HolmesGptHttpConfig(
+                endpoint="http://127.0.0.1:18080",
+                local_test_mode=True,
+                capability_report=local_capabilities(),
+            ),
+            SecretTransport(secret),
+        ),
+    ]
+
+    for index, adapter in enumerate(adapters):
+        workflow = SreInvestigationWorkflow(session_factory, adapter)
+        task = workflow.submit_request(request_example(f"durable-secret-{index}"))
+        workflow.run_dispatch_tick(f"durable-secret-{index}")
+        durable_view = workflow.get_task(task.task_id)
+
+        assert secret not in json.dumps(durable_view.model_dump(mode="json"))
+        assert durable_view.task_state == TaskState.READY
+
+    assert secret not in caplog.text
+
+
+def test_cancellation_is_unsupported_and_preserves_terminal_result() -> None:
+    invocation = command()
+    adapter, _ = executor([response(200, {"analysis": result_payload(invocation)})])
+    adapter.start_investigation(invocation)
+
+    with pytest.raises(HolmesGptRejected, match="cancellation is unsupported") as exc_info:
+        adapter.cancel_attempt(invocation.attempt_id, invocation.idempotency_key)
+
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert adapter.get_status(invocation.attempt_id, invocation.idempotency_key).status == ExecutorStatus.SUCCEEDED
+    assert adapter.get_result(invocation.attempt_id, invocation.idempotency_key).status == ResultStatus.SUCCEEDED
+
+
+def test_cancellation_during_inflight_request_is_unsupported_and_late_success_is_retained() -> None:
+    invocation = command()
+    transport = BlockingTransport(response(200, {"analysis": result_payload(invocation)}))
+    adapter = HolmesGptHttpExecutor(
+        HolmesGptHttpConfig(
+            endpoint="http://127.0.0.1:18080",
+            local_test_mode=True,
+            capability_report=local_capabilities(),
+        ),
+        transport,
+    )
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(adapter.start_investigation, invocation)
+        assert transport.started.wait(timeout=5)
+        with pytest.raises(HolmesGptRejected, match="cancellation is unsupported"):
+            adapter.cancel_attempt(invocation.attempt_id, invocation.idempotency_key)
+        transport.release.set()
+        assert future.result(timeout=5).status == ExecutorStatus.SUCCEEDED
+
+    assert adapter.get_status(invocation.attempt_id, invocation.idempotency_key).status == ExecutorStatus.SUCCEEDED
+
+
 def test_endpoint_userinfo_and_raw_configuration_secret_never_escape(monkeypatch, caplog) -> None:
     secret = "recognizable-holmes-secret"
     with pytest.raises(ValueError) as endpoint_error:
@@ -274,6 +415,7 @@ def test_endpoint_userinfo_and_raw_configuration_secret_never_escape(monkeypatch
     assert secret not in str(endpoint_error.value)
     assert secret not in repr(endpoint_error.value)
     assert endpoint_error.value.__cause__ is None
+    assert endpoint_error.value.__context__ is None
 
     monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_ENDPOINT", "http://127.0.0.1:18080")
     monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_LOCAL_TEST_MODE", "1")
@@ -285,6 +427,7 @@ def test_endpoint_userinfo_and_raw_configuration_secret_never_escape(monkeypatch
     assert secret not in str(config_error.value)
     assert secret not in repr(config_error.value)
     assert config_error.value.__cause__ is None
+    assert config_error.value.__context__ is None
     assert secret not in caplog.text
 
 
@@ -330,3 +473,22 @@ class BlockingTransport:
         if not self.release.wait(timeout=5):
             raise TimeoutError("test transport did not release")
         return self._response
+
+
+class SecretTransport:
+    def __init__(self, secret: str) -> None:
+        self._secret = secret
+
+    def request(self, method: str, path: str, headers: dict[str, str], body: bytes | None) -> HolmesGptHttpResponse:
+        raise RuntimeError(f"remote failure: {self._secret}")
+
+
+def assert_secret_safe_error(secret: str, caplog, operation) -> None:
+    with pytest.raises(HolmesGptExecutorError) as exc_info:
+        operation()
+    error = exc_info.value
+    assert secret not in str(error)
+    assert secret not in repr(error)
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    assert secret not in caplog.text

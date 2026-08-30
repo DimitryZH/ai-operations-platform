@@ -285,7 +285,10 @@ The adapter does not configure credentials or send an authorization header.
 Capability declarations must exactly match the accepted read-only scope and
 state required mutation denials. Redirects, malformed or oversized responses,
 unsafe evidence references, unapproved endpoints, and ambiguous responses fail
-closed.
+closed. A successful response must declare a JSON-compatible `Content-Type`
+before its `analysis` is parsed. The local prototype does not support
+`cancel_attempt`: it fails closed and does not claim to interrupt an in-flight
+HTTP call or alter a completed result.
 
 This code is local adapter coverage only. Private deployment, effective API
 authentication and admin endpoint protection, effective Kubernetes RBAC,

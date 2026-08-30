@@ -375,7 +375,11 @@ unsafe evidence references, missing capability denials, and identity mismatch.
 External HTTP calls remain outside database transactions and locks. A
 schema-valid partial result proceeds to human review; a schema-valid failed
 result is retained as audit evidence, marks its attempt `FAILED`, and returns
-the task to `READY` for an explicit operator retry.
+the task to `READY` for an explicit operator retry. Successful responses must
+declare a JSON-compatible `Content-Type` before the adapter parses `analysis`.
+`cancel_attempt` is explicitly unsupported in this synchronous prototype: it
+fails closed without claiming to interrupt an HTTP call or changing a terminal
+result.
 
 No HolmesGPT runtime, API authentication behavior, RBAC, Prometheus or logs
 toolset enforcement, model behavior, deployment, or live investigation has

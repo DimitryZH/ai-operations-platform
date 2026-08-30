@@ -50,6 +50,7 @@ def load_settings() -> Settings:
         raise ValueError("HolmesGPT executor configuration is incomplete")
     holmesgpt_executor = None
     if all(holmes_configured):
+        holmes_configuration_invalid = False
         try:
             if holmes_local_test_mode not in {"0", "1"}:
                 raise ValueError("local fixture mode must be explicit")
@@ -59,7 +60,9 @@ def load_settings() -> Settings:
                 capability_report=CapabilityReport.model_validate(json.loads(holmes_capabilities)),
             )
         except (TypeError, ValueError, json.JSONDecodeError):
-            raise ValueError("HolmesGPT executor configuration is invalid") from None
+            holmes_configuration_invalid = True
+        if holmes_configuration_invalid:
+            raise ValueError("HolmesGPT executor configuration is invalid")
     return Settings(
         service_name=os.environ.get("SRE_CONTROL_PLANE_SERVICE_NAME", "sre-control-plane"),
         database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL),

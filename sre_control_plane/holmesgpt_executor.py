@@ -75,13 +75,20 @@ class HolmesGptHttpConfig:
     capability_report: CapabilityReport | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
+        parsing_failed = False
         try:
             parsed = urlparse(self.endpoint)
             hostname = parsed.hostname or ""
             has_userinfo = parsed.username is not None or parsed.password is not None
             valid_path = parsed.path.rstrip("/") == ""
         except ValueError:
-            raise ValueError("HolmesGPT HTTP configuration is invalid") from None
+            parsing_failed = True
+            parsed = None
+            hostname = ""
+            has_userinfo = True
+            valid_path = False
+        if parsing_failed:
+            raise ValueError("HolmesGPT HTTP configuration is invalid")
         if (
             has_userinfo
             or not valid_path
@@ -128,13 +135,17 @@ class UrllibHolmesGptTransport:
 
     def request(self, method: str, path: str, headers: dict[str, str], body: bytes | None) -> HolmesGptHttpResponse:
         request = Request(self._endpoint + path, data=body, headers=headers, method=method)
+        unavailable = False
         try:
             with self._opener.open(request, timeout=self._timeout_seconds) as response:  # nosec B310: endpoint is validated
                 return HolmesGptHttpResponse(response.status, dict(response.headers.items()), response.read(MAX_HOLMESGPT_RESPONSE_BYTES + 1))
         except HTTPError as exc:
             return HolmesGptHttpResponse(exc.code, dict(exc.headers.items()), exc.read(MAX_HOLMESGPT_RESPONSE_BYTES + 1))
-        except URLError as exc:
-            raise HolmesGptUnavailable("HolmesGPT HTTP request is unavailable") from exc
+        except URLError:
+            unavailable = True
+        if unavailable:
+            raise HolmesGptUnavailable("HolmesGPT HTTP request is unavailable")
+        raise HolmesGptUnavailable("HolmesGPT HTTP request is unavailable")
 
 
 class HolmesGptHttpExecutor:
@@ -155,10 +166,14 @@ class HolmesGptHttpExecutor:
         report = self._config.capability_report
         if report is None:
             raise HolmesGptRejected("HolmesGPT capability declaration is absent")
+        malformed = False
         try:
             validated = CapabilityReport.model_validate(report.model_dump(mode="json"))
-        except ValidationError as exc:
-            raise HolmesGptRejected("HolmesGPT capability declaration is malformed") from exc
+        except ValidationError:
+            malformed = True
+            validated = None
+        if malformed or validated is None:
+            raise HolmesGptRejected("HolmesGPT capability declaration is malformed")
         if capability_declaration_failure(validated, self._config.local_test_mode) is not None:
             raise HolmesGptRejected("HolmesGPT capability declaration is not fail-closed")
         return validated
@@ -181,6 +196,7 @@ class HolmesGptHttpExecutor:
             slot.completed.wait()
             return self._slot_response(slot)
 
+        failure_type: type[HolmesGptExecutorError] | None = None
         try:
             payload = holmesgpt_request_payload(command)
             raw_body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -195,16 +211,18 @@ class HolmesGptHttpExecutor:
                 idempotency_key=command.idempotency_key,
                 fencing_token=command.fencing_token,
             )
-        except HolmesGptExecutorError as exc:
+        except HolmesGptRejected:
+            failure_type = HolmesGptRejected
+        except HolmesGptUnavailable:
+            failure_type = HolmesGptUnavailable
+        except Exception:
+            failure_type = HolmesGptUnavailable
+
+        if failure_type is not None:
             with self._lock:
-                slot.error_type = type(exc)
+                slot.error_type = failure_type
                 slot.completed.set()
-            raise
-        except Exception as exc:
-            with self._lock:
-                slot.error_type = HolmesGptUnavailable
-                slot.completed.set()
-            raise HolmesGptUnavailable("HolmesGPT invocation failed") from exc
+            raise failure_type("HolmesGPT invocation did not complete")
 
         with self._lock:
             self._commands[command.idempotency_key] = command
@@ -239,18 +257,10 @@ class HolmesGptHttpExecutor:
         return result
 
     def cancel_attempt(self, attempt_id: str, idempotency_key: str) -> CancelAttemptResponse:
-        with self._lock:
-            command = self._commands.get(idempotency_key)
-            if command is not None and command.attempt_id == attempt_id:
-                self._statuses[idempotency_key] = ExecutorStatus.CANCELLED
-        return CancelAttemptResponse(
-            executor_id=self.executor_id,
-            attempt_id=attempt_id,
-            status=ExecutorStatus.CANCELLED,
-            partial_evidence_available=False,
-        )
+        raise HolmesGptRejected("HolmesGPT cancellation is unsupported")
 
     def _request(self, method: str, path: str, body: bytes) -> HolmesGptHttpResponse:
+        failure_type: type[HolmesGptExecutorError] | None = None
         try:
             response = self._transport.request(
                 method,
@@ -258,10 +268,17 @@ class HolmesGptHttpExecutor:
                 {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "ai-operations-sre-control-plane"},
                 body,
             )
-        except HolmesGptExecutorError:
-            raise
-        except Exception as exc:
-            raise HolmesGptUnavailable("HolmesGPT transport failed") from exc
+        except HolmesGptRejected:
+            failure_type = HolmesGptRejected
+            response = None
+        except HolmesGptUnavailable:
+            failure_type = HolmesGptUnavailable
+            response = None
+        except Exception:
+            failure_type = HolmesGptUnavailable
+            response = None
+        if failure_type is not None or response is None:
+            raise (failure_type or HolmesGptUnavailable)("HolmesGPT transport request failed")
         if len(response.body) > MAX_HOLMESGPT_RESPONSE_BYTES:
             raise HolmesGptRejected("HolmesGPT response exceeds the bounded byte limit")
         if 300 <= response.status < 400:
@@ -270,6 +287,8 @@ class HolmesGptHttpExecutor:
             raise HolmesGptUnavailable("HolmesGPT HTTP response is unavailable")
         if not 200 <= response.status < 300:
             raise HolmesGptRejected("HolmesGPT HTTP response is rejected")
+        if not is_json_content_type(response.headers.get("content-type")):
+            raise HolmesGptRejected("HolmesGPT response content type is invalid")
         return response
 
 
@@ -308,6 +327,7 @@ def holmesgpt_request_payload(command: StartInvestigationCommand) -> dict:
 
 
 def parse_holmesgpt_analysis(raw_body: bytes, command: StartInvestigationCommand) -> InvestigationResult:
+    malformed = False
     try:
         raw_response = json.loads(raw_body)
         response = _HolmesGptChatResponse.model_validate(raw_response)
@@ -315,8 +335,11 @@ def parse_holmesgpt_analysis(raw_body: bytes, command: StartInvestigationCommand
         if not isinstance(analysis, dict) or first_unsafe_string(analysis) is not None:
             raise ValueError("unsafe analysis")
         result = InvestigationResult.model_validate(analysis)
-    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError, ValueError, TypeError) as exc:
-        raise HolmesGptRejected("HolmesGPT response cannot be normalized") from exc
+    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError, ValueError, TypeError):
+        malformed = True
+        result = None
+    if malformed or result is None:
+        raise HolmesGptRejected("HolmesGPT response cannot be normalized")
     if result.task_id != command.task_id or result.attempt_id != command.attempt_id or result.executor_id != HOLMESGPT_EXECUTOR_ID:
         raise HolmesGptRejected("HolmesGPT result identity is invalid")
     if any(item.reference not in _APPROVED_EVIDENCE_REFERENCES for item in result.evidence):
@@ -367,6 +390,15 @@ def capability_declaration_failure(report: CapabilityReport, local_test_mode: bo
 
 def command_semantic_identity(command: StartInvestigationCommand) -> str:
     return json.dumps(command.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+
+
+def is_json_content_type(value: str | None) -> bool:
+    if value is None:
+        return False
+    media_type = value.split(";", 1)[0].strip().lower()
+    if not re.fullmatch(r"[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+", media_type):
+        return False
+    return media_type == "application/json" or media_type.endswith("+json")
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):

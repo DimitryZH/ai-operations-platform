@@ -382,7 +382,7 @@ def test_postgresql_holmesgpt_http_fixture_reaches_human_review(
             endpoint="http://127.0.0.1:18080", local_test_mode=True,
             capability_report=holmesgpt_capabilities(),
         ),
-        HolmesFixtureTransport(HolmesGptHttpResponse(200, {}, json.dumps({"analysis": result}).encode("utf-8"))),
+        HolmesFixtureTransport(HolmesGptHttpResponse(200, {"Content-Type": "application/json"}, json.dumps({"analysis": result}).encode("utf-8"))),
     )
     workflow = SreInvestigationWorkflow(postgres_session_factory, executor)
     task = workflow.submit_request(request)
@@ -413,7 +413,7 @@ def test_postgresql_holmesgpt_restart_reconciles_process_local_attempt_to_stale(
             local_test_mode=True,
             capability_report=holmesgpt_capabilities(),
         ),
-        HolmesFixtureTransport(HolmesGptHttpResponse(200, {}, b"{}")),
+        HolmesFixtureTransport(HolmesGptHttpResponse(200, {"Content-Type": "application/json"}, b"{}")),
     )
     workflow = SreInvestigationWorkflow(postgres_session_factory, restarted)
 
