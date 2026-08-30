@@ -4,6 +4,8 @@ import json
 import os
 import threading
 import uuid
+import hashlib
+from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -12,10 +14,16 @@ import pytest
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
-from sre_control_plane.contracts import InvestigationRequest
+from sre_control_plane.contracts import InvestigationRequest, REQUIRED_CAPABILITIES
 from sre_control_plane.evidence import LocalFilesystemEvidenceStore
-from sre_control_plane.executor import AttemptStatus, ExecutorStatus, StartInvestigationCommand
-from sre_control_plane.fake_executor import FakeInvestigationExecutor
+from sre_control_plane.executor import AttemptStatus, CapabilityReport, ExecutorStatus, StartInvestigationCommand
+from sre_control_plane.fake_executor import CANONICAL_FAKE_RESULT, FakeInvestigationExecutor
+from sre_control_plane.holmesgpt_executor import (
+    HOLMESGPT_EXECUTOR_ID,
+    HolmesGptHttpConfig,
+    HolmesGptHttpExecutor,
+    HolmesGptHttpResponse,
+)
 from sre_control_plane.publisher import (
     FakePublisher,
     GitHubHttpResponse,
@@ -350,6 +358,74 @@ def test_postgresql_retryable_publication_failure_then_success_is_append_only(
     assert publisher.calls == 2
 
 
+@pytest.mark.postgresql_integration
+def test_postgresql_holmesgpt_http_fixture_reaches_human_review(
+    postgres_session_factory,
+) -> None:
+    request = request_example("postgres-holmesgpt-http")
+    task_id = "task-" + hashlib.sha256(request.request_id.encode()).hexdigest()[:16]
+    attempt_id = f"{task_id}-a1"
+    result = deepcopy(CANONICAL_FAKE_RESULT)
+    result.update({
+        "result_id": f"result-{attempt_id}", "task_id": task_id,
+        "attempt_id": attempt_id, "executor_id": HOLMESGPT_EXECUTOR_ID,
+    })
+    for evidence, reference in zip(result["evidence"], [
+        "sre-platform://approved/slo:error_ratio_5m",
+        "sre-platform://approved/slo:burn_rate_5m",
+        "sre-platform://approved/ingress:online-shop-frontend",
+        "sre-platform://approved/ingress:online-shop-frontend",
+    ], strict=True):
+        evidence["reference"] = reference
+    executor = HolmesGptHttpExecutor(
+        HolmesGptHttpConfig(
+            endpoint="http://127.0.0.1:18080", local_test_mode=True,
+            capability_report=holmesgpt_capabilities(),
+        ),
+        HolmesFixtureTransport(HolmesGptHttpResponse(200, {"Content-Type": "application/json"}, json.dumps({"analysis": result}).encode("utf-8"))),
+    )
+    workflow = SreInvestigationWorkflow(postgres_session_factory, executor)
+    task = workflow.submit_request(request)
+
+    tick = workflow.run_dispatch_tick("postgres-holmesgpt-http")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.dispatched is True
+    assert view.task_state == TaskState.AWAITING_HUMAN_REVIEW
+    assert view.attempt is not None and view.attempt.state == AttemptState.SUCCEEDED
+    assert view.results[0].executor_id == HOLMESGPT_EXECUTOR_ID
+
+
+@pytest.mark.postgresql_integration
+def test_postgresql_holmesgpt_restart_reconciles_process_local_attempt_to_stale(
+    postgres_session_factory,
+) -> None:
+    original = SreInvestigationWorkflow(postgres_session_factory, FakeInvestigationExecutor())
+    task, attempt_id = seed_expired_attempt(
+        postgres_session_factory,
+        original,
+        FakeInvestigationExecutor(),
+        executor_id=HOLMESGPT_EXECUTOR_ID,
+    )
+    restarted = HolmesGptHttpExecutor(
+        HolmesGptHttpConfig(
+            endpoint="http://127.0.0.1:18080",
+            local_test_mode=True,
+            capability_report=holmesgpt_capabilities(),
+        ),
+        HolmesFixtureTransport(HolmesGptHttpResponse(200, {"Content-Type": "application/json"}, b"{}")),
+    )
+    workflow = SreInvestigationWorkflow(postgres_session_factory, restarted)
+
+    tick = workflow.run_dispatch_tick("postgres-holmesgpt-restart")
+    view = workflow.get_task(task.task_id)
+
+    assert tick.reason == "reconciliation_stale"
+    assert view.task_state == TaskState.READY
+    assert view.attempt is not None and view.attempt.attempt_id == attempt_id
+    assert view.attempt.state == AttemptState.STALE
+
+
 class BlockingCapabilityExecutor(FakeInvestigationExecutor):
     def __init__(self) -> None:
         super().__init__()
@@ -421,6 +497,39 @@ class RetryableThenSuccessfulPublisher(FakePublisher):
         return super().publish(request)
 
 
+class HolmesFixtureTransport:
+    def __init__(self, response: HolmesGptHttpResponse) -> None:
+        self._response = response
+        self.calls = 0
+
+    def request(self, method, path, headers, body):
+        self.calls += 1
+        assert method == "POST" and path == "/api/chat"
+        assert "Authorization" not in headers
+        return self._response
+
+
+def holmesgpt_capabilities() -> CapabilityReport:
+    return CapabilityReport(
+        executor_id=HOLMESGPT_EXECUTOR_ID,
+        schema_versions=["1.0"],
+        declared_capabilities=sorted(REQUIRED_CAPABILITIES),
+        denied_capabilities=[
+            "kubernetes.write", "rollout.mutate", "gitops.write", "deployment.write",
+            "remediation.execute", "pull_request.merge", "incident.close", "secrets.read",
+        ],
+        target_scope={
+            "namespace": "online-shop-stage", "workload": "frontend",
+            "rollout": "frontend", "gitops_application": "online-shop-stage",
+        },
+        auth_mode="local-fixture-no-credentials",
+        verification_evidence=["deterministic local fixture; live runtime NOT TESTED"],
+        supports_idempotent_start=True,
+        supports_status_lookup=False,
+        idempotency_scope="process_local",
+    )
+
+
 class BlockingStatusExecutor(FakeInvestigationExecutor):
     def __init__(self) -> None:
         super().__init__()
@@ -451,7 +560,12 @@ class TerminalStatusExecutor(FakeInvestigationExecutor):
         )
 
 
-def seed_expired_attempt(session_factory, workflow, executor: FakeInvestigationExecutor) -> tuple:
+def seed_expired_attempt(
+    session_factory,
+    workflow,
+    executor: FakeInvestigationExecutor,
+    executor_id: str | None = None,
+) -> tuple:
     request = request_example("postgres-reconciliation")
     task = workflow.submit_request(request)
     attempt_id = f"{task.task_id}-a1"
@@ -478,7 +592,7 @@ def seed_expired_attempt(session_factory, workflow, executor: FakeInvestigationE
         session.add(
             ExecutorInvocationRecord(
                 attempt_id=attempt.id,
-                executor_id=executor.executor_id,
+                executor_id=executor_id or executor.executor_id,
                 operation="start_investigation",
                 idempotency_key=attempt_id,
                 fencing_token=7,

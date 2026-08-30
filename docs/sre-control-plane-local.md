@@ -349,3 +349,39 @@ python -m pytest -m github_live_smoke
 It writes only one bounded marked comment to the configured dedicated Issue and
 repeats the request to verify reuse. Do not set this opt-in without the required
 human approval.
+
+### HolmesGPT HTTP Executor Prototype
+
+`FakeInvestigationExecutor` remains the default executor. The optional
+HolmesGPT HTTP executor is a bounded local adapter prototype, not a HolmesGPT
+selection or live validation. It accepts a deterministic non-streaming
+`/api/chat` fixture response only after fail-closed capability validation and
+canonical result normalization.
+
+The adapter configuration is all-or-nothing: endpoint, explicit local-fixture
+mode, and a capability declaration must all be present. Local fixture mode
+accepts only `http://127.0.0.1` or `http://[::1]`. A non-fixture endpoint must
+be private HTTPS by hostname policy, but it fails capability verification until
+durable remote status lookup and restart-safe idempotency are proven. That
+policy is not proof of private deployment or no public ingress. Fixture
+idempotency is explicitly process-local and does not claim restart recovery:
+a new adapter instance reports an unknown attempt as `STALE`. The adapter
+neither reads nor sends credentials or authorization headers.
+
+The request carries the approved scope, task and attempt identities,
+idempotency key, fencing token, read-only flag, and bounded evidence allowlist.
+It rejects redirects, unavailable or malformed responses, oversized payloads,
+unsafe evidence references, missing capability denials, and identity mismatch.
+External HTTP calls remain outside database transactions and locks. A
+schema-valid partial result proceeds to human review; a schema-valid failed
+result is retained as audit evidence, marks its attempt `FAILED`, and returns
+the task to `READY` for an explicit operator retry. Successful responses must
+declare a JSON-compatible `Content-Type` before the adapter parses `analysis`.
+`cancel_attempt` is explicitly unsupported in this synchronous prototype: it
+fails closed without claiming to interrupt an HTTP call or changing a terminal
+result.
+
+No HolmesGPT runtime, API authentication behavior, RBAC, Prometheus or logs
+toolset enforcement, model behavior, deployment, or live investigation has
+been tested. Direct built-in Prometheus or logs access remains a fail-closed
+enforcement gap until a bounded proxy or custom toolset is proven.
