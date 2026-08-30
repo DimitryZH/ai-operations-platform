@@ -38,13 +38,16 @@ is not a deployed MVP or a live SRE Platform investigation.
 | Durable request and retry history | Request and fingerprint deduplication, explicit operator-controlled retry, new attempt identity per retry, retained attempts, results, reviews, and transitions. | No automatic retry. Terminal tasks and duplicate retry decisions cannot create another attempt. |
 | Sequential dispatch and reconciliation safety | One database-backed dispatcher tick first reconciles an expired or ambiguous attempt through durable identity and status lookup, then claims at most one eligible task through a durable global lease and monotonic fencing token. Database locks are released before fake-executor calls. | PostgreSQL integration tests cover competing ticks, reconciliation recovery, active attempts, and stale fencing tokens. |
 | Fail-closed capability path | Capability checks are recorded before dispatch; rejected or exceptional checks leave a durable audit trail and retry-eligible task state as defined by the local workflow. | Fake executor capabilities only. |
-| Local evidence and publication audit | Schema-valid fake results produce sanitized, SHA-256-addressed local JSON evidence packages. Artifact metadata and idempotent fake-publication intent/outcome history are durable and visible through the task API. | Local filesystem evidence adapter and fake publisher only; no GitHub or object-storage write occurs. |
-| CI validation | GitHub Actions uses Python 3.13, PostgreSQL 16, Alembic migrations, and `SRE_CONTROL_PLANE_TEST_DATABASE_URL`. | Latest accepted control-plane CI run completed `41 passed` with no skipped tests. |
+| Durable evidence and publication audit | Schema-valid results produce sanitized, SHA-256-addressed evidence packages. Artifact metadata, logical publication intents, and append-only publication outcomes are durable and visible through the task API. | The local evidence adapter and fake publisher remain defaults. Cloud Storage and live publication are not deployed by the local core. |
+| Bounded GitHub publisher | A product-neutral GitHub publisher validates exact target identity, pagination, response receipts, canonical idempotency markers, redirects, and retryable versus terminal outcomes. | The publisher is opt-in; its live smoke is explicitly gated and is not a default workflow action. GitHub remains an audit surface, never transactional state. |
+| Bounded HolmesGPT executor prototype | A product-neutral non-streaming HTTP adapter validates endpoint, capabilities, canonical dispatch identity, JSON response media type, result schema, and reconciliation identity. | `PROTOTYPE_REQUIRED`: fake execution remains the default. No HolmesGPT deployment, authentication, model invocation, runtime RBAC, Prometheus/log enforcement, or live investigation is claimed. |
+| GCP deployment foundation | Terraform and a non-root Python 3.13 container define private Cloud Run, Cloud SQL PostgreSQL, Cloud Storage, Secret Manager containers, scheduler OIDC, least-privilege IAM, structured logging, monitoring, and a controlled migration job. | Foundation only: no Terraform apply, secret version, image publication, GCP resource, or deployment has occurred. Fake adapters remain locked defaults. |
+| CI validation | GitHub Actions uses Python 3.13, PostgreSQL 16, Alembic migrations, and `SRE_CONTROL_PLANE_TEST_DATABASE_URL`. | The latest accepted control-plane run completed `157 passed, 1 skipped`; PostgreSQL integration tests ran, and the only skip was an opt-in live smoke test. |
 
-The local core intentionally does not implement a real investigator, Kubernetes,
-Prometheus, logs, GitOps, real GitHub publication, real evidence storage, GCP deployment,
-automatic retry, timeout, cancellation, or a live SRE
-Platform investigation.
+The local core intentionally does not deploy a real investigator, Kubernetes,
+Prometheus, logs, GitOps, GitHub publication, evidence storage, or GCP
+resources. It does not implement automatic retry, general timeout/cancellation,
+or a live SRE Platform investigation.
 
 ## First MVP Completion Boundary
 
@@ -74,14 +77,15 @@ incident-management platform.
 
 The remaining work is intentionally ordered and bounded:
 
-1. **Live evidence storage and GitHub publication**: replace the local adapters
-   with bounded production integrations, publish bounded findings and links to
-   GitHub, and retain the publication audit trail without treating GitHub as
-   transactional workflow state.
-2. **One real read-only executor prototype**: implement one product-neutral
-   adapter behind the existing boundary and verify its capabilities fail closed.
-3. **Minimum GCP deployment**: deploy the accepted ADR 0002 target with private
-   exposure, bounded orchestration ticks, least privilege, and no public ingress.
+1. **Review and deploy the GCP foundation**: use the private Cloud Run, Cloud
+   SQL, Cloud Storage, Secret Manager, IAM, scheduler, logging, monitoring, and
+   migration foundation only after a reviewed plan and explicit apply approval.
+2. **Bind reviewed production adapters**: configure bounded evidence storage
+   and GitHub publication without changing the database source of truth or
+   enabling default live writes.
+3. **One real read-only executor prototype**: verify one product-neutral
+   candidate's capabilities fail closed for the approved scope. HolmesGPT is
+   not selected by the local adapter prototype.
 4. **Complete SRE Platform staging demonstration**: run the approved
    SRE-owned controlled scenario and collect only permitted read-only evidence.
 5. **Orchestrator benchmark and portfolio closeout**: execute the accepted
