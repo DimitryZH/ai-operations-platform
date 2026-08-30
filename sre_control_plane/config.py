@@ -58,8 +58,8 @@ def load_settings() -> Settings:
                 local_test_mode=holmes_local_test_mode == "1",
                 capability_report=CapabilityReport.model_validate(json.loads(holmes_capabilities)),
             )
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise ValueError("HolmesGPT executor configuration is invalid") from exc
+        except (TypeError, ValueError, json.JSONDecodeError):
+            raise ValueError("HolmesGPT executor configuration is invalid") from None
     return Settings(
         service_name=os.environ.get("SRE_CONTROL_PLANE_SERVICE_NAME", "sre-control-plane"),
         database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL),

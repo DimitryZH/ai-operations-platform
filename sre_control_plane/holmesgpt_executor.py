@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
-from threading import Lock
+from threading import Event, Lock
 from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -69,16 +69,27 @@ class HolmesGptRejected(HolmesGptExecutorError):
 
 @dataclass(frozen=True)
 class HolmesGptHttpConfig:
-    endpoint: str
+    endpoint: str = field(repr=False)
     local_test_mode: bool = False
     timeout_seconds: int = 10
     capability_report: CapabilityReport | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
-        parsed = urlparse(self.endpoint)
-        hostname = parsed.hostname or ""
-        valid_path = parsed.path.rstrip("/") == ""
-        if not valid_path or parsed.query or parsed.fragment or self.timeout_seconds < 1 or self.timeout_seconds > 30:
+        try:
+            parsed = urlparse(self.endpoint)
+            hostname = parsed.hostname or ""
+            has_userinfo = parsed.username is not None or parsed.password is not None
+            valid_path = parsed.path.rstrip("/") == ""
+        except ValueError:
+            raise ValueError("HolmesGPT HTTP configuration is invalid") from None
+        if (
+            has_userinfo
+            or not valid_path
+            or parsed.query
+            or parsed.fragment
+            or self.timeout_seconds < 1
+            or self.timeout_seconds > 30
+        ):
             raise ValueError("HolmesGPT HTTP configuration is invalid")
         if self.local_test_mode:
             if parsed.scheme != "http" or hostname not in {"127.0.0.1", "::1"}:
@@ -99,6 +110,14 @@ class HolmesGptHttpResponse:
 
 class HolmesGptTransport(Protocol):
     def request(self, method: str, path: str, headers: dict[str, str], body: bytes | None) -> HolmesGptHttpResponse: ...
+
+
+@dataclass
+class _StartSlot:
+    semantic_identity: str
+    completed: Event = field(default_factory=Event)
+    response: StartInvestigationResponse | None = None
+    error_type: type[HolmesGptExecutorError] | None = None
 
 
 class UrllibHolmesGptTransport:
@@ -127,6 +146,7 @@ class HolmesGptHttpExecutor:
         self._config = config
         self._transport = transport or UrllibHolmesGptTransport(config.endpoint, config.timeout_seconds)
         self._lock = Lock()
+        self._slots: dict[str, _StartSlot] = {}
         self._commands: dict[str, StartInvestigationCommand] = {}
         self._statuses: dict[str, ExecutorStatus] = {}
         self._results: dict[str, InvestigationResult] = {}
@@ -145,36 +165,62 @@ class HolmesGptHttpExecutor:
 
     def start_investigation(self, command: StartInvestigationCommand) -> StartInvestigationResponse:
         validate_command(command)
+        semantic_identity = command_semantic_identity(command)
         with self._lock:
-            existing = self._commands.get(command.idempotency_key)
-            if existing is not None:
-                if command_identity(existing) != command_identity(command):
+            slot = self._slots.get(command.idempotency_key)
+            if slot is None:
+                slot = _StartSlot(semantic_identity=semantic_identity)
+                self._slots[command.idempotency_key] = slot
+                owner = True
+            else:
+                if slot.semantic_identity != semantic_identity:
                     raise HolmesGptRejected("HolmesGPT idempotency identity conflicts")
-                return StartInvestigationResponse(
-                    executor_id=self.executor_id,
-                    attempt_id=command.attempt_id,
-                    status=self._statuses[command.idempotency_key],
-                    idempotency_key=command.idempotency_key,
-                    fencing_token=command.fencing_token,
-                )
+                owner = False
 
-        payload = holmesgpt_request_payload(command)
-        raw_body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        if len(raw_body) > MAX_HOLMESGPT_REQUEST_BYTES:
-            raise HolmesGptRejected("HolmesGPT request exceeds the bounded byte limit")
-        response = self._request("POST", "/api/chat", raw_body)
-        result = parse_holmesgpt_analysis(response.body, command)
+        if not owner:
+            slot.completed.wait()
+            return self._slot_response(slot)
+
+        try:
+            payload = holmesgpt_request_payload(command)
+            raw_body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            if len(raw_body) > MAX_HOLMESGPT_REQUEST_BYTES:
+                raise HolmesGptRejected("HolmesGPT request exceeds the bounded byte limit")
+            response = self._request("POST", "/api/chat", raw_body)
+            result = parse_holmesgpt_analysis(response.body, command)
+            start_response = StartInvestigationResponse(
+                executor_id=self.executor_id,
+                attempt_id=command.attempt_id,
+                status=ExecutorStatus.SUCCEEDED,
+                idempotency_key=command.idempotency_key,
+                fencing_token=command.fencing_token,
+            )
+        except HolmesGptExecutorError as exc:
+            with self._lock:
+                slot.error_type = type(exc)
+                slot.completed.set()
+            raise
+        except Exception as exc:
+            with self._lock:
+                slot.error_type = HolmesGptUnavailable
+                slot.completed.set()
+            raise HolmesGptUnavailable("HolmesGPT invocation failed") from exc
+
         with self._lock:
             self._commands[command.idempotency_key] = command
             self._statuses[command.idempotency_key] = ExecutorStatus.SUCCEEDED
             self._results[command.idempotency_key] = result
-        return StartInvestigationResponse(
-            executor_id=self.executor_id,
-            attempt_id=command.attempt_id,
-            status=ExecutorStatus.SUCCEEDED,
-            idempotency_key=command.idempotency_key,
-            fencing_token=command.fencing_token,
-        )
+            slot.response = start_response
+            slot.completed.set()
+        return start_response
+
+    @staticmethod
+    def _slot_response(slot: _StartSlot) -> StartInvestigationResponse:
+        if slot.error_type is not None:
+            raise slot.error_type("HolmesGPT invocation did not complete")
+        if slot.response is None:
+            raise HolmesGptUnavailable("HolmesGPT invocation outcome is unavailable")
+        return slot.response
 
     def get_status(self, attempt_id: str, idempotency_key: str) -> AttemptStatus:
         with self._lock:
@@ -294,6 +340,8 @@ def validate_command(command: StartInvestigationCommand) -> None:
 
 
 def capability_declaration_failure(report: CapabilityReport, local_test_mode: bool) -> str | None:
+    if not local_test_mode:
+        return "nonfixture_recovery_not_verified"
     if set(report.declared_capabilities) != REQUIRED_CAPABILITIES:
         return "capabilities"
     if not _MUTATION_DENIALS <= set(report.denied_capabilities):
@@ -305,16 +353,20 @@ def capability_declaration_failure(report: CapabilityReport, local_test_mode: bo
         "gitops_application": MVP_GITOPS_APPLICATION,
     }:
         return "scope"
-    if report.schema_versions != ["1.0"] or not report.supports_idempotent_start or not report.supports_status_lookup:
+    if (
+        report.schema_versions != ["1.0"]
+        or not report.supports_idempotent_start
+        or report.supports_status_lookup
+        or report.idempotency_scope != "process_local"
+    ):
         return "recovery"
-    expected_auth = "local-fixture-no-credentials" if local_test_mode else "private-network-not-tested"
-    if report.auth_mode != expected_auth or not report.verification_evidence:
+    if report.auth_mode != "local-fixture-no-credentials" or not report.verification_evidence:
         return "auth_or_evidence"
     return None
 
 
-def command_identity(command: StartInvestigationCommand) -> tuple[str, str, int]:
-    return command.task_id, command.attempt_id, command.fencing_token
+def command_semantic_identity(command: StartInvestigationCommand) -> str:
+    return json.dumps(command.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):

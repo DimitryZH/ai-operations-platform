@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -58,7 +59,8 @@ def local_capabilities(**changes) -> CapabilityReport:
         "auth_mode": "local-fixture-no-credentials",
         "verification_evidence": ["deterministic local fixture; live runtime NOT TESTED"],
         "supports_idempotent_start": True,
-        "supports_status_lookup": True,
+        "supports_status_lookup": False,
+        "idempotency_scope": "process_local",
     }
     payload.update(changes)
     return CapabilityReport.model_validate(payload)
@@ -130,6 +132,74 @@ def test_local_http_fixture_maps_schema_valid_partial_result_and_reuses_identity
     assert adapter.get_result(invocation.attempt_id, invocation.idempotency_key).status == ResultStatus.PARTIAL
 
 
+def test_concurrent_same_key_calls_share_one_http_post() -> None:
+    invocation = command()
+    transport = BlockingTransport(response(200, {"analysis": result_payload(invocation)}))
+    adapter = HolmesGptHttpExecutor(
+        HolmesGptHttpConfig(
+            endpoint="http://127.0.0.1:18080", local_test_mode=True,
+            capability_report=local_capabilities(),
+        ),
+        transport,
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(adapter.start_investigation, invocation)
+        assert transport.started.wait(timeout=5)
+        second = pool.submit(adapter.start_investigation, invocation)
+        with pytest.raises(TimeoutError):
+            second.result(timeout=0.1)
+        transport.release.set()
+        assert first.result(timeout=5) == second.result(timeout=5)
+
+    assert transport.calls == 1
+
+
+def test_same_key_with_different_canonical_request_is_rejected() -> None:
+    invocation = command()
+    adapter, transport = executor([response(200, {"analysis": result_payload(invocation)})])
+    adapter.start_investigation(invocation)
+    changed_request = invocation.request.model_copy(
+        update={"signal": invocation.request.signal.model_copy(update={"fingerprint": "different-fingerprint"})}
+    )
+    conflicting = invocation.model_copy(update={"request": changed_request})
+
+    with pytest.raises(HolmesGptRejected, match="idempotency identity conflicts"):
+        adapter.start_investigation(conflicting)
+
+    assert len(transport.calls) == 1
+
+
+def test_new_executor_instance_marks_process_local_state_stale() -> None:
+    invocation = command()
+    first, _ = executor([response(200, {"analysis": result_payload(invocation)})])
+    first.start_investigation(invocation)
+    restarted, _ = executor([])
+
+    assert restarted.describe_capabilities().supports_status_lookup is False
+    assert restarted.describe_capabilities().idempotency_scope == "process_local"
+    assert restarted.get_status(invocation.attempt_id, invocation.idempotency_key).status == ExecutorStatus.STALE
+    with pytest.raises(HolmesGptRejected):
+        restarted.get_result(invocation.attempt_id, invocation.idempotency_key)
+
+
+def test_nonfixture_capability_declaration_fails_closed() -> None:
+    adapter = HolmesGptHttpExecutor(
+        HolmesGptHttpConfig(
+            endpoint="https://holmes.internal",
+            capability_report=local_capabilities(
+                auth_mode="private-network-not-tested",
+                supports_status_lookup=True,
+                idempotency_scope="durable",
+            ),
+        ),
+        QueueTransport([]),
+    )
+
+    with pytest.raises(HolmesGptRejected, match="not fail-closed"):
+        adapter.describe_capabilities()
+
+
 @pytest.mark.parametrize("response_value", [
     response(301, {}),
     response(200, {"analysis": {"unexpected": "shape"}}),
@@ -197,6 +267,27 @@ def test_unsafe_evidence_and_missing_mutation_denial_fail_closed() -> None:
         adapter.describe_capabilities()
 
 
+def test_endpoint_userinfo_and_raw_configuration_secret_never_escape(monkeypatch, caplog) -> None:
+    secret = "recognizable-holmes-secret"
+    with pytest.raises(ValueError) as endpoint_error:
+        HolmesGptHttpConfig(endpoint=f"http://{secret}@127.0.0.1:18080", local_test_mode=True)
+    assert secret not in str(endpoint_error.value)
+    assert secret not in repr(endpoint_error.value)
+    assert endpoint_error.value.__cause__ is None
+
+    monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_ENDPOINT", "http://127.0.0.1:18080")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_LOCAL_TEST_MODE", "1")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_CAPABILITIES_JSON", json.dumps({"executor_id": secret}))
+    from sre_control_plane.config import load_settings
+
+    with pytest.raises(ValueError) as config_error:
+        load_settings()
+    assert secret not in str(config_error.value)
+    assert secret not in repr(config_error.value)
+    assert config_error.value.__cause__ is None
+    assert secret not in caplog.text
+
+
 def test_schema_valid_failed_result_preserves_audit_and_returns_task_to_ready(session_factory) -> None:
     request = request_example("holmesgpt-failed-result")
     predicted_task_id = "task-" + __import__("hashlib").sha256(request.request_id.encode()).hexdigest()[:16]
@@ -224,3 +315,18 @@ class QueueTransport:
     def request(self, method: str, path: str, headers: dict[str, str], body: bytes | None) -> HolmesGptHttpResponse:
         self.calls.append((method, path, headers, body))
         return self.responses.pop(0)
+
+
+class BlockingTransport:
+    def __init__(self, response_value: HolmesGptHttpResponse) -> None:
+        self._response = response_value
+        self.calls = 0
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def request(self, method: str, path: str, headers: dict[str, str], body: bytes | None) -> HolmesGptHttpResponse:
+        self.calls += 1
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test transport did not release")
+        return self._response

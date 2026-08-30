@@ -361,9 +361,12 @@ canonical result normalization.
 The adapter configuration is all-or-nothing: endpoint, explicit local-fixture
 mode, and a capability declaration must all be present. Local fixture mode
 accepts only `http://127.0.0.1` or `http://[::1]`. A non-fixture endpoint must
-be private HTTPS by hostname policy; that policy is not proof of private
-deployment or no public ingress. The adapter neither reads nor sends
-credentials or authorization headers.
+be private HTTPS by hostname policy, but it fails capability verification until
+durable remote status lookup and restart-safe idempotency are proven. That
+policy is not proof of private deployment or no public ingress. Fixture
+idempotency is explicitly process-local and does not claim restart recovery:
+a new adapter instance reports an unknown attempt as `STALE`. The adapter
+neither reads nor sends credentials or authorization headers.
 
 The request carries the approved scope, task and attempt identities,
 idempotency key, fencing token, read-only flag, and bounded evidence allowlist.

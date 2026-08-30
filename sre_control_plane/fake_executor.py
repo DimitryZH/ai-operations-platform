@@ -57,6 +57,7 @@ class FakeInvestigationExecutor:
             ],
             supports_idempotent_start=True,
             supports_status_lookup=True,
+            idempotency_scope="durable",
         )
 
     def start_investigation(self, command: StartInvestigationCommand) -> StartInvestigationResponse:

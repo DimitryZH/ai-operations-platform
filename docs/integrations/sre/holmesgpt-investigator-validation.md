@@ -276,13 +276,15 @@ identities in its bounded request and verifies those identities again before a
 result is returned to the workflow.
 
 The adapter permits only an explicit local fixture endpoint during tests. A
-non-fixture configuration requires a private HTTPS hostname, but that check is
-not evidence of a deployed private network or absence of public ingress. It
-does not configure credentials or send an authorization header. Capability
-declarations must exactly match the accepted read-only scope, state required
-mutation denials, and provide idempotent start and status lookup before the
-adapter can be used. Redirects, malformed or oversized responses, unsafe
-evidence references, unapproved endpoints, and ambiguous responses fail
+non-fixture configuration requires a private HTTPS hostname, but its capability
+declaration fails closed because durable remote status lookup and restart-safe
+idempotency were not verified. Local fixture idempotency is explicitly
+`process_local`; a new adapter instance returns `STALE` for an unknown attempt
+so reconciliation cannot mistake volatile state for confirmed remote state.
+The adapter does not configure credentials or send an authorization header.
+Capability declarations must exactly match the accepted read-only scope and
+state required mutation denials. Redirects, malformed or oversized responses,
+unsafe evidence references, unapproved endpoints, and ambiguous responses fail
 closed.
 
 This code is local adapter coverage only. Private deployment, effective API

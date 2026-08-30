@@ -77,7 +77,8 @@ def test_holmesgpt_executor_configuration_is_complete_and_local_only(monkeypatch
         "auth_mode": "local-fixture-no-credentials",
         "verification_evidence": ["deterministic local fixture; live runtime NOT TESTED"],
         "supports_idempotent_start": True,
-        "supports_status_lookup": True,
+        "supports_status_lookup": False,
+        "idempotency_scope": "process_local",
     }
     monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_LOCAL_TEST_MODE", "1")
     monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_CAPABILITIES_JSON", json.dumps(capability_payload))

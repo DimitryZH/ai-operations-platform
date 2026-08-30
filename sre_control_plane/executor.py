@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -34,6 +34,7 @@ class CapabilityReport(AdapterModel):
     verification_evidence: list[str]
     supports_idempotent_start: bool
     supports_status_lookup: bool
+    idempotency_scope: Literal["durable", "process_local"]
 
 
 class StartInvestigationCommand(AdapterModel):
