@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from fastapi import FastAPI, HTTPException, Response
 
-from sre_control_plane.config import Settings, create_publisher, load_settings
+from sre_control_plane.config import Settings, create_executor, create_publisher, load_settings
 from sre_control_plane.contracts import InvestigationRequest
 from sre_control_plane.database import create_session_factory
 from sre_control_plane.executor import CapabilityReport
@@ -39,10 +39,10 @@ def create_app(
     active_readiness_checker = readiness_checker or (
         lambda: check_database_readiness(active_settings.database_url)
     )
-    fake_executor = FakeInvestigationExecutor()
+    executor = create_executor(active_settings)
     active_workflow = workflow or SreInvestigationWorkflow(
         create_session_factory(active_settings.database_url),
-        fake_executor,
+        executor,
         publisher=create_publisher(active_settings),
     )
 
@@ -153,7 +153,7 @@ def create_app(
 
     @app.get("/v1/executors/fake/capabilities", response_model=CapabilityReport)
     def fake_capabilities() -> CapabilityReport:
-        return fake_executor.describe_capabilities()
+        return FakeInvestigationExecutor().describe_capabilities()
 
     return app
 

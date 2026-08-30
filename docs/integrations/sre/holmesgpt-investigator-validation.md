@@ -10,9 +10,10 @@ Conclusion: `PROTOTYPE_REQUIRED`
 
 This document validates HolmesGPT only as an unselected, replaceable,
 read-only candidate for the first SRE investigator. It does not select
-HolmesGPT, select an AI model, select a hosting mode, implement a control
-plane, implement an adapter, deploy anything, access a cluster, access cloud
-resources, or modify the SRE Platform repository.
+HolmesGPT, select an AI model, select a hosting mode, deploy anything, access
+a cluster, access cloud resources, or modify the SRE Platform repository.
+The separately scoped local HTTP adapter prototype described below does not
+validate a live HolmesGPT runtime or change this conclusion.
 
 ## Repository Baseline
 
@@ -264,6 +265,33 @@ Required prototype gates:
 This issue did not execute that prototype. Runtime validation remains
 `NOT TESTED`.
 
+## Local HTTP Adapter Prototype
+
+The control plane now includes a bounded, opt-in local HTTP adapter prototype
+behind the product-neutral executor interface. The fake executor remains the
+default. The prototype accepts a non-streaming `/api/chat` response only when
+its `analysis` can be normalized into the canonical investigation-result
+schema. It includes the durable task, attempt, idempotency, and fencing
+identities in its bounded request and verifies those identities again before a
+result is returned to the workflow.
+
+The adapter permits only an explicit local fixture endpoint during tests. A
+non-fixture configuration requires a private HTTPS hostname, but that check is
+not evidence of a deployed private network or absence of public ingress. It
+does not configure credentials or send an authorization header. Capability
+declarations must exactly match the accepted read-only scope, state required
+mutation denials, and provide idempotent start and status lookup before the
+adapter can be used. Redirects, malformed or oversized responses, unsafe
+evidence references, unapproved endpoints, and ambiguous responses fail
+closed.
+
+This code is local adapter coverage only. Private deployment, effective API
+authentication and admin endpoint protection, effective Kubernetes RBAC,
+workload-bounded evidence, bounded Prometheus and log access, model behavior,
+and a live investigation are all `NOT TESTED`. In particular, the existing
+Prometheus and logs enforcement gaps still require a bounded proxy or custom
+toolset before a real prototype can satisfy the MVP boundary.
+
 ## Decision
 
 `PROTOTYPE_REQUIRED`
@@ -294,8 +322,8 @@ granting mutation capability.
 | Read-only boundary preserved | PASS: preserved as validation requirement |
 | HolmesGPT selected | PASS: not selected |
 | Technology selection made | PASS: none |
-| Control plane or adapter implemented | PASS: none |
+| Control plane or adapter implemented | PASS: bounded local HTTP adapter prototype only |
 | Cluster or cloud accessed | PASS: none |
 | SRE Platform modified | PASS: no changes |
-| Runtime HolmesGPT behavior claimed | PASS: no runtime claim |
+| Runtime HolmesGPT behavior claimed | PASS: no runtime claim; live behavior is NOT TESTED |
 | Minimum prototype outcome | NOT TESTED |

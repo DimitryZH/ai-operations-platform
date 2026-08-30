@@ -1235,6 +1235,15 @@ class SreInvestigationWorkflow:
                 lease_owner,
                 command.fencing_token,
             )
+        if result.status == ResultStatus.FAILED:
+            return self._record_schema_valid_failed_result(
+                task_id,
+                attempt_id,
+                result,
+                normalized_result_payload,
+                lease_owner,
+                command.fencing_token,
+            )
 
         with self._session_factory.begin() as session:
             task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
@@ -1358,6 +1367,52 @@ class SreInvestigationWorkflow:
             )
             release_dispatch_lease(lease, utc_now())
             return self._task_view(session, task, failure_reason=reason)
+
+    def _record_schema_valid_failed_result(
+        self,
+        task_id: str,
+        attempt_id: str,
+        result: InvestigationResult,
+        normalized_result_payload: dict,
+        lease_owner: str,
+        fencing_token: int,
+    ) -> TaskView:
+        with self._session_factory.begin() as session:
+            task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task_id))
+            attempt = session.scalar(select(AttemptRecord).where(AttemptRecord.attempt_id == attempt_id))
+            if task is None or attempt is None:
+                raise TaskNotFound("task or attempt disappeared during result failure handling")
+            lease = assert_current_dispatch_lease(session, task, attempt, lease_owner, fencing_token)
+            record_attempt_transition(
+                session,
+                attempt,
+                AttemptState.RUNNING,
+                AttemptState.FAILED,
+                "schema_valid_failed_result",
+                "control-plane",
+            )
+            update_invocation_status(session, attempt, "FAILED")
+            session.add(
+                InvestigationResultRecord(
+                    result_id=result.result_id,
+                    task_id=task.id,
+                    attempt_id=attempt.id,
+                    executor_id=result.executor_id,
+                    status=result.status,
+                    payload=normalized_result_payload,
+                )
+            )
+            record_task_transition(
+                session,
+                task,
+                TaskState.RUNNING,
+                TaskState.READY,
+                "schema_valid_failed_result",
+                "control-plane",
+                fencing_token=fencing_token,
+            )
+            release_dispatch_lease(lease, utc_now())
+            return self._task_view(session, task, failure_reason="schema_valid_failed_result")
 
     def publish_evidence(
         self,
