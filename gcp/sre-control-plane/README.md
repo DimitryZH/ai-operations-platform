@@ -8,11 +8,13 @@ centralized logging and alert-policy configuration.
 
 The bootstrap phase has been applied for `ai-operations-platform-507220` in
 `us-central1`; see
-`docs/deployments/gcp-sre-control-plane-bootstrap-2026-09-01.md`. Runtime
-resources remain unapplied. The foundation deliberately does **not** create
-secret versions, select a real executor, enable HolmesGPT, or enable GitHub
-publication. The application runs with its fake executor and fake publisher
-defaults when runtime deployment is separately approved later.
+`docs/deployments/gcp-sre-control-plane-bootstrap-2026-09-01.md`. The private
+runtime phase has also been applied with fake adapters only; see
+`docs/deployments/gcp-sre-control-plane-runtime-2026-09-01.md`. The runtime
+deployment deliberately does **not** select a real executor, enable HolmesGPT,
+enable GitHub publication, activate Scheduler, access a cluster, or mutate SRE
+Platform. The application runs with its fake executor and fake publisher
+defaults.
 
 ## Security Boundaries
 
@@ -104,8 +106,8 @@ zero automatic retries. A later deployment runbook must execute it once,
 inspect its logs, then perform the authenticated internal readiness check below.
 The Scheduler remains paused. It must not be enabled by the runtime apply.
 
-After both migration and readiness succeed, activation is a separate reviewed
-Terraform change: set `scheduler_enabled = true` and
+After both migration and readiness succeed, activation remains a separate
+reviewed Terraform change: set `scheduler_enabled = true` and
 `scheduler_activation_confirmed = true`. The confirmation represents recorded
 human evidence that the migration job succeeded and readiness was verified; it
 does not bypass either gate.

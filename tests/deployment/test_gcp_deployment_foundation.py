@@ -42,6 +42,13 @@ def test_runtime_requires_explicit_database_secret_version_and_pauses_scheduler(
     assert "scheduler_activation_confirmed" in source
 
 
+def test_provider_normalized_runtime_defaults_are_ignored() -> None:
+    source = terraform_source()
+
+    assert "ignore_changes = [\n      scaling,\n    ]" in source
+    assert "ignore_changes = [\n      retry_config,\n    ]" in source
+
+
 def test_terraform_uses_private_durable_resources_without_secret_values() -> None:
     source = terraform_source()
 
@@ -83,10 +90,16 @@ def test_fake_adapter_defaults_and_controlled_migration_job_are_present() -> Non
 
 def test_terraform_example_contains_only_placeholders() -> None:
     example = (TERRAFORM_ROOT / "terraform.tfvars.example").read_text(encoding="utf-8")
+    runtime_example = (TERRAFORM_ROOT / "terraform.runtime.tfvars.example").read_text(
+        encoding="utf-8"
+    )
 
     assert "replace-with-reviewed-project-id" in example
+    assert "sre-control-plane-staging/sre-control-plane@sha256:" in runtime_example
     assert "token" not in example.lower()
     assert "password" not in example.lower()
+    assert "token" not in runtime_example.lower()
+    assert "password" not in runtime_example.lower()
 
 
 def test_remote_backend_targets_reviewed_state_bucket() -> None:
@@ -121,6 +134,35 @@ def test_bootstrap_evidence_is_sanitized() -> None:
     assert "Estimated steady-state range" in evidence
 
 
+def test_runtime_evidence_is_sanitized_and_records_private_fake_runtime() -> None:
+    evidence = (
+        REPOSITORY_ROOT / "docs" / "deployments" / "gcp-sre-control-plane-runtime-2026-09-01.md"
+    ).read_text(encoding="utf-8")
+    forbidden_terms = [
+        "@" + "gmail.com",
+        ".iam." + "gserviceaccount.com",
+        "gho" + "_",
+        "ya29" + ".",
+        "-----" + "BEGIN",
+        "private" + "_key",
+        "client" + "_secret",
+        "runtime" + ".tfplan",
+        "postgresql" + "://",
+    ]
+
+    for term in forbidden_terms:
+        assert term not in evidence
+
+    assert "Target project: `ai-operations-platform-507220`" in evidence
+    assert "Target region: `us-central1`" in evidence
+    assert "Runtime mode: fake executor and fake publisher only" in evidence
+    assert "Cloud Run public invokers: zero" in evidence
+    assert "Scheduler job state: `PAUSED`" in evidence
+    assert "Database URL secret version recorded in runtime configuration: `1`" in evidence
+    assert "secret values" in evidence.lower()
+    assert "No Kubernetes cluster was accessed." in evidence
+
+
 def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> None:
     runbook = (REPOSITORY_ROOT / "gcp" / "sre-control-plane" / "README.md").read_text(encoding="utf-8")
 
@@ -137,3 +179,4 @@ def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> N
     assert "scheduler_activation_confirmed = true" in runbook
     assert "migration job succeeded and readiness was verified" in runbook
     assert "external operator workstation" in runbook
+    assert "gcp-sre-control-plane-runtime-2026-09-01.md" in runbook

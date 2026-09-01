@@ -27,6 +27,10 @@ resource "google_cloud_scheduler_job" "dispatch_tick" {
   }
 
   lifecycle {
+    ignore_changes = [
+      retry_config,
+    ]
+
     precondition {
       condition     = !var.scheduler_enabled || var.scheduler_activation_confirmed
       error_message = "Scheduler activation requires explicit confirmation after migration and authenticated readiness verification."

@@ -64,6 +64,10 @@ resource "google_cloud_run_v2_service" "control_plane" {
   }
 
   lifecycle {
+    ignore_changes = [
+      scaling,
+    ]
+
     precondition {
       condition     = var.executor_mode == "fake" && var.github_publisher_mode == "fake"
       error_message = "This foundation deploys only fake adapters."
