@@ -5,12 +5,14 @@ resource "google_sql_database_instance" "control_plane" {
   deletion_protection = var.deletion_protection
 
   settings {
-    tier              = var.cloud_sql_tier
-    availability_type = "ZONAL"
-    disk_type         = "PD_SSD"
-    disk_size         = var.cloud_sql_disk_size_gb
-    disk_autoresize   = true
-    user_labels       = local.labels
+    tier                        = var.cloud_sql_tier
+    edition                     = "ENTERPRISE"
+    availability_type           = "ZONAL"
+    disk_type                   = "PD_SSD"
+    disk_size                   = var.cloud_sql_disk_size_gb
+    disk_autoresize             = true
+    deletion_protection_enabled = var.deletion_protection
+    user_labels                 = local.labels
 
     backup_configuration {
       enabled                        = true

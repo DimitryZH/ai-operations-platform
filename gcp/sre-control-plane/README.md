@@ -6,9 +6,13 @@ Cloud SQL PostgreSQL, a private evidence bucket, Secret Manager containers,
 an IAM-authenticated Cloud Scheduler tick, dedicated service accounts, and
 centralized logging and alert-policy configuration.
 
-It deliberately does **not** apply infrastructure, create secret versions,
-select a real executor, enable HolmesGPT, or enable GitHub publication. The
-application runs with its fake executor and fake publisher defaults.
+The bootstrap phase has been applied for `ai-operations-platform-507220` in
+`us-central1`; see
+`docs/deployments/gcp-sre-control-plane-bootstrap-2026-09-01.md`. Runtime
+resources remain unapplied. The foundation deliberately does **not** create
+secret versions, select a real executor, enable HolmesGPT, or enable GitHub
+publication. The application runs with its fake executor and fake publisher
+defaults when runtime deployment is separately approved later.
 
 ## Security Boundaries
 
@@ -18,6 +22,8 @@ application runs with its fake executor and fake publisher defaults.
 - Cloud SQL has no public IPv4 address and uses private service access.
 - Evidence bucket access is uniform, public-access prevention is enforced,
   versioning is enabled, and Terraform cannot destroy it.
+- Cloud SQL has Terraform deletion protection and API-level deletion
+  protection enabled.
 - Terraform creates only Secret Manager containers. Secret values and versions
   are supplied later through an approved out-of-band procedure and are never
   stored in Terraform configuration or state.
@@ -34,6 +40,11 @@ Artifact Registry image digest, secret-delivery path, and operator invoker
 identities have been reviewed. `terraform apply` is intentionally outside this
 foundation.
 
+Target project for the first reviewed bootstrap is
+`ai-operations-platform-507220` in `us-central1`. Use explicit `--project` and
+Terraform `project_id` values for this project; do not rely on a workstation's
+ambient `gcloud` project.
+
 1. Install Terraform `>= 1.5`, Docker, and authenticated Google Cloud CLI in a
    separately approved operator environment. Run local static validation:
 
@@ -41,18 +52,44 @@ foundation.
    .\gcp\sre-control-plane\scripts\validate-foundation.ps1
    ```
 
-2. **Bootstrap phase:** copy `terraform/terraform.tfvars.example` to ignored
+2. **Remote-state bucket phase:** after read-only preflight and explicit
+   operator approval for the first cloud write, create the dedicated Terraform
+   state bucket before Terraform initialization:
+
+   ```powershell
+   $PROJECT_ID = "ai-operations-platform-507220"
+   $REGION = "us-central1"
+   $STATE_BUCKET = "ai-operations-platform-507220-sre-control-plane-tfstate"
+
+   gcloud storage buckets create "gs://$STATE_BUCKET" `
+     --project="$PROJECT_ID" `
+     --location="$REGION" `
+     --uniform-bucket-level-access `
+     --public-access-prevention
+
+   gcloud storage buckets update "gs://$STATE_BUCKET" `
+     --versioning `
+     --soft-delete-duration=30d
+   ```
+
+   Do not set a bucket retention policy on this backend bucket. Terraform's GCS
+   backend uses short-lived lock objects; bucket-level retention can prevent
+   lock cleanup and block future plans. Versioning plus a 30-day soft-delete
+   recovery window protects state object generations without committing local
+   state or raw plan files.
+
+3. **Bootstrap phase:** copy `terraform/terraform.tfvars.example` to ignored
    `terraform/terraform.tfvars`. This phase requires no image digest or secret
    version. Its reviewed plan and separately approved apply create only APIs,
    network, Artifact Registry, Cloud SQL, service accounts, evidence/logging
    resources, and Secret Manager containers.
-3. **Out-of-band secret phase:** after bootstrap, an approved secret operator
+4. **Out-of-band secret phase:** after bootstrap, an approved secret operator
    creates the database credential and writes a concrete database URL as one
    new version of the Terraform-created database secret. Terraform never
    receives that value. Record only its numeric version, such as `1`.
-4. **Image phase:** build and push the container to the Terraform-created
+5. **Image phase:** build and push the container to the Terraform-created
    Artifact Registry repository, then record its immutable SHA-256 digest.
-5. **Runtime phase:** copy `terraform/terraform.runtime.tfvars.example` to an
+6. **Runtime phase:** copy `terraform/terraform.runtime.tfvars.example` to an
    ignored local file and provide the reviewed image digest and explicit numeric
    `database_secret_version`. The runtime plan creates Cloud Run, the migration
    job, its scheduler IAM binding, and a **paused** Scheduler job. Review all

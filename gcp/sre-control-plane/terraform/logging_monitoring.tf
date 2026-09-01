@@ -6,16 +6,9 @@ resource "google_logging_project_bucket_config" "control_plane" {
 }
 
 resource "google_logging_project_sink" "control_plane" {
-  name                   = "${local.resource_name}-logs"
-  destination            = "logging.googleapis.com/${google_logging_project_bucket_config.control_plane.id}"
-  unique_writer_identity = true
-  filter                 = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${local.resource_name}\""
-}
-
-resource "google_project_iam_member" "log_sink_writer" {
-  project = var.project_id
-  role    = "roles/logging.bucketWriter"
-  member  = google_logging_project_sink.control_plane.writer_identity
+  name        = "${local.resource_name}-logs"
+  destination = "logging.googleapis.com/${google_logging_project_bucket_config.control_plane.id}"
+  filter      = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${local.resource_name}\""
 }
 
 resource "google_monitoring_alert_policy" "cloud_run_errors" {

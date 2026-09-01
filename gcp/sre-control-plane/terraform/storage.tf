@@ -1,5 +1,5 @@
 resource "google_storage_bucket" "evidence" {
-  name                        = "${var.project_id}-${local.resource_name}-evidence"
+  name                        = "${var.project_id}-sre-cp-${var.environment}-evidence"
   location                    = var.region
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"

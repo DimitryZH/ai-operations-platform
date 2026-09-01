@@ -41,7 +41,7 @@ is not a deployed MVP or a live SRE Platform investigation.
 | Durable evidence and publication audit | Schema-valid results produce sanitized, SHA-256-addressed evidence packages. Artifact metadata, logical publication intents, and append-only publication outcomes are durable and visible through the task API. | The local evidence adapter and fake publisher remain defaults. Cloud Storage and live publication are not deployed by the local core. |
 | Bounded GitHub publisher | A product-neutral GitHub publisher validates exact target identity, pagination, response receipts, canonical idempotency markers, redirects, and retryable versus terminal outcomes. | The publisher is opt-in; its live smoke is explicitly gated and is not a default workflow action. GitHub remains an audit surface, never transactional state. |
 | Bounded HolmesGPT executor prototype | A product-neutral non-streaming HTTP adapter validates endpoint, capabilities, canonical dispatch identity, JSON response media type, result schema, and reconciliation identity. | `PROTOTYPE_REQUIRED`: fake execution remains the default. No HolmesGPT deployment, authentication, model invocation, runtime RBAC, Prometheus/log enforcement, or live investigation is claimed. |
-| GCP deployment foundation | Terraform and a non-root Python 3.13 container define private Cloud Run, Cloud SQL PostgreSQL, Cloud Storage, Secret Manager containers, scheduler OIDC, least-privilege IAM, structured logging, monitoring, and a controlled migration job. | Foundation only: no Terraform apply, secret version, image publication, GCP resource, or deployment has occurred. Fake adapters remain locked defaults. |
+| GCP deployment foundation | Terraform and a non-root Python 3.13 container define private Cloud Run, Cloud SQL PostgreSQL, Cloud Storage, Secret Manager containers, scheduler OIDC, least-privilege IAM, structured logging, monitoring, and a controlled migration job. The bootstrap phase has been applied in `ai-operations-platform-507220` with remote GCS state, private networking, private-IP Cloud SQL, evidence storage, service accounts, bounded IAM, logging, monitoring, and empty Secret Manager containers. | Bootstrap only: no Cloud Run service, migration job, Scheduler job, secret version, image publication, runtime configuration, live executor, GitHub publisher, Kubernetes access, or SRE Platform mutation has occurred. Fake adapters remain locked defaults. |
 | CI validation | GitHub Actions uses Python 3.13, PostgreSQL 16, Alembic migrations, and `SRE_CONTROL_PLANE_TEST_DATABASE_URL`. | The latest accepted control-plane run completed `157 passed, 1 skipped`; PostgreSQL integration tests ran, and the only skip was an opt-in live smoke test. |
 
 The local core intentionally does not deploy a real investigator, Kubernetes,
@@ -77,9 +77,10 @@ incident-management platform.
 
 The remaining work is intentionally ordered and bounded:
 
-1. **Review and deploy the GCP foundation**: use the private Cloud Run, Cloud
-   SQL, Cloud Storage, Secret Manager, IAM, scheduler, logging, monitoring, and
-   migration foundation only after a reviewed plan and explicit apply approval.
+1. **Prepare reviewed runtime deployment**: use the applied bootstrap
+   foundation only after a new reviewed plan supplies an immutable image digest,
+   out-of-band database secret version, controlled migration job path,
+   authenticated internal readiness check, and paused Scheduler runtime plan.
 2. **Bind reviewed production adapters**: configure bounded evidence storage
    and GitHub publication without changing the database source of truth or
    enabling default live writes.
