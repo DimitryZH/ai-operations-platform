@@ -41,7 +41,7 @@ is not a deployed MVP or a live SRE Platform investigation.
 | Durable evidence and publication audit | Schema-valid results produce sanitized, SHA-256-addressed evidence packages. Artifact metadata, logical publication intents, and append-only publication outcomes are durable and visible through the task API. | The local evidence adapter and fake publisher remain defaults. Cloud Storage and live publication are not deployed by the local core. |
 | Bounded GitHub publisher | A product-neutral GitHub publisher validates exact target identity, pagination, response receipts, canonical idempotency markers, redirects, and retryable versus terminal outcomes. | The publisher is opt-in; its live smoke is explicitly gated and is not a default workflow action. GitHub remains an audit surface, never transactional state. |
 | Bounded HolmesGPT executor prototype | A product-neutral non-streaming HTTP adapter validates endpoint, capabilities, canonical dispatch identity, JSON response media type, result schema, and reconciliation identity. | `PROTOTYPE_REQUIRED`: fake execution remains the default. No HolmesGPT deployment, authentication, model invocation, runtime RBAC, Prometheus/log enforcement, or live investigation is claimed. |
-| GCP deployment foundation | Terraform and a non-root Python 3.13 container define private Cloud Run, Cloud SQL PostgreSQL, Cloud Storage, Secret Manager containers, scheduler OIDC, least-privilege IAM, structured logging, monitoring, and a controlled migration job. The bootstrap phase has been applied in `ai-operations-platform-507220` with remote GCS state, private networking, private-IP Cloud SQL, evidence storage, service accounts, bounded IAM, logging, monitoring, and empty Secret Manager containers. | Bootstrap only: no Cloud Run service, migration job, Scheduler job, secret version, image publication, runtime configuration, live executor, GitHub publisher, Kubernetes access, or SRE Platform mutation has occurred. Fake adapters remain locked defaults. |
+| GCP deployment foundation | Terraform and a non-root Python 3.13 container define private Cloud Run, Cloud SQL PostgreSQL, Cloud Storage, Secret Manager containers, scheduler OIDC, least-privilege IAM, structured logging, monitoring, and a controlled migration job. The bootstrap phase has been applied in `ai-operations-platform-507220` with remote GCS state, private networking, private-IP Cloud SQL, evidence storage, service accounts, bounded IAM, logging, monitoring, and Secret Manager containers. The private runtime phase has also been applied with an immutable image digest, one out-of-band database secret version, one controlled migration execution, and authenticated internal readiness evidence. | Private fake-runtime only: Cloud Run is internal and authenticated, Scheduler remains paused, fake adapters remain locked defaults, and no live executor, GitHub publisher, HolmesGPT/model call, Kubernetes access, or SRE Platform mutation has occurred. |
 | CI validation | GitHub Actions uses Python 3.13, PostgreSQL 16, Alembic migrations, and `SRE_CONTROL_PLANE_TEST_DATABASE_URL`. | The latest accepted control-plane run completed `157 passed, 1 skipped`; PostgreSQL integration tests ran, and the only skip was an opt-in live smoke test. |
 
 The local core intentionally does not deploy a real investigator, Kubernetes,
@@ -77,19 +77,15 @@ incident-management platform.
 
 The remaining work is intentionally ordered and bounded:
 
-1. **Prepare reviewed runtime deployment**: use the applied bootstrap
-   foundation only after a new reviewed plan supplies an immutable image digest,
-   out-of-band database secret version, controlled migration job path,
-   authenticated internal readiness check, and paused Scheduler runtime plan.
-2. **Bind reviewed production adapters**: configure bounded evidence storage
+1. **Bind reviewed production adapters**: configure bounded evidence storage
    and GitHub publication without changing the database source of truth or
    enabling default live writes.
-3. **One real read-only executor prototype**: verify one product-neutral
+2. **One real read-only executor prototype**: verify one product-neutral
    candidate's capabilities fail closed for the approved scope. HolmesGPT is
    not selected by the local adapter prototype.
-4. **Complete SRE Platform staging demonstration**: run the approved
+3. **Complete SRE Platform staging demonstration**: run the approved
    SRE-owned controlled scenario and collect only permitted read-only evidence.
-5. **Orchestrator benchmark and portfolio closeout**: execute the accepted
+4. **Orchestrator benchmark and portfolio closeout**: execute the accepted
    benchmark against the integrated candidate architecture and publish only
    evidence-supported results.
 

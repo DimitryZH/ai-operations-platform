@@ -42,6 +42,15 @@ or pull request capabilities before an attempt becomes active.
 
 If capability status is missing or ambiguous, execution fails closed.
 
+The current GCP control-plane deployment evidence is split by phase:
+
+- [bootstrap foundation evidence](deployments/gcp-sre-control-plane-bootstrap-2026-09-01.md)
+- [private fake-runtime evidence](deployments/gcp-sre-control-plane-runtime-2026-09-01.md)
+
+The deployed runtime remains private and authenticated, uses fake adapters only,
+keeps Scheduler paused, and does not grant cluster access or live publication
+authority.
+
 ## Context Boundary
 
 Operational context must remain separate from runtime state and execution

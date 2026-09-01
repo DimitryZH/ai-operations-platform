@@ -7,10 +7,6 @@ resource "google_cloud_scheduler_job" "dispatch_tick" {
   time_zone   = var.scheduler_time_zone
   paused      = !var.scheduler_enabled
 
-  retry_config {
-    retry_count = 0
-  }
-
   http_target {
     http_method = "POST"
     uri         = "${google_cloud_run_v2_service.control_plane[0].uri}/internal/dispatch/tick"
@@ -30,6 +26,11 @@ resource "google_cloud_scheduler_job" "dispatch_tick" {
     precondition {
       condition     = !var.scheduler_enabled || var.scheduler_activation_confirmed
       error_message = "Scheduler activation requires explicit confirmation after migration and authenticated readiness verification."
+    }
+
+    postcondition {
+      condition     = length(self.retry_config) == 0
+      error_message = "Cloud Scheduler retry policy must remain API-normalized zero retries with no retry_config block."
     }
   }
 
