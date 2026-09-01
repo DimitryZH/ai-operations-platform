@@ -100,7 +100,8 @@ Read-only checks after apply confirmed:
 
 - Cloud Run service Ready condition: true
 - Cloud Run ingress: internal
-- Cloud Run service-level scaling: automatic with zero minimum instances
+- Cloud Run service-level scaling: `AUTOMATIC` with zero minimum instances and
+  zero manual instances
 - Cloud Run template scaling: effective template annotations show zero minimum
   instances and one maximum instance; the service metadata also exposes the
   platform default max-scale annotation separately
@@ -125,21 +126,33 @@ Review correction evidence:
 - Terraform provider schema exposes Cloud Run service-level `scaling` as a
   top-level block with `manual_instance_count`, `min_instance_count`, and
   `scaling_mode`, separate from template-level scaling.
-- Terraform state records Cloud Run service-level scaling as zero minimum and
-  zero manual instances, and template-level scaling as zero minimum and one
-  maximum instance.
-- Terraform now records Cloud Run service-level zero minimum explicitly and
-  asserts automatic zero-minimum/zero-manual service-level scaling with a
-  postcondition. No broad `ignore_changes` is used for scaling.
+- Terraform state records Cloud Run service-level scaling as `AUTOMATIC`, zero
+  minimum instances, and zero manual instances. Template-level scaling remains
+  zero minimum and one maximum instance.
+- Terraform records Cloud Run service-level `AUTOMATIC` scaling and zero
+  minimum explicitly, then asserts automatic zero-minimum/zero-manual
+  service-level scaling with a postcondition. No broad `ignore_changes` is used
+  for scaling.
 - Terraform provider schema exposes Scheduler `retry_config` as an optional
   block. The live Cloud Scheduler API returns no retry policy block for zero
   retries.
 - Terraform now models Scheduler zero retries as the API-normalized absence of
   `retry_config` and asserts that absence with a postcondition. No broad
   `ignore_changes` is used for retry policy.
-- The correction required no live resource change. A normal Terraform plan with
-  explicit non-secret runtime variables returned no changes: infrastructure
-  matches configuration.
+- Removing the broad `ignore_changes` entries and replacing them with
+  Terraform-owned normalized values initially required no live resource change.
+  A normal Terraform plan with explicit non-secret runtime variables returned
+  no changes: infrastructure matched configuration.
+- A later reviewed correction explicitly pinned Cloud Run service-level
+  `scaling_mode = "AUTOMATIC"`. The operator approved the exact saved plan
+  with SHA-256
+  `55f2643677b1030dff09cefa5362e0f8f0435a2b6c8f7bcefbe543a02faab5e1`.
+  Terraform applied only one in-place Cloud Run service change: 0 added, 1
+  changed, 0 destroyed.
+- Post-apply read-only verification confirmed the live Cloud Run scaling mode
+  as automatic, Terraform state as `AUTOMATIC`, service-level zero minimum and
+  zero manual instances, template-level maximum `1`, Scheduler still paused,
+  no Scheduler retry policy block, and a final no-change Terraform plan.
 
 ## Migration Evidence
 

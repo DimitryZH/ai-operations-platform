@@ -67,10 +67,12 @@ def test_cloud_run_scaling_is_owned_and_bounded_without_broad_ignore() -> None:
 
     assert re.search(
         r'resource "google_cloud_run_v2_service" "control_plane" \{[\s\S]*?'
-        r'\n  scaling \{\n    min_instance_count = 0\n  \}',
+        r'\n  scaling \{\n    min_instance_count = 0\n    scaling_mode       = "AUTOMATIC"\n  \}',
         cloud_run,
     )
+    assert 'scaling_mode       = "MANUAL"' not in cloud_run
     assert "max_instance_count = var.service_max_instances" in cloud_run
+    assert 'self.scaling[0].scaling_mode == "AUTOMATIC"' in cloud_run
     assert "self.scaling[0].min_instance_count == 0" in cloud_run
     assert "self.scaling[0].manual_instance_count == 0" in cloud_run
     assert "ignore_changes" not in cloud_run
@@ -83,6 +85,8 @@ def test_unsafe_scaling_and_retry_drift_remain_detectable() -> None:
     assert "ignore_changes" not in source
     assert "Cloud Run service-level scaling must remain automatic" in source
     assert "Cloud Scheduler retry policy must remain API-normalized zero retries" in source
+    assert 'scaling_mode       = "AUTOMATIC"' in source
+    assert '"MANUAL"' not in source
     assert "manual_instance_count == 0" in source
     assert "length(self.retry_config) == 0" in source
 

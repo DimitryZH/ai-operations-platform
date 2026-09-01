@@ -7,6 +7,7 @@ resource "google_cloud_run_v2_service" "control_plane" {
 
   scaling {
     min_instance_count = 0
+    scaling_mode       = "AUTOMATIC"
   }
 
   template {
@@ -79,7 +80,7 @@ resource "google_cloud_run_v2_service" "control_plane" {
     }
 
     postcondition {
-      condition     = self.scaling[0].min_instance_count == 0 && self.scaling[0].manual_instance_count == 0
+      condition     = self.scaling[0].scaling_mode == "AUTOMATIC" && self.scaling[0].min_instance_count == 0 && self.scaling[0].manual_instance_count == 0
       error_message = "Cloud Run service-level scaling must remain automatic with zero minimum and zero manual instances."
     }
   }
