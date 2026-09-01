@@ -46,15 +46,30 @@ def test_terraform_uses_private_durable_resources_without_secret_values() -> Non
     source = terraform_source()
 
     assert "google_sql_database_instance" in source
+    assert 'edition                     = "ENTERPRISE"' in source
+    assert "deletion_protection_enabled = var.deletion_protection" in source
     assert "google_artifact_registry_repository" in source
     assert "google_project_service" in source
     assert "ipv4_enabled    = false" in source
     assert "google_storage_bucket" in source
+    assert 'name                        = "${var.project_id}-sre-cp-${var.environment}-evidence"' in source
     assert 'public_access_prevention    = "enforced"' in source
     assert "google_secret_manager_secret" in source
     assert "google_secret_manager_secret_version" not in source
     assert "secret_data" not in source
+    assert 'depends_on = [google_project_service.required["secretmanager.googleapis.com"]]' in source
     assert "prevent_destroy = true" in source
+
+
+def test_service_account_ids_fit_gcp_limits() -> None:
+    source = terraform_source()
+
+    assert 'control_plane_service_account_id = "sre-cp-${local.service_account_environment}-run"' in source
+    assert 'scheduler_service_account_id     = "sre-cp-${local.service_account_environment}-sched"' in source
+    assert "substr(var.environment, 0, 15)" in source
+    assert 'account_id   = local.control_plane_service_account_id' in source
+    assert 'account_id   = local.scheduler_service_account_id' in source
+    assert len("sre-cp-" + ("x" * 15) + "-sched") <= 30
 
 
 def test_fake_adapter_defaults_and_controlled_migration_job_are_present() -> None:
@@ -74,9 +89,47 @@ def test_terraform_example_contains_only_placeholders() -> None:
     assert "password" not in example.lower()
 
 
+def test_remote_backend_targets_reviewed_state_bucket() -> None:
+    backend = (TERRAFORM_ROOT / "backend.tf").read_text(encoding="utf-8")
+
+    assert 'backend "gcs"' in backend
+    assert 'bucket = "ai-operations-platform-507220-sre-control-plane-tfstate"' in backend
+    assert 'prefix = "sre-control-plane/staging"' in backend
+    assert "credentials" not in backend.lower()
+
+
+def test_bootstrap_evidence_is_sanitized() -> None:
+    evidence = (
+        REPOSITORY_ROOT / "docs" / "deployments" / "gcp-sre-control-plane-bootstrap-2026-09-01.md"
+    ).read_text(encoding="utf-8")
+    forbidden_terms = [
+        "@" + "gmail.com",
+        ".iam." + "gserviceaccount.com",
+        "gho" + "_",
+        "ya29" + ".",
+        "-----" + "BEGIN",
+        "private" + "_key",
+        "client" + "_secret",
+        "bootstrap.tfplan",
+    ]
+
+    for term in forbidden_terms:
+        assert term not in evidence
+
+    assert "Operator identity verified" in evidence
+    assert "Public principals: no `allUsers` or `allAuthenticatedUsers`" in evidence
+    assert "Estimated steady-state range" in evidence
+
+
 def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> None:
     runbook = (REPOSITORY_ROOT / "gcp" / "sre-control-plane" / "README.md").read_text(encoding="utf-8")
 
+    assert "**Remote-state bucket phase:**" in runbook
+    assert "--uniform-bucket-level-access" in runbook
+    assert "--public-access-prevention" in runbook
+    assert "--versioning" in runbook
+    assert "--soft-delete-duration=30d" in runbook
+    assert "Do not set a bucket retention policy" in runbook
     assert "**Bootstrap phase:**" in runbook
     assert "**Out-of-band secret phase:**" in runbook
     assert "**Image phase:**" in runbook

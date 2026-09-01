@@ -5,6 +5,8 @@ resource "google_secret_manager_secret" "database_url" {
   replication {
     auto {}
   }
+
+  depends_on = [google_project_service.required["secretmanager.googleapis.com"]]
 }
 
 resource "google_secret_manager_secret" "github_token" {
@@ -14,6 +16,8 @@ resource "google_secret_manager_secret" "github_token" {
   replication {
     auto {}
   }
+
+  depends_on = [google_project_service.required["secretmanager.googleapis.com"]]
 }
 
 resource "google_secret_manager_secret" "executor_config" {
@@ -23,6 +27,8 @@ resource "google_secret_manager_secret" "executor_config" {
   replication {
     auto {}
   }
+
+  depends_on = [google_project_service.required["secretmanager.googleapis.com"]]
 }
 
 resource "google_secret_manager_secret_iam_member" "control_plane_database_url" {

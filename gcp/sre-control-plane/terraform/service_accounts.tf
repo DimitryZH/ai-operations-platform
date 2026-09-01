@@ -1,10 +1,10 @@
 resource "google_service_account" "control_plane" {
-  account_id   = "${local.resource_name}-runtime"
+  account_id   = local.control_plane_service_account_id
   display_name = "SRE control-plane Cloud Run runtime"
 }
 
 resource "google_service_account" "scheduler" {
-  account_id   = "${local.resource_name}-scheduler"
+  account_id   = local.scheduler_service_account_id
   display_name = "SRE control-plane scheduler invoker"
 }
 

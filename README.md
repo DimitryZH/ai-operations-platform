@@ -13,6 +13,7 @@ human approvals remain explicit control-plane decisions.
 ## Current Foundation
 
 - GCP private Stateful VM runtime under `gcp/stateful-agent-runtime/`
+- GCP SRE control-plane bootstrap under `gcp/sre-control-plane/`
 - Persistent Disk state model for private runtime state
 - IAP-only operator access
 - Secret Manager integration
@@ -64,6 +65,7 @@ does not override the orchestration non-selection recorded in ADR 0001.
 ai-operations-platform/
 |-- docs/
 |-- gcp/
+|   |-- sre-control-plane/
 |   `-- stateful-agent-runtime/
 |-- platform/
 |   `-- context/
