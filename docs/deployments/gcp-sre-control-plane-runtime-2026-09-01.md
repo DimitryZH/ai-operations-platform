@@ -100,6 +100,10 @@ Read-only checks after apply confirmed:
 
 - Cloud Run service Ready condition: true
 - Cloud Run ingress: internal
+- Cloud Run service-level scaling: automatic with zero minimum instances
+- Cloud Run template scaling: effective template annotations show zero minimum
+  instances and one maximum instance; the service metadata also exposes the
+  platform default max-scale annotation separately
 - Cloud Run image: immutable digest from this evidence
 - Cloud Run database secret reference: explicit version `1`
 - Cloud Run public invokers: zero
@@ -110,13 +114,32 @@ Read-only checks after apply confirmed:
 - Scheduler job state: `PAUSED`
 - Scheduler HTTP method: `POST`
 - Scheduler OIDC configured
+- Scheduler retry policy: API-normalized zero retries with no retry policy
+  block returned by the live API
 - Database URL secret versions: one enabled version
 - Temporary readiness verification job: absent after cleanup
 - Secret values read during verification: false
 
-After adding provider/API default normalization ignores for Cloud Run top-level
-scaling defaults and Scheduler zero-valued retry defaults, the final Terraform
-plan returned no changes: infrastructure matches configuration.
+Review correction evidence:
+
+- Terraform provider schema exposes Cloud Run service-level `scaling` as a
+  top-level block with `manual_instance_count`, `min_instance_count`, and
+  `scaling_mode`, separate from template-level scaling.
+- Terraform state records Cloud Run service-level scaling as zero minimum and
+  zero manual instances, and template-level scaling as zero minimum and one
+  maximum instance.
+- Terraform now records Cloud Run service-level zero minimum explicitly and
+  asserts automatic zero-minimum/zero-manual service-level scaling with a
+  postcondition. No broad `ignore_changes` is used for scaling.
+- Terraform provider schema exposes Scheduler `retry_config` as an optional
+  block. The live Cloud Scheduler API returns no retry policy block for zero
+  retries.
+- Terraform now models Scheduler zero retries as the API-normalized absence of
+  `retry_config` and asserts that absence with a postcondition. No broad
+  `ignore_changes` is used for retry policy.
+- The correction required no live resource change. A normal Terraform plan with
+  explicit non-secret runtime variables returned no changes: infrastructure
+  matches configuration.
 
 ## Migration Evidence
 

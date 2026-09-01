@@ -5,6 +5,10 @@ resource "google_cloud_run_v2_service" "control_plane" {
   ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY"
   labels   = local.labels
 
+  scaling {
+    min_instance_count = 0
+  }
+
   template {
     service_account                  = google_service_account.control_plane.email
     timeout                          = "${var.service_timeout_seconds}s"
@@ -64,10 +68,6 @@ resource "google_cloud_run_v2_service" "control_plane" {
   }
 
   lifecycle {
-    ignore_changes = [
-      scaling,
-    ]
-
     precondition {
       condition     = var.executor_mode == "fake" && var.github_publisher_mode == "fake"
       error_message = "This foundation deploys only fake adapters."
@@ -76,6 +76,11 @@ resource "google_cloud_run_v2_service" "control_plane" {
     precondition {
       condition     = var.container_image != null && var.database_secret_version != null
       error_message = "runtime deployment requires an immutable container_image and an explicit database_secret_version."
+    }
+
+    postcondition {
+      condition     = self.scaling[0].min_instance_count == 0 && self.scaling[0].manual_instance_count == 0
+      error_message = "Cloud Run service-level scaling must remain automatic with zero minimum and zero manual instances."
     }
   }
 

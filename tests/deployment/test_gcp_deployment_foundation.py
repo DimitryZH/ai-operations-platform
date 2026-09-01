@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -42,11 +43,48 @@ def test_runtime_requires_explicit_database_secret_version_and_pauses_scheduler(
     assert "scheduler_activation_confirmed" in source
 
 
-def test_provider_normalized_runtime_defaults_are_ignored() -> None:
+def test_broad_runtime_ignore_changes_are_not_used() -> None:
     source = terraform_source()
 
-    assert "ignore_changes = [\n      scaling,\n    ]" in source
-    assert "ignore_changes = [\n      retry_config,\n    ]" in source
+    assert "ignore_changes" not in source
+    assert "ignore_changes = [\n      scaling,\n    ]" not in source
+    assert "ignore_changes = [\n      retry_config,\n    ]" not in source
+
+
+def test_scheduler_retry_policy_is_owned_as_api_normalized_zero_retries() -> None:
+    scheduler = (TERRAFORM_ROOT / "scheduler.tf").read_text(encoding="utf-8")
+
+    assert "retry_config {" not in scheduler
+    assert "condition     = length(self.retry_config) == 0" in scheduler
+    assert "API-normalized zero retries" in scheduler
+    assert 'paused      = !var.scheduler_enabled' in scheduler
+    assert "scheduler_activation_confirmed" in scheduler
+
+
+def test_cloud_run_scaling_is_owned_and_bounded_without_broad_ignore() -> None:
+    cloud_run = (TERRAFORM_ROOT / "cloud_run.tf").read_text(encoding="utf-8")
+    variables = (TERRAFORM_ROOT / "variables.tf").read_text(encoding="utf-8")
+
+    assert re.search(
+        r'resource "google_cloud_run_v2_service" "control_plane" \{[\s\S]*?'
+        r'\n  scaling \{\n    min_instance_count = 0\n  \}',
+        cloud_run,
+    )
+    assert "max_instance_count = var.service_max_instances" in cloud_run
+    assert "self.scaling[0].min_instance_count == 0" in cloud_run
+    assert "self.scaling[0].manual_instance_count == 0" in cloud_run
+    assert "ignore_changes" not in cloud_run
+    assert "var.service_max_instances == 1" in variables
+
+
+def test_unsafe_scaling_and_retry_drift_remain_detectable() -> None:
+    source = terraform_source()
+
+    assert "ignore_changes" not in source
+    assert "Cloud Run service-level scaling must remain automatic" in source
+    assert "Cloud Scheduler retry policy must remain API-normalized zero retries" in source
+    assert "manual_instance_count == 0" in source
+    assert "length(self.retry_config) == 0" in source
 
 
 def test_terraform_uses_private_durable_resources_without_secret_values() -> None:
