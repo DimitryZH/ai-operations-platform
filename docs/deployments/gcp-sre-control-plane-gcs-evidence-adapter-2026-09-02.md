@@ -186,6 +186,49 @@ Read-only verification before deployment of this correction confirmed:
 
 No new smoke object was created or modified for this correction.
 
+Correction deployment evidence:
+
+- Source commit for the corrected runtime image:
+  `246eb62b8f1d2b14dd6e1a0fb04347ab5489f23f`
+- Corrected runtime image: immutable Artifact Registry digest
+  `sha256:685d0726e80a1e43c77086bf615c66256dc21202532b799f06fb25dee0d2b9a6`
+- Cloud Build API was not enabled for this correction, and no API enablement
+  was performed. The approved image push used the local Docker Desktop build
+  and Docker push path with the configured Artifact Registry credential helper.
+- Saved correction plan file: ignored local artifact
+  `issue51-bounded-readback.tfplan`
+- Saved correction plan SHA-256:
+  `6d1d6d7fe993b25d968fc64c78623ca30550e2888dd4dac5199c6db2e3bde770`
+- Correction plan summary: 0 to add, 2 to change, 0 to destroy
+- Correction plan resource actions:
+  - update the Cloud Run service image digest in place;
+  - update the Cloud Run migration job image digest in place without executing
+    it.
+- Correction plan safety checks:
+  - no IAM changes;
+  - no Scheduler activation or retry-policy change;
+  - no secret versions;
+  - no bucket or object changes;
+  - no executor, publisher, ingress, scaling, or database changes.
+- Apply result for the exact saved correction plan: 0 added, 2 changed, 0
+  destroyed.
+
+Read-only verification after the correction apply confirmed:
+
+- Cloud Run Ready condition: true
+- Cloud Run ingress: internal
+- Cloud Run image: corrected immutable digest from this section
+- Cloud Run retained GCS evidence environment selection for the reviewed
+  project and existing evidence bucket
+- Cloud Run service-level scaling: automatic
+- Cloud Run template scaling: zero minimum instances and one maximum instance
+- migration job image: corrected immutable digest from this section
+- migration job execution count did not increase
+- migration job max retries: zero
+- Scheduler job state: `PAUSED`
+- evidence prefix listing showed exactly the previously recorded smoke object
+- Terraform no-change plan after apply: no changes
+
 ## Smoke Attempt Troubleshooting
 
 Three approved temporary-job attempts did not create an evidence object:
