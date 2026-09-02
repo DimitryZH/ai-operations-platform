@@ -29,6 +29,8 @@ _GCS_METADATA_VALUE_PATTERN = re.compile(r"^[A-Za-z0-9._:/=-]{1,128}$")
 _GCS_EVIDENCE_METADATA_KEYS = frozenset(
     {"sha256", "sanitization_status", "content_type", "identity"}
 )
+_GCS_RETRYABLE_STATUS_CODES = frozenset({429, *range(500, 600)})
+_GCS_TERMINAL_STATUS_CODES = frozenset({400, 401, 403, 404, 409})
 
 
 class EvidenceStoreError(RuntimeError):
@@ -219,6 +221,9 @@ class GcsEvidenceStore:
         object_name = gcs_evidence_object_name(package.sha256)
         blob = self._bucket.blob(object_name)
         metadata = _gcs_object_metadata(package)
+        upload_failure: EvidenceStoreError | None = None
+        uploaded = False
+        verify_existing = False
         try:
             blob.metadata = metadata
             blob.upload_from_string(
@@ -226,11 +231,19 @@ class GcsEvidenceStore:
                 content_type=EVIDENCE_CONTENT_TYPE,
                 if_generation_match=0,
             )
+            uploaded = True
         except Exception as exc:
-            if not _is_generation_precondition_failure(exc):
-                raise EvidenceStoreError("GCS evidence storage unavailable") from None
-            _verify_existing_gcs_object(self._existing_blob(object_name), package)
-        else:
+            if _is_generation_precondition_failure(exc):
+                verify_existing = True
+            else:
+                upload_failure = _classified_gcs_failure(
+                    exc,
+                    retryable_message="GCS evidence storage unavailable",
+                    terminal_message="GCS evidence storage rejected the request",
+                )
+        if upload_failure is not None:
+            raise upload_failure
+        if uploaded or verify_existing:
             _verify_existing_gcs_object(self._existing_blob(object_name), package)
 
         return StoredEvidence(
@@ -244,12 +257,21 @@ class GcsEvidenceStore:
     def _existing_blob(self, object_name: str) -> Any:
         get_blob = getattr(self._bucket, "get_blob", None)
         if callable(get_blob):
+            lookup_failure: EvidenceStoreError | None = None
+            existing_blob = None
             try:
                 existing_blob = get_blob(object_name)
             except Exception as exc:
                 if _is_not_found_failure(exc):
-                    raise TerminalEvidenceStoreError("GCS evidence object is missing") from None
-                raise EvidenceStoreError("GCS evidence storage unavailable") from None
+                    lookup_failure = TerminalEvidenceStoreError("GCS evidence object is missing")
+                else:
+                    lookup_failure = _classified_gcs_failure(
+                        exc,
+                        retryable_message="GCS evidence storage unavailable",
+                        terminal_message="GCS evidence object lookup failed",
+                    )
+            if lookup_failure is not None:
+                raise lookup_failure
             if existing_blob is None:
                 raise TerminalEvidenceStoreError("GCS evidence object is missing")
             return existing_blob
@@ -320,12 +342,21 @@ def _verify_existing_gcs_object(blob: Any, package: EvidencePackage) -> None:
     _validate_gcs_object_content_type(blob)
     _validate_gcs_object_metadata(blob, package)
 
+    readback_failure: EvidenceStoreError | None = None
+    content = b""
     try:
         content = blob.download_as_bytes(start=0, end=expected_size - 1)
     except Exception as exc:
         if _is_not_found_failure(exc):
-            raise TerminalEvidenceStoreError("GCS evidence object is missing") from None
-        raise EvidenceStoreError("GCS evidence readback failed") from None
+            readback_failure = TerminalEvidenceStoreError("GCS evidence object is missing")
+        else:
+            readback_failure = _classified_gcs_failure(
+                exc,
+                retryable_message="GCS evidence readback failed",
+                terminal_message="GCS evidence readback was rejected",
+            )
+    if readback_failure is not None:
+        raise readback_failure
     if len(content) != expected_size:
         raise TerminalEvidenceStoreError("GCS evidence readback size is unexpected")
     if content != package.content or hashlib.sha256(content).hexdigest() != package.sha256:
@@ -335,12 +366,20 @@ def _verify_existing_gcs_object(blob: Any, package: EvidencePackage) -> None:
 def _refresh_gcs_object_metadata(blob: Any) -> None:
     reload = getattr(blob, "reload", None)
     if callable(reload):
+        metadata_failure: EvidenceStoreError | None = None
         try:
             reload()
         except Exception as exc:
             if _is_not_found_failure(exc):
-                raise TerminalEvidenceStoreError("GCS evidence object is missing") from None
-            raise EvidenceStoreError("GCS evidence metadata unavailable") from None
+                metadata_failure = TerminalEvidenceStoreError("GCS evidence object is missing")
+            else:
+                metadata_failure = _classified_gcs_failure(
+                    exc,
+                    retryable_message="GCS evidence metadata unavailable",
+                    terminal_message="GCS evidence metadata lookup failed",
+                )
+        if metadata_failure is not None:
+            raise metadata_failure
 
 
 def _gcs_object_size(blob: Any) -> int:
@@ -383,6 +422,38 @@ def _is_generation_precondition_failure(exc: Exception) -> bool:
         or getattr(exc, "status_code", None) == 412
         or exc.__class__.__name__ in {"PreconditionFailed", "PreconditionFailedError"}
     )
+
+
+def _classified_gcs_failure(
+    exc: Exception,
+    *,
+    retryable_message: str,
+    terminal_message: str,
+) -> EvidenceStoreError:
+    if _is_retryable_gcs_failure(exc):
+        return EvidenceStoreError(retryable_message)
+    return TerminalEvidenceStoreError(terminal_message)
+
+
+def _is_retryable_gcs_failure(exc: Exception) -> bool:
+    status_code = _gcs_status_code(exc)
+    if status_code in _GCS_RETRYABLE_STATUS_CODES:
+        return True
+    if status_code in _GCS_TERMINAL_STATUS_CODES:
+        return False
+    if status_code is not None:
+        return False
+    return isinstance(exc, (TimeoutError, ConnectionError))
+
+
+def _gcs_status_code(exc: Exception) -> int | None:
+    for attribute in ("code", "status_code"):
+        value = getattr(exc, attribute, None)
+        if type(value) is int:
+            return value
+        if isinstance(value, str) and value.isdecimal():
+            return int(value)
+    return None
 
 
 def _is_not_found_failure(exc: Exception) -> bool:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import logging
 import threading
 from pathlib import Path
 
@@ -241,13 +242,97 @@ def test_gcs_evidence_store_rejects_readback_integrity_mismatch() -> None:
         store.store(package)
 
 
-def test_gcs_evidence_store_retryable_readback_transport_failure_is_sanitized() -> None:
+@pytest.mark.parametrize("failure", [TimeoutError("provider detail should not leak"), ConnectionError("provider detail should not leak")])
+def test_gcs_evidence_store_retryable_timeout_or_network_failure_is_sanitized(failure, caplog) -> None:
     store, blob, package = existing_gcs_artifact()
-    blob.download_error = RuntimeError("provider diagnostic should not leak")
+    blob.download_error = failure
+    caplog.set_level(logging.DEBUG)
 
     with pytest.raises(EvidenceStoreError, match="readback failed") as exc_info:
         store.store(package)
-    assert "provider diagnostic" not in str(exc_info.value)
+    assert not isinstance(exc_info.value, TerminalEvidenceStoreError)
+    assert_sanitized_provider_failure(exc_info.value, caplog)
+
+
+@pytest.mark.parametrize("status_code", [429, 500, 502, 503, 504])
+def test_gcs_evidence_store_retryable_status_failures_are_allowlisted(status_code, caplog) -> None:
+    client = FakeGcsClient(upload_error=FakeGcsStatusError(status_code))
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=client,
+    )
+    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+    caplog.set_level(logging.DEBUG)
+
+    with pytest.raises(EvidenceStoreError, match="storage unavailable") as exc_info:
+        store.store(package)
+    assert not isinstance(exc_info.value, TerminalEvidenceStoreError)
+    assert_sanitized_provider_failure(exc_info.value, caplog)
+
+
+@pytest.mark.parametrize("status_code", [400, 401, 403, 404, 409])
+def test_gcs_evidence_store_terminal_status_failures_fail_closed(status_code, caplog) -> None:
+    client = FakeGcsClient(upload_error=FakeGcsStatusError(status_code))
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=client,
+    )
+    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+    caplog.set_level(logging.DEBUG)
+
+    with pytest.raises(TerminalEvidenceStoreError, match="rejected") as exc_info:
+        store.store(package)
+    assert_sanitized_provider_failure(exc_info.value, caplog)
+
+
+@pytest.mark.parametrize("operation", ["upload", "lookup", "metadata", "readback"])
+def test_gcs_evidence_store_unknown_provider_exception_is_terminal(operation, caplog) -> None:
+    failure = FakeUnknownProviderError("provider detail should not leak")
+    if operation == "upload":
+        client = FakeGcsClient(upload_error=failure)
+        store = GcsEvidenceStore(
+            "ai-operations-platform-507220",
+            "ai-operations-platform-507220-sre-cp-staging-evidence",
+            client=client,
+        )
+        package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+    else:
+        store, blob, package = existing_gcs_artifact()
+        if operation == "lookup":
+            store._bucket.get_error = failure
+        elif operation == "metadata":
+            blob.reload_error = failure
+        else:
+            blob.download_error = failure
+    caplog.set_level(logging.DEBUG)
+
+    with pytest.raises(TerminalEvidenceStoreError) as exc_info:
+        store.store(package)
+    assert_sanitized_provider_failure(exc_info.value, caplog)
+
+
+def test_gcs_evidence_store_provider_details_do_not_reach_durable_state(
+    session_factory, tmp_path: Path, caplog,
+) -> None:
+    workflow, task = completed_workflow(session_factory, tmp_path)
+    workflow._evidence_store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=FakeGcsClient(upload_error=FakeUnknownProviderError("provider detail should not persist")),
+    )
+    caplog.set_level(logging.INFO)
+
+    view = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key="gcs-provider-detail"))
+    serialized = view.model_dump_json()
+    log_output = "\n".join(record.getMessage() for record in caplog.records)
+
+    assert view.failure_reason == "publication_failed_terminal"
+    assert view.publications[0].status == "FAILED_TERMINAL"
+    assert view.publications[0].error_category == "evidence:terminal"
+    assert "provider detail" not in serialized
+    assert "provider detail" not in log_output
 
 
 def test_gcs_evidence_store_rejects_unreviewed_project_or_bucket() -> None:
@@ -285,8 +370,8 @@ def test_gcs_evidence_store_rejects_unsafe_package_and_integrity_mismatch() -> N
         )
 
 
-def test_gcs_evidence_store_transient_upload_failure_is_retryable() -> None:
-    client = FakeGcsClient(upload_error=RuntimeError("transient storage failure"))
+def test_gcs_evidence_store_unknown_upload_failure_is_terminal() -> None:
+    client = FakeGcsClient(upload_error=RuntimeError("transient-looking provider failure"))
     store = GcsEvidenceStore(
         "ai-operations-platform-507220",
         "ai-operations-platform-507220-sre-cp-staging-evidence",
@@ -294,7 +379,7 @@ def test_gcs_evidence_store_transient_upload_failure_is_retryable() -> None:
     )
     package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
 
-    with pytest.raises(EvidenceStoreError, match="storage unavailable"):
+    with pytest.raises(TerminalEvidenceStoreError, match="rejected"):
         store.store(package)
 
 
@@ -619,6 +704,16 @@ class FakePreconditionFailed(Exception):
     code = 412
 
 
+class FakeGcsStatusError(Exception):
+    def __init__(self, status_code: int) -> None:
+        self.code = status_code
+        super().__init__("provider detail should not leak")
+
+
+class FakeUnknownProviderError(Exception):
+    pass
+
+
 class FakeGcsClient:
     def __init__(self, upload_error: Exception | None = None) -> None:
         self.upload_error = upload_error
@@ -635,6 +730,7 @@ class FakeGcsBucket:
         self.name = ""
         self.blobs: dict[str, FakeGcsBlob] = {}
         self.missing_on_get = False
+        self.get_error: Exception | None = None
 
     def blob(self, object_name: str) -> "FakeGcsBlob":
         if object_name not in self.blobs:
@@ -642,6 +738,8 @@ class FakeGcsBucket:
         return self.blobs[object_name]
 
     def get_blob(self, object_name: str) -> "FakeGcsBlob | None":
+        if self.get_error is not None:
+            raise self.get_error
         if self.missing_on_get:
             return None
         return self.blobs.get(object_name)
@@ -659,6 +757,7 @@ class FakeGcsBlob:
         self.remote_size = None
         self.download_content: bytes | None = None
         self.download_error: Exception | None = None
+        self.reload_error: Exception | None = None
         self.ignore_range = False
         self.if_generation_match: int | None = None
         self.upload_calls = 0
@@ -686,6 +785,8 @@ class FakeGcsBlob:
 
     def reload(self) -> None:
         self.reload_calls += 1
+        if self.reload_error is not None:
+            raise self.reload_error
         self.metadata = self.remote_metadata
         self.content_type = self.remote_content_type
 
@@ -724,3 +825,12 @@ def existing_gcs_artifact() -> tuple[GcsEvidenceStore, FakeGcsBlob, EvidencePack
     }
     blob.remote_size = len(package.content)
     return store, blob, package
+
+
+def assert_sanitized_provider_failure(exc: Exception, caplog) -> None:
+    assert str(exc)
+    assert "provider detail" not in str(exc)
+    assert "provider detail" not in repr(exc)
+    assert exc.__cause__ is None
+    assert exc.__context__ is None
+    assert "provider detail" not in "\n".join(record.getMessage() for record in caplog.records)
