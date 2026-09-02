@@ -81,6 +81,40 @@ The reviewed Terraform update is expected to:
 - avoid creating new buckets, new secret versions, Cloud Run jobs, Scheduler
   activation, runtime adapter credentials, or cluster access.
 
+## Image Evidence
+
+- Source commit for the pushed runtime image:
+  `f4b7953578d9ac49af79c826eadc460e70f675a0`
+- Runtime image: immutable Artifact Registry digest
+  `sha256:8e216ce378ba21d0f734aaffa7bf995e3f7a8ffa860a7e4df7a1a44a17ba2b6c`
+- Local image build succeeded with the GCS storage client dependency.
+- Local container smoke test started the image and `/healthz` returned `ok`.
+- Mutable tags were not used in Terraform runtime configuration.
+
+## Exact Saved Terraform Plan
+
+- Saved plan file: ignored local artifact `issue51-gcs-evidence.tfplan`
+- Saved plan SHA-256:
+  `ea1b103d2984ffaabe30828ce8b104359716c7b398c5f7561203ef63ee3218d6`
+- Plan summary: 2 to add, 2 to change, 1 to destroy
+- Planned resource actions:
+  - update Cloud Run service in place to use the immutable image digest and GCS
+    evidence adapter environment variables;
+  - update the existing migration job in place to the same immutable image
+    digest without executing it;
+  - add bucket-scoped runtime `roles/storage.objectCreator`;
+  - add bucket-scoped runtime `roles/storage.objectViewer`;
+  - remove the previous runtime `roles/storage.objectUser` bucket IAM member.
+- Plan safety checks:
+  - private internal Cloud Run ingress remains configured;
+  - Cloud Run service-level scaling remains automatic with zero minimum and zero
+    manual instances;
+  - template-level maximum instances remains `1`;
+  - Scheduler remains paused;
+  - fake executor and fake publisher remain locked defaults;
+  - no secret versions, Cloud Run public invokers, new buckets, Scheduler
+    activation, real executor, or GitHub publisher configuration are planned.
+
 ## Approval Gates
 
 Separate operator approval is required immediately before each cloud write:
@@ -102,8 +136,7 @@ apply must stop for review.
 - Terraform static validation succeeded. The sandboxed run also attempted a
   remote backend read and was blocked by local network sandboxing, so the
   remote-state plan was executed separately as an escalated read-only command.
-- Local Docker image build succeeded with the GCS storage client dependency.
-- Local container smoke test started the image and `/healthz` returned `ok`.
+- Local Docker image build and health smoke are recorded above.
 
 ## Cost Estimate
 
@@ -128,8 +161,6 @@ charges while the instance is running, even with no traffic.
 
 The following evidence must be added after the separately approved gates:
 
-- immutable image digest;
-- exact saved Terraform plan SHA-256 and sanitized plan summary;
 - post-apply read-only verification;
 - no-change Terraform plan after apply;
 - one marked smoke object result with sanitized object identity and SHA-256
