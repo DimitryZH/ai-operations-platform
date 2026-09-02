@@ -32,6 +32,7 @@ from sre_control_plane.evidence import (
     EvidenceStoreError,
     LocalFilesystemEvidenceStore,
     StoredEvidence,
+    TerminalEvidenceStoreError,
     build_evidence_package,
     validate_stored_evidence,
 )
@@ -2528,6 +2529,8 @@ def log_lifecycle(event: str, **fields: str | None) -> None:
 
 
 def publication_failure_outcome(exc: Exception) -> tuple[str, str, str]:
+    if isinstance(exc, TerminalEvidenceStoreError):
+        return "FAILED_TERMINAL", "evidence:terminal", "publication_failed_terminal"
     if isinstance(exc, TerminalPublicationError):
         return "FAILED_TERMINAL", exc.error_category, "publication_failed_terminal"
     if isinstance(exc, PublicationError):

@@ -45,6 +45,21 @@ resource "google_cloud_run_v2_service" "control_plane" {
         }
       }
 
+      env {
+        name  = "SRE_CONTROL_PLANE_EVIDENCE_STORE"
+        value = "gcs"
+      }
+
+      env {
+        name  = "SRE_CONTROL_PLANE_GCS_PROJECT_ID"
+        value = var.project_id
+      }
+
+      env {
+        name  = "SRE_CONTROL_PLANE_EVIDENCE_BUCKET"
+        value = google_storage_bucket.evidence.name
+      }
+
       startup_probe {
         http_get {
           path = "/healthz"
@@ -88,6 +103,8 @@ resource "google_cloud_run_v2_service" "control_plane" {
   depends_on = [
     google_project_iam_member.control_plane_cloud_sql,
     google_secret_manager_secret_iam_member.control_plane_database_url,
+    google_storage_bucket_iam_member.control_plane_evidence_creator,
+    google_storage_bucket_iam_member.control_plane_evidence_viewer,
   ]
 }
 

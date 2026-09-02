@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from sre_control_plane.contracts import InvestigationRequest, REQUIRED_CAPABILITIES
-from sre_control_plane.evidence import LocalFilesystemEvidenceStore
+from sre_control_plane.evidence import LocalFilesystemEvidenceStore, StoredEvidence
 from sre_control_plane.executor import AttemptStatus, CapabilityReport, ExecutorStatus, StartInvestigationCommand
 from sre_control_plane.fake_executor import CANONICAL_FAKE_RESULT, FakeInvestigationExecutor
 from sre_control_plane.holmesgpt_executor import (
@@ -35,6 +35,7 @@ from sre_control_plane.persistence import (
     AttemptRecord,
     Base,
     DispatchLeaseRecord,
+    EvidenceArtifactRecord,
     ExecutorInvocationRecord,
     GitHubPublicationRecord,
     PublicationIntentRecord,
@@ -215,6 +216,47 @@ def test_evidence_publication_history_is_durable_and_adapter_call_is_unlocked(
 
     assert view.publications[0].status == "PUBLISHED"
     assert view.evidence_artifacts[0].sanitization_status == "SANITIZED"
+
+
+@pytest.mark.postgresql_integration
+def test_postgresql_gcs_evidence_storage_occurs_outside_database_transaction(
+    postgres_session_factory,
+) -> None:
+    evidence_store = BlockingGcsEvidenceStore()
+    workflow = SreInvestigationWorkflow(
+        postgres_session_factory,
+        FakeInvestigationExecutor(),
+        evidence_store=evidence_store,
+    )
+    task = workflow.submit_request(request_example("postgres-gcs-evidence-publication"))
+    workflow.run_dispatch_tick("postgres-gcs-evidence-tick")
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(
+            workflow.publish_evidence,
+            task.task_id,
+            EvidencePublicationRequest(idempotency_key="postgres-gcs-publication"),
+        )
+        assert evidence_store.started.wait(timeout=5)
+        with postgres_session_factory() as session:
+            intent = session.scalar(select(PublicationIntentRecord))
+            artifacts_before = session.scalars(select(EvidenceArtifactRecord)).all()
+            persisted_task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task.task_id))
+        assert intent is not None and intent.status == "PENDING"
+        assert intent.active_claim_token is not None
+        assert artifacts_before == []
+        assert persisted_task is not None and persisted_task.state == TaskState.AWAITING_HUMAN_REVIEW
+        evidence_store.release.set()
+        view = future.result(timeout=5)
+
+    assert evidence_store.calls == 1
+    assert view.publications[0].status == "PUBLISHED"
+    assert view.evidence_artifacts[0].artifact_uri.startswith(
+        "gs://ai-operations-platform-507220-sre-cp-staging-evidence/evidence/sha256/"
+    )
+    with postgres_session_factory() as session:
+        artifacts_after = session.scalars(select(EvidenceArtifactRecord)).all()
+    assert len(artifacts_after) == 1
 
 
 @pytest.mark.postgresql_integration
@@ -495,6 +537,28 @@ class RetryableThenSuccessfulPublisher(FakePublisher):
         if self.calls == 1:
             raise PublicationError("bounded retryable failure")
         return super().publish(request)
+
+
+class BlockingGcsEvidenceStore:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def store(self, package):
+        self.calls += 1
+        self.started.set()
+        assert self.release.wait(timeout=5)
+        return StoredEvidence(
+            artifact_uri=(
+                "gs://ai-operations-platform-507220-sre-cp-staging-evidence/"
+                f"evidence/sha256/{package.sha256}.json"
+            ),
+            sha256=package.sha256,
+            content_type="application/json",
+            sanitization_status="SANITIZED",
+            retention_policy="gcs-evidence-bucket-30d",
+        )
 
 
 class HolmesFixtureTransport:

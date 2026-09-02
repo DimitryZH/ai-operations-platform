@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import threading
 from pathlib import Path
 
@@ -13,10 +14,14 @@ from sre_control_plane.app import create_app
 from sre_control_plane.contracts import InvestigationRequest
 from sre_control_plane.evidence import (
     EvidenceStoreError,
+    GcsEvidenceStore,
     LocalFilesystemEvidenceStore,
     MAX_EVIDENCE_PACKAGE_BYTES,
     StoredEvidence,
+    TerminalEvidenceStoreError,
     build_evidence_package,
+    gcs_evidence_object_name,
+    validate_stored_evidence,
 )
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
 from sre_control_plane.persistence import (
@@ -71,6 +76,129 @@ def completed_workflow(session_factory, tmp_path: Path, publisher=None):
 def test_evidence_package_rejects_unsafe_content() -> None:
     with pytest.raises(EvidenceStoreError):
         build_evidence_package({"message": "token=not-allowed"})
+
+
+def test_gcs_evidence_store_writes_deterministic_bounded_object() -> None:
+    client = FakeGcsClient()
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=client,
+    )
+    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+
+    stored = store.store(package)
+
+    blob = client.bucket_ref.blobs[gcs_evidence_object_name(package.sha256)]
+    assert blob.if_generation_match == 0
+    assert blob.content == package.content
+    assert blob.content_type == "application/json"
+    assert blob.metadata["sha256"] == package.sha256
+    assert stored.artifact_uri == (
+        "gs://ai-operations-platform-507220-sre-cp-staging-evidence/"
+        f"evidence/sha256/{package.sha256}.json"
+    )
+    assert validate_stored_evidence(stored, package) == stored
+
+
+def test_gcs_evidence_store_repeated_identical_write_is_idempotent() -> None:
+    client = FakeGcsClient()
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=client,
+    )
+    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+
+    first = store.store(package)
+    second = store.store(package)
+
+    blob = client.bucket_ref.blobs[gcs_evidence_object_name(package.sha256)]
+    assert first == second
+    assert blob.upload_calls == 2
+    assert blob.download_calls == 2
+
+
+def test_gcs_evidence_store_conflicting_existing_identity_fails_closed() -> None:
+    client = FakeGcsClient()
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=client,
+    )
+    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+    blob = client.bucket_ref.blob(gcs_evidence_object_name(package.sha256))
+    blob.content = b'{"schema_version":"1.0","entries":["different"]}'
+    blob.content_type = "application/json"
+    blob.metadata = {"sha256": "0" * 64}
+
+    with pytest.raises(TerminalEvidenceStoreError, match="different content"):
+        store.store(package)
+
+
+def test_gcs_evidence_store_conflicting_existing_metadata_fails_closed() -> None:
+    client = FakeGcsClient()
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=client,
+    )
+    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+    blob = client.bucket_ref.blob(gcs_evidence_object_name(package.sha256))
+    blob.content = package.content
+    blob.content_type = "application/json"
+    blob.remote_metadata = {"sha256": package.sha256, "sanitization_status": "UNREVIEWED"}
+
+    with pytest.raises(TerminalEvidenceStoreError, match="unexpected metadata"):
+        store.store(package)
+
+
+def test_gcs_evidence_store_rejects_unreviewed_project_or_bucket() -> None:
+    with pytest.raises(TerminalEvidenceStoreError, match="project_id"):
+        GcsEvidenceStore("bad_project", "bad_project-sre-cp-staging-evidence", client=FakeGcsClient())
+    with pytest.raises(TerminalEvidenceStoreError, match="reviewed project boundary"):
+        GcsEvidenceStore(
+            "ai-operations-platform-507220",
+            "other-project-sre-cp-staging-evidence",
+            client=FakeGcsClient(),
+        )
+
+
+def test_gcs_evidence_store_rejects_unsafe_package_and_integrity_mismatch() -> None:
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=FakeGcsClient(),
+    )
+    safe_package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+
+    with pytest.raises(EvidenceStoreError, match="unsafe content"):
+        store.store(build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]}).__class__(
+            payload={"message": "password=not-allowed"},
+            content=b"{}",
+            sha256=hashlib.sha256(b"{}").hexdigest(),
+        ))
+    with pytest.raises(TerminalEvidenceStoreError, match="integrity"):
+        store.store(
+            safe_package.__class__(
+                payload=safe_package.payload,
+                content=safe_package.content + b"\n",
+                sha256=safe_package.sha256,
+            )
+        )
+
+
+def test_gcs_evidence_store_transient_upload_failure_is_retryable() -> None:
+    client = FakeGcsClient(upload_error=RuntimeError("transient storage failure"))
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=client,
+    )
+    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+
+    with pytest.raises(EvidenceStoreError, match="storage unavailable"):
+        store.store(package)
 
 
 def test_publication_persists_sanitized_integrity_checked_artifact(session_factory, tmp_path: Path) -> None:
@@ -369,3 +497,69 @@ class MalformedReceiptPublisher:
 class UnsafeReceiptPublisher:
     def publish(self, request):
         return PublicationReceipt(reference="https://github.example/publication/1")
+
+
+class FakePreconditionFailed(Exception):
+    code = 412
+
+
+class FakeGcsClient:
+    def __init__(self, upload_error: Exception | None = None) -> None:
+        self.upload_error = upload_error
+        self.bucket_ref = FakeGcsBucket(self)
+
+    def bucket(self, bucket_name: str) -> "FakeGcsBucket":
+        self.bucket_ref.name = bucket_name
+        return self.bucket_ref
+
+
+class FakeGcsBucket:
+    def __init__(self, client: FakeGcsClient) -> None:
+        self.client = client
+        self.name = ""
+        self.blobs: dict[str, FakeGcsBlob] = {}
+
+    def blob(self, object_name: str) -> "FakeGcsBlob":
+        if object_name not in self.blobs:
+            self.blobs[object_name] = FakeGcsBlob(object_name, self.client)
+        return self.blobs[object_name]
+
+    def get_blob(self, object_name: str) -> "FakeGcsBlob | None":
+        return self.blobs.get(object_name)
+
+
+class FakeGcsBlob:
+    def __init__(self, object_name: str, client: FakeGcsClient) -> None:
+        self.object_name = object_name
+        self.client = client
+        self.content: bytes | None = None
+        self.content_type: str | None = None
+        self.metadata: dict[str, str] | None = None
+        self.remote_metadata: dict[str, str] | None = None
+        self.if_generation_match: int | None = None
+        self.upload_calls = 0
+        self.download_calls = 0
+
+    def upload_from_string(
+        self,
+        content: bytes,
+        *,
+        content_type: str,
+        if_generation_match: int,
+    ) -> None:
+        self.upload_calls += 1
+        self.if_generation_match = if_generation_match
+        if self.client.upload_error is not None:
+            raise self.client.upload_error
+        if self.content is not None and if_generation_match == 0:
+            raise FakePreconditionFailed("object already exists")
+        self.content = content
+        self.content_type = content_type
+        self.remote_metadata = dict(self.metadata or {})
+
+    def download_as_bytes(self) -> bytes:
+        self.download_calls += 1
+        self.metadata = self.remote_metadata
+        if self.content is None:
+            raise FileNotFoundError(self.object_name)
+        return self.content

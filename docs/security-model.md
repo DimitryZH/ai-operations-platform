@@ -51,6 +51,13 @@ The deployed runtime remains private and authenticated, uses fake adapters only,
 keeps Scheduler paused, and does not grant cluster access or live publication
 authority.
 
+PostgreSQL remains the source of truth for task, attempt, result, evidence
+reference, publication, and review state. The GCS evidence adapter is only an
+artifact sink behind the product-neutral evidence-store interface. It writes
+sanitized JSON outside database transactions and locks, addresses objects by
+the package SHA-256, uses generation preconditions for idempotent creation, and
+records only validated artifact metadata back into PostgreSQL.
+
 ## Context Boundary
 
 Operational context must remain separate from runtime state and execution

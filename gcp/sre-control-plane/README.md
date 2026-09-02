@@ -24,6 +24,10 @@ defaults.
 - Cloud SQL has no public IPv4 address and uses private service access.
 - Evidence bucket access is uniform, public-access prevention is enforced,
   versioning is enabled, and Terraform cannot destroy it.
+- Reviewed GCP runtime stores sanitized evidence through the existing evidence
+  bucket only. Artifact identity is deterministic SHA-256, Cloud Storage object
+  creation uses generation preconditions, and the application verifies readback
+  integrity before recording the object reference in PostgreSQL.
 - Cloud SQL has Terraform deletion protection and API-level deletion
   protection enabled.
 - Terraform creates only Secret Manager containers. Secret values and versions
@@ -97,6 +101,14 @@ ambient `gcloud` project.
    job, its scheduler IAM binding, and a **paused** Scheduler job. Review all
    resource changes, IAM bindings, deletion-protection values, and the absence
    of public invokers before any separately authorized apply.
+7. **Evidence adapter phase:** after the bounded GCS evidence adapter is
+   reviewed, update Cloud Run to set `SRE_CONTROL_PLANE_EVIDENCE_STORE=gcs`,
+   `SRE_CONTROL_PLANE_GCS_PROJECT_ID`, and
+   `SRE_CONTROL_PLANE_EVIDENCE_BUCKET` for the existing evidence bucket. The
+   runtime service account receives bucket-scoped `roles/storage.objectCreator`
+   and `roles/storage.objectViewer`. This phase must not create another bucket,
+   widen project IAM, activate Scheduler, select live adapters, or access SRE
+   Platform.
 
 ## Controlled Migration And Rollback
 
@@ -131,3 +143,16 @@ the internal service URL, record the successful migration job and readiness
 evidence, then make the separate Scheduler activation change above. No public
 ingress, live executor, GitHub publication configuration, or SRE Platform
 cluster access is permitted during this smoke test.
+
+## Evidence Smoke Boundary
+
+The evidence adapter smoke test is a separate approval gate after the reviewed
+Cloud Run update is applied. It must write exactly one marked fake-investigation
+evidence package through the private runtime, producing one deterministic object
+under `evidence/sha256/` in the existing evidence bucket. The recorded evidence
+must include only the object scheme, prefix, SHA-256 length, sanitization status,
+retention policy, and idempotency result.
+
+The smoke test must not activate Scheduler, configure a live executor, configure
+GitHub publication, call a model, access a Kubernetes cluster, mutate SRE
+Platform, print secret values, or publish raw object contents.
