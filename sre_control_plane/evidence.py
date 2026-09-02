@@ -26,6 +26,9 @@ _GCS_BUCKET_NAME_PATTERN = re.compile(
 )
 _GCS_METADATA_KEY_PATTERN = re.compile(r"^[a-z0-9_-]{1,64}$")
 _GCS_METADATA_VALUE_PATTERN = re.compile(r"^[A-Za-z0-9._:/=-]{1,128}$")
+_GCS_EVIDENCE_METADATA_KEYS = frozenset(
+    {"sha256", "sanitization_status", "content_type", "identity"}
+)
 
 
 class EvidenceStoreError(RuntimeError):
@@ -225,7 +228,7 @@ class GcsEvidenceStore:
             )
         except Exception as exc:
             if not _is_generation_precondition_failure(exc):
-                raise EvidenceStoreError("GCS evidence storage unavailable") from exc
+                raise EvidenceStoreError("GCS evidence storage unavailable") from None
             _verify_existing_gcs_object(self._existing_blob(object_name), package)
         else:
             _verify_existing_gcs_object(self._existing_blob(object_name), package)
@@ -241,9 +244,14 @@ class GcsEvidenceStore:
     def _existing_blob(self, object_name: str) -> Any:
         get_blob = getattr(self._bucket, "get_blob", None)
         if callable(get_blob):
-            existing_blob = get_blob(object_name)
+            try:
+                existing_blob = get_blob(object_name)
+            except Exception as exc:
+                if _is_not_found_failure(exc):
+                    raise TerminalEvidenceStoreError("GCS evidence object is missing") from None
+                raise EvidenceStoreError("GCS evidence storage unavailable") from None
             if existing_blob is None:
-                raise EvidenceStoreError("GCS evidence readback failed")
+                raise TerminalEvidenceStoreError("GCS evidence object is missing")
             return existing_blob
         return self._bucket.blob(object_name)
 
@@ -304,18 +312,69 @@ def _gcs_object_metadata(package: EvidencePackage) -> dict[str, str]:
 
 
 def _verify_existing_gcs_object(blob: Any, package: EvidencePackage) -> None:
+    _refresh_gcs_object_metadata(blob)
+    expected_size = len(package.content)
+    size = _gcs_object_size(blob)
+    if size != expected_size:
+        raise TerminalEvidenceStoreError("GCS evidence object size is unexpected")
+    _validate_gcs_object_content_type(blob)
+    _validate_gcs_object_metadata(blob, package)
+
     try:
-        content = blob.download_as_bytes()
+        content = blob.download_as_bytes(start=0, end=expected_size - 1)
     except Exception as exc:
-        raise EvidenceStoreError("GCS evidence readback failed") from exc
+        if _is_not_found_failure(exc):
+            raise TerminalEvidenceStoreError("GCS evidence object is missing") from None
+        raise EvidenceStoreError("GCS evidence readback failed") from None
+    if len(content) != expected_size:
+        raise TerminalEvidenceStoreError("GCS evidence readback size is unexpected")
     if content != package.content or hashlib.sha256(content).hexdigest() != package.sha256:
         raise TerminalEvidenceStoreError("existing GCS evidence object has different content")
+
+
+def _refresh_gcs_object_metadata(blob: Any) -> None:
+    reload = getattr(blob, "reload", None)
+    if callable(reload):
+        try:
+            reload()
+        except Exception as exc:
+            if _is_not_found_failure(exc):
+                raise TerminalEvidenceStoreError("GCS evidence object is missing") from None
+            raise EvidenceStoreError("GCS evidence metadata unavailable") from None
+
+
+def _gcs_object_size(blob: Any) -> int:
+    size = getattr(blob, "size", None)
+    if type(size) is not int:
+        raise TerminalEvidenceStoreError("GCS evidence object size is invalid")
+    if size < 0:
+        raise TerminalEvidenceStoreError("GCS evidence object size is invalid")
+    if size > MAX_EVIDENCE_PACKAGE_BYTES:
+        raise TerminalEvidenceStoreError("GCS evidence object size exceeds the bounded limit")
+    return size
+
+
+def _validate_gcs_object_content_type(blob: Any) -> None:
+    if getattr(blob, "content_type", None) != EVIDENCE_CONTENT_TYPE:
+        raise TerminalEvidenceStoreError("GCS evidence content type is unexpected")
+
+
+def _validate_gcs_object_metadata(blob: Any, package: EvidencePackage) -> None:
     metadata = getattr(blob, "metadata", None) or {}
-    if metadata:
-        expected = _gcs_object_metadata(package)
-        for key, value in expected.items():
-            if metadata.get(key) != value:
-                raise TerminalEvidenceStoreError("existing GCS evidence object has unexpected metadata")
+    if not isinstance(metadata, dict):
+        raise TerminalEvidenceStoreError("GCS evidence metadata is invalid")
+    expected = _gcs_object_metadata(package)
+    if set(metadata) != _GCS_EVIDENCE_METADATA_KEYS:
+        raise TerminalEvidenceStoreError("GCS evidence metadata contract is unexpected")
+    for key, value in metadata.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise TerminalEvidenceStoreError("GCS evidence metadata is invalid")
+        if not _GCS_METADATA_KEY_PATTERN.fullmatch(key):
+            raise TerminalEvidenceStoreError("GCS evidence metadata is invalid")
+        if not _GCS_METADATA_VALUE_PATTERN.fullmatch(value):
+            raise TerminalEvidenceStoreError("GCS evidence metadata is invalid")
+    if metadata != expected:
+        raise TerminalEvidenceStoreError("existing GCS evidence object has unexpected metadata")
 
 
 def _is_generation_precondition_failure(exc: Exception) -> bool:
@@ -323,6 +382,14 @@ def _is_generation_precondition_failure(exc: Exception) -> bool:
         getattr(exc, "code", None) == 412
         or getattr(exc, "status_code", None) == 412
         or exc.__class__.__name__ in {"PreconditionFailed", "PreconditionFailedError"}
+    )
+
+
+def _is_not_found_failure(exc: Exception) -> bool:
+    return (
+        getattr(exc, "code", None) == 404
+        or getattr(exc, "status_code", None) == 404
+        or exc.__class__.__name__ in {"NotFound", "NotFoundError"}
     )
 
 

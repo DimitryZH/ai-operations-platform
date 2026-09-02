@@ -26,8 +26,10 @@ defaults.
   versioning is enabled, and Terraform cannot destroy it.
 - Reviewed GCP runtime stores sanitized evidence through the existing evidence
   bucket only. Artifact identity is deterministic SHA-256, Cloud Storage object
-  creation uses generation preconditions, and the application verifies readback
-  integrity before recording the object reference in PostgreSQL.
+  creation uses generation preconditions, and the application verifies remote
+  object size, exact `application/json` content type, exact metadata contract,
+  bounded readback size, and SHA-256 integrity before recording the object
+  reference in PostgreSQL.
 - Cloud SQL has Terraform deletion protection and API-level deletion
   protection enabled.
 - Terraform creates only Secret Manager containers. Secret values and versions

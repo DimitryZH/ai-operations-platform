@@ -56,7 +56,9 @@ reference, publication, and review state. The GCS evidence adapter is only an
 artifact sink behind the product-neutral evidence-store interface. It writes
 sanitized JSON outside database transactions and locks, addresses objects by
 the package SHA-256, uses generation preconditions for idempotent creation, and
-records only validated artifact metadata back into PostgreSQL.
+records only validated artifact metadata back into PostgreSQL. Before accepting
+a GCS object, it fail-closes on missing or unsafe object metadata, unexpected
+remote size, non-JSON content type, oversized readback, or SHA-256 mismatch.
 
 ## Context Boundary
 

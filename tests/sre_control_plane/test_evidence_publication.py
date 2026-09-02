@@ -13,7 +13,9 @@ from sqlalchemy.orm import sessionmaker
 from sre_control_plane.app import create_app
 from sre_control_plane.contracts import InvestigationRequest
 from sre_control_plane.evidence import (
+    EVIDENCE_CONTENT_TYPE,
     EvidenceStoreError,
+    EvidencePackage,
     GcsEvidenceStore,
     LocalFilesystemEvidenceStore,
     MAX_EVIDENCE_PACKAGE_BYTES,
@@ -120,23 +122,95 @@ def test_gcs_evidence_store_repeated_identical_write_is_idempotent() -> None:
 
 
 def test_gcs_evidence_store_conflicting_existing_identity_fails_closed() -> None:
-    client = FakeGcsClient()
-    store = GcsEvidenceStore(
-        "ai-operations-platform-507220",
-        "ai-operations-platform-507220-sre-cp-staging-evidence",
-        client=client,
-    )
-    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
-    blob = client.bucket_ref.blob(gcs_evidence_object_name(package.sha256))
-    blob.content = b'{"schema_version":"1.0","entries":["different"]}'
-    blob.content_type = "application/json"
-    blob.metadata = {"sha256": "0" * 64}
+    store, blob, package = existing_gcs_artifact()
+    blob.content = b" " + package.content[1:]
 
     with pytest.raises(TerminalEvidenceStoreError, match="different content"):
         store.store(package)
 
 
 def test_gcs_evidence_store_conflicting_existing_metadata_fails_closed() -> None:
+    store, blob, package = existing_gcs_artifact()
+    blob.remote_metadata = {
+        "sha256": package.sha256,
+        "sanitization_status": "UNREVIEWED",
+        "content_type": EVIDENCE_CONTENT_TYPE,
+        "identity": f"sha256:{package.sha256}",
+    }
+
+    with pytest.raises(TerminalEvidenceStoreError, match="unexpected metadata"):
+        store.store(package)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        None,
+        {},
+        {"sha256": "0" * 64},
+        {
+            "sha256": "0" * 64,
+            "sanitization_status": "SANITIZED",
+            "content_type": EVIDENCE_CONTENT_TYPE,
+            "identity": "sha256:" + ("0" * 64),
+            "extra": "unexpected",
+        },
+        {
+            "sha256": "0" * 64,
+            "sanitization_status": "SANITIZED",
+            "content_type": EVIDENCE_CONTENT_TYPE,
+            "identity": "sha256:" + ("0" * 64),
+            "unsafe key": "unexpected",
+        },
+        {
+            "sha256": "0" * 64,
+            "sanitization_status": "SANITIZED",
+            "content_type": EVIDENCE_CONTENT_TYPE,
+            "identity": "sha256:unsafe value with spaces",
+        },
+        {
+            "sha256": "0" * 64,
+            "sanitization_status": "SANITIZED",
+            "content_type": EVIDENCE_CONTENT_TYPE,
+            "identity": "sha256:" + ("1" * 64),
+        },
+    ],
+)
+def test_gcs_evidence_store_requires_exact_metadata_contract(metadata) -> None:
+    store, blob, package = existing_gcs_artifact()
+    blob.remote_metadata = metadata
+
+    with pytest.raises(TerminalEvidenceStoreError):
+        store.store(package)
+
+
+@pytest.mark.parametrize("content_type", [None, "text/plain"])
+def test_gcs_evidence_store_requires_exact_content_type(content_type) -> None:
+    store, blob, package = existing_gcs_artifact()
+    blob.remote_content_type = content_type
+
+    with pytest.raises(TerminalEvidenceStoreError, match="content type"):
+        store.store(package)
+
+
+@pytest.mark.parametrize("remote_size", [None, "123", -1, MAX_EVIDENCE_PACKAGE_BYTES + 1])
+def test_gcs_evidence_store_requires_valid_remote_size(remote_size) -> None:
+    store, blob, package = existing_gcs_artifact()
+    blob.remote_size = remote_size
+
+    with pytest.raises(TerminalEvidenceStoreError, match="size"):
+        store.store(package)
+
+
+def test_gcs_evidence_store_requires_remote_size_to_match_expected_size() -> None:
+    store, blob, package = existing_gcs_artifact()
+    blob.remote_size = len(package.content) + 1
+
+    with pytest.raises(TerminalEvidenceStoreError, match="size"):
+        store.store(package)
+
+
+def test_gcs_evidence_store_missing_remote_object_fails_closed() -> None:
     client = FakeGcsClient()
     store = GcsEvidenceStore(
         "ai-operations-platform-507220",
@@ -144,13 +218,36 @@ def test_gcs_evidence_store_conflicting_existing_metadata_fails_closed() -> None
         client=client,
     )
     package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
-    blob = client.bucket_ref.blob(gcs_evidence_object_name(package.sha256))
-    blob.content = package.content
-    blob.content_type = "application/json"
-    blob.remote_metadata = {"sha256": package.sha256, "sanitization_status": "UNREVIEWED"}
+    client.bucket_ref.missing_on_get = True
 
-    with pytest.raises(TerminalEvidenceStoreError, match="unexpected metadata"):
+    with pytest.raises(TerminalEvidenceStoreError, match="missing"):
         store.store(package)
+
+
+def test_gcs_evidence_store_rejects_oversized_readback() -> None:
+    store, blob, package = existing_gcs_artifact()
+    blob.download_content = package.content + b"x"
+    blob.ignore_range = True
+
+    with pytest.raises(TerminalEvidenceStoreError, match="readback size"):
+        store.store(package)
+
+
+def test_gcs_evidence_store_rejects_readback_integrity_mismatch() -> None:
+    store, blob, package = existing_gcs_artifact()
+    blob.content = b" " + package.content[1:]
+
+    with pytest.raises(TerminalEvidenceStoreError, match="different content"):
+        store.store(package)
+
+
+def test_gcs_evidence_store_retryable_readback_transport_failure_is_sanitized() -> None:
+    store, blob, package = existing_gcs_artifact()
+    blob.download_error = RuntimeError("provider diagnostic should not leak")
+
+    with pytest.raises(EvidenceStoreError, match="readback failed") as exc_info:
+        store.store(package)
+    assert "provider diagnostic" not in str(exc_info.value)
 
 
 def test_gcs_evidence_store_rejects_unreviewed_project_or_bucket() -> None:
@@ -199,6 +296,20 @@ def test_gcs_evidence_store_transient_upload_failure_is_retryable() -> None:
 
     with pytest.raises(EvidenceStoreError, match="storage unavailable"):
         store.store(package)
+
+
+def test_gcs_evidence_terminal_failure_does_not_disclose_details_in_durable_state(
+    session_factory, tmp_path: Path,
+) -> None:
+    workflow, task = completed_workflow(session_factory, tmp_path)
+    workflow._evidence_store = TerminalSensitiveStore()
+
+    view = workflow.publish_evidence(task.task_id, EvidencePublicationRequest(idempotency_key="terminal-store"))
+
+    assert view.failure_reason == "publication_failed_terminal"
+    assert view.publications[0].status == "FAILED_TERMINAL"
+    assert view.publications[0].error_category == "evidence:terminal"
+    assert "provider detail" not in view.model_dump_json()
 
 
 def test_publication_persists_sanitized_integrity_checked_artifact(session_factory, tmp_path: Path) -> None:
@@ -473,6 +584,11 @@ class FailingStore:
         raise EvidenceStoreError("local evidence storage unavailable")
 
 
+class TerminalSensitiveStore:
+    def store(self, package):
+        raise TerminalEvidenceStoreError("provider detail should not persist")
+
+
 class MalformedStore:
     def store(self, package):
         return {"artifact_uri": "local://evidence/evidence-bad.json"}
@@ -518,6 +634,7 @@ class FakeGcsBucket:
         self.client = client
         self.name = ""
         self.blobs: dict[str, FakeGcsBlob] = {}
+        self.missing_on_get = False
 
     def blob(self, object_name: str) -> "FakeGcsBlob":
         if object_name not in self.blobs:
@@ -525,6 +642,8 @@ class FakeGcsBucket:
         return self.blobs[object_name]
 
     def get_blob(self, object_name: str) -> "FakeGcsBlob | None":
+        if self.missing_on_get:
+            return None
         return self.blobs.get(object_name)
 
 
@@ -534,11 +653,17 @@ class FakeGcsBlob:
         self.client = client
         self.content: bytes | None = None
         self.content_type: str | None = None
+        self.remote_content_type: str | None = None
         self.metadata: dict[str, str] | None = None
         self.remote_metadata: dict[str, str] | None = None
+        self.remote_size = None
+        self.download_content: bytes | None = None
+        self.download_error: Exception | None = None
+        self.ignore_range = False
         self.if_generation_match: int | None = None
         self.upload_calls = 0
         self.download_calls = 0
+        self.reload_calls = 0
 
     def upload_from_string(
         self,
@@ -555,11 +680,47 @@ class FakeGcsBlob:
             raise FakePreconditionFailed("object already exists")
         self.content = content
         self.content_type = content_type
+        self.remote_content_type = content_type
         self.remote_metadata = dict(self.metadata or {})
+        self.remote_size = len(content)
 
-    def download_as_bytes(self) -> bytes:
-        self.download_calls += 1
+    def reload(self) -> None:
+        self.reload_calls += 1
         self.metadata = self.remote_metadata
+        self.content_type = self.remote_content_type
+
+    @property
+    def size(self):
+        return self.remote_size
+
+    def download_as_bytes(self, *, start: int | None = None, end: int | None = None) -> bytes:
+        self.download_calls += 1
+        if self.download_error is not None:
+            raise self.download_error
         if self.content is None:
             raise FileNotFoundError(self.object_name)
-        return self.content
+        content = self.download_content if self.download_content is not None else self.content
+        if self.ignore_range or start is None or end is None:
+            return content
+        return content[start:end + 1]
+
+
+def existing_gcs_artifact() -> tuple[GcsEvidenceStore, FakeGcsBlob, EvidencePackage]:
+    client = FakeGcsClient()
+    store = GcsEvidenceStore(
+        "ai-operations-platform-507220",
+        "ai-operations-platform-507220-sre-cp-staging-evidence",
+        client=client,
+    )
+    package = build_evidence_package({"schema_version": "1.0", "entries": ["bounded"]})
+    blob = client.bucket_ref.blob(gcs_evidence_object_name(package.sha256))
+    blob.content = package.content
+    blob.remote_content_type = EVIDENCE_CONTENT_TYPE
+    blob.remote_metadata = {
+        "sha256": package.sha256,
+        "sanitization_status": "SANITIZED",
+        "content_type": EVIDENCE_CONTENT_TYPE,
+        "identity": f"sha256:{package.sha256}",
+    }
+    blob.remote_size = len(package.content)
+    return store, blob, package

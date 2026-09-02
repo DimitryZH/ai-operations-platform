@@ -60,8 +60,9 @@ object contents, and raw logs.
   `evidence/sha256/<package-sha256>.json`.
 - Object creation uses Cloud Storage generation precondition `0`, so a repeated
   identical write is semantic idempotency and a conflicting object fails closed.
-- The adapter verifies SHA-256 content integrity and reviewed object metadata
-  with a readback before returning artifact metadata to the workflow.
+- The adapter verifies remote object size, exact content type, exact reviewed
+  metadata contract, bounded readback size, and SHA-256 content integrity before
+  returning artifact metadata to the workflow.
 - The returned artifact contract accepts only bounded `gs://` evidence objects
   and local development evidence objects.
 - Local filesystem evidence remains the default adapter for local development.
@@ -140,6 +141,51 @@ Read-only checks after apply confirmed:
   `projectOwner`, `projectEditor`, and `projectViewer`
 - Terraform no-change plan after apply: no changes
 
+## Review Correction - Bounded GCS Readback
+
+Draft PR review found that GCS object readback needed stronger fail-closed
+validation before accepting an existing object or a newly-created object.
+
+The correction adds these runtime guarantees:
+
+- remote object metadata is refreshed before readback;
+- missing, malformed, negative, oversized, or unexpected remote object size is
+  terminal failure before content download;
+- object content type must be exactly `application/json`;
+- custom metadata must match the complete reviewed contract exactly, with no
+  missing, incomplete, additional, unsafe, or conflicting entries;
+- object bytes are fetched with a bounded range using the expected object size;
+- downloaded byte count and SHA-256 are rechecked before returning an artifact
+  reference;
+- GCS exception details, raw metadata, endpoint details, and raw object contents
+  are not returned in errors or durable publication state;
+- retryable classification is preserved only for sanitized transport/storage
+  availability failures.
+
+Local regression tests were added for missing, incomplete, additional, unsafe,
+and conflicting metadata; missing and wrong content type; missing, malformed,
+negative, oversized, and unexpected remote size; oversized readback; integrity
+mismatch; retryable transport failure; and durable-state sanitization.
+
+Read-only verification before deployment of this correction confirmed:
+
+- Cloud Run remained Ready with private internal ingress;
+- Cloud Run still used the previously deployed immutable image digest;
+- Cloud Run retained GCS evidence-store environment selection for the reviewed
+  project and existing evidence bucket;
+- Cloud Run service-level scaling remained automatic;
+- Cloud Run template-level scaling remained zero minimum and one maximum
+  instance;
+- the migration job still used the same previously deployed immutable image
+  digest and zero retries;
+- Scheduler remained `PAUSED`;
+- the evidence bucket retained uniform bucket-level access, public-access
+  prevention, retention, soft delete, and versioning;
+- evidence prefix listing showed exactly the previously recorded smoke object;
+- a Terraform plan with the current deployed image digest returned no changes.
+
+No new smoke object was created or modified for this correction.
+
 ## Smoke Attempt Troubleshooting
 
 Three approved temporary-job attempts did not create an evidence object:
@@ -202,14 +248,19 @@ apply must stop for review.
 
 ## Pre-Deployment Validation
 
-- Unit, deployment regression, and configuration tests: 50 passed.
-- Full local test suite: 171 passed, 16 skipped. The skipped tests were
+- Evidence publication regression tests after the bounded readback correction:
+  42 passed.
+- Deployment regression and configuration tests after the correction: 27
+  passed.
+- Full local test suite after the correction: 190 passed, 16 skipped. The
+  skipped tests were
   opt-in live or PostgreSQL-integration tests requiring external configuration
   unavailable in the local shell.
 - Terraform static validation succeeded. The sandboxed run also attempted a
   remote backend read and was blocked by local network sandboxing, so the
   remote-state plan was executed separately as an escalated read-only command.
-- Local Docker image build and health smoke are recorded above.
+- Local Docker image build for the corrected runtime succeeded and `/healthz`
+  returned `ok`.
 
 ## Cost Estimate
 
