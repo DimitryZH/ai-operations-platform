@@ -20,8 +20,14 @@ resource "google_storage_bucket" "evidence" {
   }
 }
 
-resource "google_storage_bucket_iam_member" "control_plane_evidence_writer" {
+resource "google_storage_bucket_iam_member" "control_plane_evidence_creator" {
   bucket = google_storage_bucket.evidence.name
-  role   = "roles/storage.objectUser"
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.control_plane.email}"
+}
+
+resource "google_storage_bucket_iam_member" "control_plane_evidence_viewer" {
+  bucket = google_storage_bucket.evidence.name
+  role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.control_plane.email}"
 }

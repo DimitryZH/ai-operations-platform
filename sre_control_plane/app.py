@@ -4,7 +4,13 @@ from collections.abc import Callable
 
 from fastapi import FastAPI, HTTPException, Response
 
-from sre_control_plane.config import Settings, create_executor, create_publisher, load_settings
+from sre_control_plane.config import (
+    Settings,
+    create_evidence_store,
+    create_executor,
+    create_publisher,
+    load_settings,
+)
 from sre_control_plane.contracts import InvestigationRequest
 from sre_control_plane.database import create_session_factory
 from sre_control_plane.executor import CapabilityReport
@@ -43,6 +49,7 @@ def create_app(
     active_workflow = workflow or SreInvestigationWorkflow(
         create_session_factory(active_settings.database_url),
         executor,
+        evidence_store=create_evidence_store(active_settings),
         publisher=create_publisher(active_settings),
     )
 

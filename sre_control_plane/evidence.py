@@ -2,22 +2,42 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
-from urllib.parse import urlparse
+from typing import Any, Protocol
+from urllib.parse import quote, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sre_control_plane.contracts import first_unsafe_string
 
 EVIDENCE_CONTENT_TYPE = "application/json"
-EVIDENCE_RETENTION_POLICY = "local-development-30d"
+LOCAL_EVIDENCE_RETENTION_POLICY = "local-development-30d"
+GCS_EVIDENCE_RETENTION_POLICY = "gcs-evidence-bucket-30d"
+EVIDENCE_RETENTION_POLICY = LOCAL_EVIDENCE_RETENTION_POLICY
 MAX_EVIDENCE_PACKAGE_BYTES = 256 * 1024
 MAX_EVIDENCE_COLLECTION_ITEMS = 100
+GCS_EVIDENCE_OBJECT_PREFIX = "evidence/sha256"
+
+_GCP_PROJECT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$")
+_GCS_BUCKET_NAME_PATTERN = re.compile(
+    r"^(?!goog)(?!.*\.\.)(?!.*--)[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$"
+)
+_GCS_METADATA_KEY_PATTERN = re.compile(r"^[a-z0-9_-]{1,64}$")
+_GCS_METADATA_VALUE_PATTERN = re.compile(r"^[A-Za-z0-9._:/=-]{1,128}$")
+_GCS_EVIDENCE_METADATA_KEYS = frozenset(
+    {"sha256", "sanitization_status", "content_type", "identity"}
+)
+_GCS_RETRYABLE_STATUS_CODES = frozenset({429, *range(500, 600)})
+_GCS_TERMINAL_STATUS_CODES = frozenset({400, 401, 403, 404, 409})
 
 
 class EvidenceStoreError(RuntimeError):
+    pass
+
+
+class TerminalEvidenceStoreError(EvidenceStoreError):
     pass
 
 
@@ -38,7 +58,7 @@ class StoredEvidence:
 
 
 class StoredEvidenceContract(BaseModel):
-    """Canonical runtime contract for a bounded local evidence-store response."""
+    """Canonical runtime contract for a bounded evidence-store response."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -52,22 +72,35 @@ class StoredEvidenceContract(BaseModel):
     @classmethod
     def validate_artifact_uri(cls, value: str) -> str:
         parsed = urlparse(value)
-        if parsed.scheme != "local" or parsed.netloc != "evidence":
-            raise ValueError("artifact_uri must use the local://evidence scheme")
-        if not parsed.path.startswith("/evidence-") or not parsed.path.endswith(".json"):
-            raise ValueError("artifact_uri must reference a bounded evidence artifact")
+        if parsed.scheme not in {"local", "gs"}:
+            raise ValueError("artifact_uri must use an approved evidence scheme")
+        if parsed.scheme == "local" and parsed.netloc != "evidence":
+            raise ValueError("local artifact_uri must use the local://evidence authority")
+        if parsed.scheme == "gs" and not _valid_gcs_bucket_name(parsed.netloc):
+            raise ValueError("gcs artifact_uri must use a safe bucket name")
+        if not parsed.path.endswith(".json"):
+            raise ValueError("artifact_uri must reference a bounded JSON evidence artifact")
         if ".." in parsed.path or parsed.query or parsed.fragment:
             raise ValueError("artifact_uri contains unsafe components")
         return value
 
     @model_validator(mode="after")
-    def validate_local_evidence_policy(self) -> "StoredEvidenceContract":
+    def validate_evidence_policy(self) -> "StoredEvidenceContract":
         if self.content_type != EVIDENCE_CONTENT_TYPE:
             raise ValueError("unexpected evidence content type")
         if self.sanitization_status != "SANITIZED":
             raise ValueError("evidence must be sanitized")
-        if self.retention_policy != EVIDENCE_RETENTION_POLICY:
-            raise ValueError("unexpected evidence retention policy")
+        parsed = urlparse(self.artifact_uri)
+        if parsed.scheme == "local":
+            if self.retention_policy != LOCAL_EVIDENCE_RETENTION_POLICY:
+                raise ValueError("unexpected local evidence retention policy")
+            if not parsed.path.startswith("/evidence-"):
+                raise ValueError("local artifact_uri must reference a bounded evidence artifact")
+        elif parsed.scheme == "gs":
+            if self.retention_policy != GCS_EVIDENCE_RETENTION_POLICY:
+                raise ValueError("unexpected gcs evidence retention policy")
+            if not parsed.path.startswith(f"/{GCS_EVIDENCE_OBJECT_PREFIX}/"):
+                raise ValueError("gcs artifact_uri must reference the bounded evidence prefix")
         return self
 
 
@@ -103,8 +136,7 @@ def validate_stored_evidence(value: object, package: EvidencePackage) -> StoredE
         raise EvidenceStoreError("evidence store returned invalid artifact metadata") from exc
     if validated.sha256 != package.sha256:
         raise EvidenceStoreError("evidence store returned an artifact with unexpected integrity")
-    expected_uri = f"local://evidence/evidence-{package.sha256}.json"
-    if validated.artifact_uri != expected_uri:
+    if validated.artifact_uri != _expected_artifact_uri(validated.artifact_uri, package.sha256):
         raise EvidenceStoreError("evidence store returned an unexpected artifact reference")
     return StoredEvidence(**validated.model_dump())
 
@@ -160,5 +192,285 @@ class LocalFilesystemEvidenceStore:
             sha256=package.sha256,
             content_type=EVIDENCE_CONTENT_TYPE,
             sanitization_status="SANITIZED",
-            retention_policy=EVIDENCE_RETENTION_POLICY,
+            retention_policy=LOCAL_EVIDENCE_RETENTION_POLICY,
         )
+
+
+class GcsEvidenceStore:
+    """Bounded Cloud Storage adapter for the reviewed private GCP runtime."""
+
+    def __init__(self, project_id: str, bucket_name: str, client: Any | None = None) -> None:
+        if not _valid_gcp_project_id(project_id):
+            raise TerminalEvidenceStoreError("GCS evidence project_id is missing or malformed")
+        if not _valid_gcs_bucket_name(bucket_name):
+            raise TerminalEvidenceStoreError("GCS evidence bucket_name is missing or malformed")
+        if not bucket_name.startswith(f"{project_id}-sre-cp-") or not bucket_name.endswith("-evidence"):
+            raise TerminalEvidenceStoreError("GCS evidence bucket does not match the reviewed project boundary")
+
+        self._project_id = project_id
+        self._bucket_name = bucket_name
+        self._client = client if client is not None else _default_storage_client(project_id)
+        self._bucket = self._client.bucket(bucket_name)
+
+    @property
+    def bucket_name(self) -> str:
+        return self._bucket_name
+
+    def store(self, package: EvidencePackage) -> StoredEvidence:
+        _validate_evidence_package(package)
+        object_name = gcs_evidence_object_name(package.sha256)
+        blob = self._bucket.blob(object_name)
+        metadata = _gcs_object_metadata(package)
+        upload_failure: EvidenceStoreError | None = None
+        uploaded = False
+        verify_existing = False
+        try:
+            blob.metadata = metadata
+            blob.upload_from_string(
+                package.content,
+                content_type=EVIDENCE_CONTENT_TYPE,
+                if_generation_match=0,
+            )
+            uploaded = True
+        except Exception as exc:
+            if _is_generation_precondition_failure(exc):
+                verify_existing = True
+            else:
+                upload_failure = _classified_gcs_failure(
+                    exc,
+                    retryable_message="GCS evidence storage unavailable",
+                    terminal_message="GCS evidence storage rejected the request",
+                )
+        if upload_failure is not None:
+            raise upload_failure
+        if uploaded or verify_existing:
+            _verify_existing_gcs_object(self._existing_blob(object_name), package)
+
+        return StoredEvidence(
+            artifact_uri=gcs_evidence_artifact_uri(self._bucket_name, package.sha256),
+            sha256=package.sha256,
+            content_type=EVIDENCE_CONTENT_TYPE,
+            sanitization_status="SANITIZED",
+            retention_policy=GCS_EVIDENCE_RETENTION_POLICY,
+        )
+
+    def _existing_blob(self, object_name: str) -> Any:
+        get_blob = getattr(self._bucket, "get_blob", None)
+        if callable(get_blob):
+            lookup_failure: EvidenceStoreError | None = None
+            existing_blob = None
+            try:
+                existing_blob = get_blob(object_name)
+            except Exception as exc:
+                if _is_not_found_failure(exc):
+                    lookup_failure = TerminalEvidenceStoreError("GCS evidence object is missing")
+                else:
+                    lookup_failure = _classified_gcs_failure(
+                        exc,
+                        retryable_message="GCS evidence storage unavailable",
+                        terminal_message="GCS evidence object lookup failed",
+                    )
+            if lookup_failure is not None:
+                raise lookup_failure
+            if existing_blob is None:
+                raise TerminalEvidenceStoreError("GCS evidence object is missing")
+            return existing_blob
+        return self._bucket.blob(object_name)
+
+
+def gcs_evidence_object_name(sha256: str) -> str:
+    if not re.fullmatch(r"[a-f0-9]{64}", sha256):
+        raise TerminalEvidenceStoreError("invalid evidence object identity")
+    return f"{GCS_EVIDENCE_OBJECT_PREFIX}/{sha256}.json"
+
+
+def gcs_evidence_artifact_uri(bucket_name: str, sha256: str) -> str:
+    if not _valid_gcs_bucket_name(bucket_name):
+        raise TerminalEvidenceStoreError("invalid GCS evidence bucket name")
+    return f"gs://{bucket_name}/{quote(gcs_evidence_object_name(sha256), safe='/')}"
+
+
+def _validate_evidence_package(package: EvidencePackage) -> None:
+    unsafe_value = first_unsafe_string(package.payload)
+    if unsafe_value is not None:
+        raise EvidenceStoreError("evidence package contains unsafe content")
+    if hashlib.sha256(package.content).hexdigest() != package.sha256:
+        raise TerminalEvidenceStoreError("evidence package integrity check failed")
+    if len(package.content) > MAX_EVIDENCE_PACKAGE_BYTES:
+        raise EvidenceStoreError("evidence package exceeds the bounded byte-size limit")
+    _validate_collection_bounds(package.payload)
+
+
+def _expected_artifact_uri(artifact_uri: str, sha256: str) -> str:
+    parsed = urlparse(artifact_uri)
+    if parsed.scheme == "local":
+        return f"local://evidence/evidence-{sha256}.json"
+    if parsed.scheme == "gs":
+        return gcs_evidence_artifact_uri(parsed.netloc, sha256)
+    raise EvidenceStoreError("evidence store returned an unsupported artifact scheme")
+
+
+def _default_storage_client(project_id: str):
+    try:
+        from google.cloud import storage
+    except ImportError as exc:
+        raise EvidenceStoreError("google-cloud-storage is required for GCS evidence storage") from exc
+    return storage.Client(project=project_id)
+
+
+def _gcs_object_metadata(package: EvidencePackage) -> dict[str, str]:
+    metadata = {
+        "sha256": package.sha256,
+        "sanitization_status": "SANITIZED",
+        "content_type": EVIDENCE_CONTENT_TYPE,
+        "identity": f"sha256:{package.sha256}",
+    }
+    for key, value in metadata.items():
+        if not _GCS_METADATA_KEY_PATTERN.fullmatch(key):
+            raise TerminalEvidenceStoreError("unsafe GCS evidence metadata key")
+        if not _GCS_METADATA_VALUE_PATTERN.fullmatch(value):
+            raise TerminalEvidenceStoreError("unsafe GCS evidence metadata value")
+    return metadata
+
+
+def _verify_existing_gcs_object(blob: Any, package: EvidencePackage) -> None:
+    _refresh_gcs_object_metadata(blob)
+    expected_size = len(package.content)
+    size = _gcs_object_size(blob)
+    if size != expected_size:
+        raise TerminalEvidenceStoreError("GCS evidence object size is unexpected")
+    _validate_gcs_object_content_type(blob)
+    _validate_gcs_object_metadata(blob, package)
+
+    readback_failure: EvidenceStoreError | None = None
+    content = b""
+    try:
+        content = blob.download_as_bytes(start=0, end=expected_size - 1)
+    except Exception as exc:
+        if _is_not_found_failure(exc):
+            readback_failure = TerminalEvidenceStoreError("GCS evidence object is missing")
+        else:
+            readback_failure = _classified_gcs_failure(
+                exc,
+                retryable_message="GCS evidence readback failed",
+                terminal_message="GCS evidence readback was rejected",
+            )
+    if readback_failure is not None:
+        raise readback_failure
+    if len(content) != expected_size:
+        raise TerminalEvidenceStoreError("GCS evidence readback size is unexpected")
+    if content != package.content or hashlib.sha256(content).hexdigest() != package.sha256:
+        raise TerminalEvidenceStoreError("existing GCS evidence object has different content")
+
+
+def _refresh_gcs_object_metadata(blob: Any) -> None:
+    reload = getattr(blob, "reload", None)
+    if callable(reload):
+        metadata_failure: EvidenceStoreError | None = None
+        try:
+            reload()
+        except Exception as exc:
+            if _is_not_found_failure(exc):
+                metadata_failure = TerminalEvidenceStoreError("GCS evidence object is missing")
+            else:
+                metadata_failure = _classified_gcs_failure(
+                    exc,
+                    retryable_message="GCS evidence metadata unavailable",
+                    terminal_message="GCS evidence metadata lookup failed",
+                )
+        if metadata_failure is not None:
+            raise metadata_failure
+
+
+def _gcs_object_size(blob: Any) -> int:
+    size = getattr(blob, "size", None)
+    if type(size) is not int:
+        raise TerminalEvidenceStoreError("GCS evidence object size is invalid")
+    if size < 0:
+        raise TerminalEvidenceStoreError("GCS evidence object size is invalid")
+    if size > MAX_EVIDENCE_PACKAGE_BYTES:
+        raise TerminalEvidenceStoreError("GCS evidence object size exceeds the bounded limit")
+    return size
+
+
+def _validate_gcs_object_content_type(blob: Any) -> None:
+    if getattr(blob, "content_type", None) != EVIDENCE_CONTENT_TYPE:
+        raise TerminalEvidenceStoreError("GCS evidence content type is unexpected")
+
+
+def _validate_gcs_object_metadata(blob: Any, package: EvidencePackage) -> None:
+    metadata = getattr(blob, "metadata", None) or {}
+    if not isinstance(metadata, dict):
+        raise TerminalEvidenceStoreError("GCS evidence metadata is invalid")
+    expected = _gcs_object_metadata(package)
+    if set(metadata) != _GCS_EVIDENCE_METADATA_KEYS:
+        raise TerminalEvidenceStoreError("GCS evidence metadata contract is unexpected")
+    for key, value in metadata.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise TerminalEvidenceStoreError("GCS evidence metadata is invalid")
+        if not _GCS_METADATA_KEY_PATTERN.fullmatch(key):
+            raise TerminalEvidenceStoreError("GCS evidence metadata is invalid")
+        if not _GCS_METADATA_VALUE_PATTERN.fullmatch(value):
+            raise TerminalEvidenceStoreError("GCS evidence metadata is invalid")
+    if metadata != expected:
+        raise TerminalEvidenceStoreError("existing GCS evidence object has unexpected metadata")
+
+
+def _is_generation_precondition_failure(exc: Exception) -> bool:
+    return (
+        getattr(exc, "code", None) == 412
+        or getattr(exc, "status_code", None) == 412
+        or exc.__class__.__name__ in {"PreconditionFailed", "PreconditionFailedError"}
+    )
+
+
+def _classified_gcs_failure(
+    exc: Exception,
+    *,
+    retryable_message: str,
+    terminal_message: str,
+) -> EvidenceStoreError:
+    if _is_retryable_gcs_failure(exc):
+        return EvidenceStoreError(retryable_message)
+    return TerminalEvidenceStoreError(terminal_message)
+
+
+def _is_retryable_gcs_failure(exc: Exception) -> bool:
+    status_code = _gcs_status_code(exc)
+    if status_code in _GCS_RETRYABLE_STATUS_CODES:
+        return True
+    if status_code in _GCS_TERMINAL_STATUS_CODES:
+        return False
+    if status_code is not None:
+        return False
+    return isinstance(exc, (TimeoutError, ConnectionError))
+
+
+def _gcs_status_code(exc: Exception) -> int | None:
+    for attribute in ("code", "status_code"):
+        value = getattr(exc, attribute, None)
+        if type(value) is int:
+            return value
+        if isinstance(value, str) and value.isdecimal():
+            return int(value)
+    return None
+
+
+def _is_not_found_failure(exc: Exception) -> bool:
+    return (
+        getattr(exc, "code", None) == 404
+        or getattr(exc, "status_code", None) == 404
+        or exc.__class__.__name__ in {"NotFound", "NotFoundError"}
+    )
+
+
+def _valid_gcp_project_id(value: str) -> bool:
+    return bool(_GCP_PROJECT_ID_PATTERN.fullmatch(value))
+
+
+def _valid_gcs_bucket_name(value: str) -> bool:
+    if len(value) < 3 or len(value) > 63:
+        return False
+    if "/" in value or value.startswith("gs://"):
+        return False
+    return bool(_GCS_BUCKET_NAME_PATTERN.fullmatch(value))

@@ -33,6 +33,22 @@ def test_terraform_keeps_runtime_private_and_scheduler_authenticated() -> None:
     assert "allAuthenticatedUsers" not in source
 
 
+def test_gcs_evidence_adapter_is_bound_to_existing_bucket_with_scoped_iam() -> None:
+    source = terraform_source()
+
+    assert 'name  = "SRE_CONTROL_PLANE_EVIDENCE_STORE"' in source
+    assert 'value = "gcs"' in source
+    assert 'name  = "SRE_CONTROL_PLANE_GCS_PROJECT_ID"' in source
+    assert "value = var.project_id" in source
+    assert 'name  = "SRE_CONTROL_PLANE_EVIDENCE_BUCKET"' in source
+    assert "value = google_storage_bucket.evidence.name" in source
+    assert 'role   = "roles/storage.objectCreator"' in source
+    assert 'role   = "roles/storage.objectViewer"' in source
+    assert 'role   = "roles/storage.objectUser"' not in source
+    assert "google_storage_bucket_iam_member.control_plane_evidence_creator" in source
+    assert "google_storage_bucket_iam_member.control_plane_evidence_viewer" in source
+
+
 def test_runtime_requires_explicit_database_secret_version_and_pauses_scheduler() -> None:
     source = terraform_source()
 
@@ -205,6 +221,39 @@ def test_runtime_evidence_is_sanitized_and_records_private_fake_runtime() -> Non
     assert "No Kubernetes cluster was accessed." in evidence
 
 
+def test_gcs_evidence_adapter_evidence_is_sanitized_and_gated() -> None:
+    evidence = (
+        REPOSITORY_ROOT
+        / "docs"
+        / "deployments"
+        / "gcp-sre-control-plane-gcs-evidence-adapter-2026-09-02.md"
+    ).read_text(encoding="utf-8")
+    forbidden_terms = [
+        "@" + "gmail.com",
+        ".iam." + "gserviceaccount.com",
+        "gho" + "_",
+        "ya29" + ".",
+        "-----" + "BEGIN",
+        "private" + "_key",
+        "client" + "_secret",
+        "postgresql" + "://",
+    ]
+
+    for term in forbidden_terms:
+        assert term not in evidence
+
+    assert "GitHub issue: #51" in evidence
+    assert "Target project: `ai-operations-platform-507220`" in evidence
+    assert "Target region: `us-central1`" in evidence
+    assert "PostgreSQL remains the source of truth" in evidence
+    assert "generation precondition `0`" in evidence
+    assert "roles/storage.objectCreator" in evidence
+    assert "roles/storage.objectViewer" in evidence
+    assert "Cloud SQL continues" in evidence
+    assert "charges while the instance is running" in evidence
+    assert "No Kubernetes cluster was accessed." in evidence
+
+
 def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> None:
     runbook = (REPOSITORY_ROOT / "gcp" / "sre-control-plane" / "README.md").read_text(encoding="utf-8")
 
@@ -218,6 +267,11 @@ def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> N
     assert "**Out-of-band secret phase:**" in runbook
     assert "**Image phase:**" in runbook
     assert "**Runtime phase:**" in runbook
+    assert "**Evidence adapter phase:**" in runbook
+    assert "SRE_CONTROL_PLANE_EVIDENCE_STORE=gcs" in runbook
+    assert "roles/storage.objectCreator" in runbook
+    assert "roles/storage.objectViewer" in runbook
+    assert "Evidence Smoke Boundary" in runbook
     assert "scheduler_activation_confirmed = true" in runbook
     assert "migration job succeeded and readiness was verified" in runbook
     assert "external operator workstation" in runbook
