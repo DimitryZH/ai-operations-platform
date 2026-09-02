@@ -142,7 +142,7 @@ Read-only checks after apply confirmed:
 
 ## Smoke Attempt Troubleshooting
 
-Two approved temporary-job attempts did not create an evidence object:
+Three approved temporary-job attempts did not create an evidence object:
 
 - The first attempt completed without running the smoke script because the
   Cloud Run job argument list split the Python runner at commas. The temporary
@@ -152,6 +152,10 @@ Two approved temporary-job attempts did not create an evidence object:
   health probes, and bucket metadata showed zero objects under
   `evidence/sha256/` after the failed attempt. The likely cause is that the
   temporary job did not use direct VPC egress for the internal-only service.
+- The third attempt used direct VPC egress and reached the private application,
+  but the request contract rejected the smoke payload with HTTP 422 because the
+  source system was not the accepted `sre-platform` value. A corrected smoke
+  payload was validated locally before requesting another write attempt.
 
 No raw response bodies, object contents, credentials, or secret values were
 recorded. No Scheduler activation, migration execution, live executor, GitHub
