@@ -161,6 +161,33 @@ No raw response bodies, object contents, credentials, or secret values were
 recorded. No Scheduler activation, migration execution, live executor, GitHub
 publisher, cluster access, or SRE Platform mutation occurred.
 
+## Smoke Evidence
+
+The final approved smoke used a corrected payload with the accepted
+`source.system` value and direct VPC egress. Read-only checks after the smoke
+confirmed:
+
+- temporary smoke job: deleted after execution
+- submitted marked fake investigation request: HTTP 201
+- internal dispatch tick: HTTP 200
+- evidence publication call: HTTP 200
+- repeated evidence publication call with the same idempotency key: HTTP 200
+- smoke objects under `evidence/sha256/`: exactly one
+- artifact scheme: `gs`
+- object name SHA-256 length: 64
+- object content type: `application/json`
+- object size: 6298 bytes
+- object retention expiration: present
+- custom metadata SHA-256 length: 64
+- custom metadata SHA-256 matched object identity
+- custom metadata sanitization status: `SANITIZED`
+- custom metadata identity prefix: `sha256`
+- readback content SHA-256 matched object identity
+- raw object contents were not committed or published
+- Cloud Run remained Ready and internal-only
+- Scheduler remained `PAUSED`
+- Terraform plan after the smoke: no changes
+
 ## Approval Gates
 
 Separate operator approval is required immediately before each cloud write:
@@ -202,13 +229,6 @@ Main incremental cost drivers and assumptions:
 The existing private runtime baseline still carries the larger steady-state
 cost, dominated by the running Cloud SQL instance. Cloud SQL continues to create
 charges while the instance is running, even with no traffic.
-
-## Evidence Pending
-
-The following evidence must be added after the separately approved gates:
-
-- one marked smoke object result with sanitized object identity and SHA-256
-  integrity evidence.
 
 ## Explicit Non-Events
 
