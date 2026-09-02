@@ -140,6 +140,23 @@ Read-only checks after apply confirmed:
   `projectOwner`, `projectEditor`, and `projectViewer`
 - Terraform no-change plan after apply: no changes
 
+## Smoke Attempt Troubleshooting
+
+Two approved temporary-job attempts did not create an evidence object:
+
+- The first attempt completed without running the smoke script because the
+  Cloud Run job argument list split the Python runner at commas. The temporary
+  job was deleted.
+- The second attempt executed the smoke script but received HTTP 404 before the
+  request reached the application routes. Read-only service logs showed only
+  health probes, and bucket metadata showed zero objects under
+  `evidence/sha256/` after the failed attempt. The likely cause is that the
+  temporary job did not use direct VPC egress for the internal-only service.
+
+No raw response bodies, object contents, credentials, or secret values were
+recorded. No Scheduler activation, migration execution, live executor, GitHub
+publisher, cluster access, or SRE Platform mutation occurred.
+
 ## Approval Gates
 
 Separate operator approval is required immediately before each cloud write:
