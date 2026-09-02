@@ -114,6 +114,31 @@ The reviewed Terraform update is expected to:
   - fake executor and fake publisher remain locked defaults;
   - no secret versions, Cloud Run public invokers, new buckets, Scheduler
     activation, real executor, or GitHub publisher configuration are planned.
+- Apply result for the exact saved plan: 2 added, 2 changed, 1 destroyed.
+
+## Post-Apply Verification
+
+Read-only checks after apply confirmed:
+
+- Cloud Run Ready condition: true
+- Cloud Run ingress: internal
+- Cloud Run image: immutable digest from this evidence
+- Cloud Run GCS evidence environment:
+  - store mode: `gcs`
+  - project matched the reviewed project
+  - bucket matched the existing evidence bucket
+- Cloud Run service-level scaling: automatic
+- Cloud Run template scaling: zero minimum instances and one maximum instance
+- Scheduler job state: `PAUSED`
+- Scheduler retry policy block: absent
+- Evidence bucket public principals: zero `allUsers` or
+  `allAuthenticatedUsers`
+- Evidence bucket runtime object roles: `roles/storage.objectCreator` and
+  `roles/storage.objectViewer`
+- Evidence bucket runtime object member type: service account
+- Existing broad evidence-bucket legacy principal types remained:
+  `projectOwner`, `projectEditor`, and `projectViewer`
+- Terraform no-change plan after apply: no changes
 
 ## Approval Gates
 
@@ -161,8 +186,6 @@ charges while the instance is running, even with no traffic.
 
 The following evidence must be added after the separately approved gates:
 
-- post-apply read-only verification;
-- no-change Terraform plan after apply;
 - one marked smoke object result with sanitized object identity and SHA-256
   integrity evidence.
 
