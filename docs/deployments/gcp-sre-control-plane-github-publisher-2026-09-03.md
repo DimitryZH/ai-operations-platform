@@ -175,6 +175,34 @@ database, or runtime-boundary change, the apply must stop for review.
   - no Cloud Run public ingress or public invoker change is planned;
   - no executor, evidence bucket, database, cluster, model, or SRE Platform
     change is planned.
+- Apply result for this saved plan: not successful. Terraform created the
+  secret-scoped IAM binding and updated the migration job image, then Cloud Run
+  failed the startup probe while creating the new revision.
+- Read-only diagnosis showed the new Cloud Run revision failed during startup
+  with sanitized configuration validation, while the previous ready revision
+  remained recorded as the latest ready revision.
+- Scheduler remained `PAUSED`, and the migration job execution count did not
+  increase.
+- The likely cause was the approved Secret Manager version being sourced from a
+  stdin token stream with a trailing newline. The runtime now trims leading and
+  trailing token whitespace loaded from secret-file style delivery while still
+  rejecting embedded newlines fail-closed.
+
+## Startup Correction
+
+- Correction commit:
+  `8675d63d0e735dbdb3f62e07d93d12c536962719`
+- Targeted configuration and GitHub publisher tests after the correction:
+  64 passed.
+- Full local test suite after the correction: 221 passed, 16 skipped. Skipped
+  tests were opt-in live or PostgreSQL integration tests requiring external
+  configuration unavailable in the local shell.
+- Terraform static validation succeeded after the correction. The sandboxed run
+  again emitted a remote backend network error before reporting valid
+  configuration; this was a local sandbox network limitation and not a
+  Terraform validation failure.
+- `terraform fmt -check`, `git diff --check`, and the sensitive-data scan passed
+  for the correction diff.
 
 ## Cost Estimate
 
@@ -196,7 +224,8 @@ create charges while the instance is running, even with no traffic.
 
 ## Explicit Non-Events
 
-- No Terraform apply was run.
+- The first exact saved Terraform apply did not complete successfully; see the
+  exact plan section above.
 - No secret value was read, printed, or committed.
 - No live GitHub comment was written.
 - No Scheduler activation occurred.
