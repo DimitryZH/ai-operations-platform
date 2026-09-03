@@ -253,6 +253,26 @@ Read-only checks after the corrected apply confirmed:
   `projectOwner`, `projectEditor`, and `projectViewer`.
 - Terraform no-change plan after apply: no changes.
 
+## Live GitHub Smoke
+
+The live smoke test was run only after explicit operator approval immediately
+before the write. It used the configured allowlisted repository and Issue, and
+the credential was supplied only through process environment for the test run.
+The token value was not printed, written to disk, committed, or read back.
+
+Smoke verification confirmed:
+
+- opt-in live smoke test result: 1 passed.
+- GitHub target: `DimitryZH/ai-operations-platform` Issue `#53`.
+- write scope: one bounded marked GitHub comment.
+- semantic idempotency: repeated publish reused the same validated reference.
+- marked comment count on the target Issue after smoke: 1.
+- raw GitHub comment body was not committed or recorded in evidence.
+- final Terraform no-change plan after smoke: no changes.
+- Cloud Run remained Ready, internal, automatic, zero-minimum, and bounded to
+  one template instance.
+- Scheduler remained `PAUSED`.
+
 ## Cost Estimate
 
 Estimated incremental monthly cost for this publisher runtime binding in
@@ -276,7 +296,7 @@ create charges while the instance is running, even with no traffic.
 - The initial exact saved Terraform apply did not complete successfully; see
   the exact plan section above.
 - No secret value was read, printed, or committed.
-- No live GitHub comment was written.
+- One approved marked live GitHub smoke comment was written to Issue `#53`.
 - No Scheduler activation occurred.
 - No migration job was executed.
 - No live executor was configured or invoked.
