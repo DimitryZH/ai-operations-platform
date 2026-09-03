@@ -128,6 +128,9 @@ database, or runtime-boundary change, the apply must stop for review.
   backend network error before reporting valid configuration; this was a local
   sandbox network limitation and not a Terraform validation failure.
 - Terraform provider schema was inspected read-only for local provider support.
+- Local Docker image build from the root Dockerfile succeeded.
+- Local container smoke test started the image and `/healthz` returned HTTP 200
+  with service status `ok`.
 
 ## Cost Estimate
 
