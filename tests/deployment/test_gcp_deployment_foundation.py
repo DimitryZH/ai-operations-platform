@@ -59,6 +59,32 @@ def test_runtime_requires_explicit_database_secret_version_and_pauses_scheduler(
     assert "scheduler_activation_confirmed" in source
 
 
+def test_github_publisher_runtime_is_secret_backed_and_allowlisted() -> None:
+    source = terraform_source()
+    cloud_run = (TERRAFORM_ROOT / "cloud_run.tf").read_text(encoding="utf-8")
+    secrets = (TERRAFORM_ROOT / "secrets.tf").read_text(encoding="utf-8")
+    variables = (TERRAFORM_ROOT / "variables.tf").read_text(encoding="utf-8")
+
+    assert 'contains(["fake", "github"], var.github_publisher_mode)' in variables
+    assert "floor(var.github_publication_issue_number) == var.github_publication_issue_number" in variables
+    assert "floor(var.github_publication_allowed_issue_number) == var.github_publication_allowed_issue_number" in variables
+    assert "github_publication_repository == var.github_publication_allowed_repository" in cloud_run
+    assert "github_publication_issue_number == var.github_publication_allowed_issue_number" in cloud_run
+    assert "github_publication_credential_secret_version != null" in cloud_run
+    assert 'name  = "SRE_CONTROL_PLANE_PUBLISHER"' in cloud_run
+    assert 'name  = "SRE_CONTROL_PLANE_GITHUB_ALLOWED_REPOSITORY"' in cloud_run
+    assert 'name  = "SRE_CONTROL_PLANE_GITHUB_ALLOWED_ISSUE_NUMBER"' in cloud_run
+    assert 'name  = "SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME"' in cloud_run
+    assert 'name  = "SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_VERSION"' in cloud_run
+    assert 'name = "SRE_CONTROL_PLANE_GITHUB_TOKEN"' in cloud_run
+    assert "value_source" in cloud_run
+    assert "google_secret_manager_secret.github_token.secret_id" in cloud_run
+    assert "version = var.github_publication_credential_secret_version" in cloud_run
+    assert 'resource "google_secret_manager_secret_iam_member" "control_plane_github_token"' in secrets
+    assert "secret_data" not in source
+    assert "google_secret_manager_secret_version" not in source
+
+
 def test_broad_runtime_ignore_changes_are_not_used() -> None:
     source = terraform_source()
 
@@ -144,6 +170,8 @@ def test_fake_adapter_defaults_and_controlled_migration_job_are_present() -> Non
     assert "google_cloud_run_v2_job" in source
     assert 'command = ["alembic"]' in source
     assert 'args    = ["upgrade", "head"]' in source
+    assert 'value = var.github_publisher_mode' in source
+    assert "This foundation keeps the fake executor" in source
 
 
 def test_terraform_example_contains_only_placeholders() -> None:
@@ -154,10 +182,12 @@ def test_terraform_example_contains_only_placeholders() -> None:
 
     assert "replace-with-reviewed-project-id" in example
     assert "sre-control-plane-staging/sre-control-plane@sha256:" in runtime_example
-    assert "token" not in example.lower()
     assert "password" not in example.lower()
-    assert "token" not in runtime_example.lower()
     assert "password" not in runtime_example.lower()
+    assert "secret_data" not in runtime_example
+    assert "SRE_CONTROL_PLANE_GITHUB_TOKEN" not in runtime_example
+    assert "github_publisher_mode          = \"fake\"" in runtime_example
+    assert "github_publication_credential_secret_version = null" in runtime_example
 
 
 def test_remote_backend_targets_reviewed_state_bucket() -> None:

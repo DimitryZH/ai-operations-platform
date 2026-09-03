@@ -12,8 +12,9 @@ from sre_control_plane.publisher import FakePublisher, GitHubPublisher
 
 
 def test_github_publisher_is_opt_in_and_fake_is_default(monkeypatch) -> None:
-    for name in ("SRE_CONTROL_PLANE_GITHUB_REPOSITORY", "SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER", "SRE_CONTROL_PLANE_GITHUB_TOKEN"):
+    for name in github_publication_env_names():
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("SRE_CONTROL_PLANE_PUBLISHER", raising=False)
 
     assert isinstance(create_publisher(load_settings()), FakePublisher)
 
@@ -64,6 +65,7 @@ def test_gcs_evidence_store_configuration_selects_gcs_adapter(monkeypatch) -> No
 
 def test_incomplete_github_configuration_fails_closed_without_token_disclosure(monkeypatch, caplog) -> None:
     secret = "recognizable-secret-token"
+    monkeypatch.setenv("SRE_CONTROL_PLANE_PUBLISHER", "github")
     monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_REPOSITORY", "DimitryZH/ai-operations-platform")
     monkeypatch.delenv("SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER", raising=False)
     monkeypatch.delenv("SRE_CONTROL_PLANE_GITHUB_TOKEN", raising=False)
@@ -76,24 +78,63 @@ def test_incomplete_github_configuration_fails_closed_without_token_disclosure(m
 
 
 def test_complete_github_configuration_creates_allowlisted_publisher(monkeypatch) -> None:
-    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_REPOSITORY", "DimitryZH/ai-operations-platform")
-    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER", "41")
-    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_TOKEN", "test-token")
+    configure_github_publication(monkeypatch)
 
     assert isinstance(create_publisher(load_settings()), GitHubPublisher)
 
 
 def test_invalid_github_configuration_never_exposes_token(monkeypatch, caplog) -> None:
     secret = "recognizable-secret-token"
-    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_REPOSITORY", "not a repository")
-    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER", "41")
-    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_TOKEN", secret)
+    configure_github_publication(monkeypatch, repository="not a repository", token=secret)
 
     with pytest.raises(ValueError) as exc_info:
         load_settings()
 
     assert secret not in str(exc_info.value)
     assert secret not in caplog.text
+
+
+def test_malformed_github_configuration_has_no_raw_exception_chain(monkeypatch, caplog) -> None:
+    unsafe_value = "recognizable-unsafe-config-value"
+    configure_github_publication(monkeypatch, issue_number=unsafe_value)
+
+    with pytest.raises(ValueError) as exc_info:
+        load_settings()
+
+    assert unsafe_value not in str(exc_info.value)
+    assert unsafe_value not in repr(exc_info.value)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert unsafe_value not in caplog.text
+
+
+def test_github_configuration_requires_explicit_publisher_mode(monkeypatch) -> None:
+    configure_github_publication(monkeypatch)
+    monkeypatch.delenv("SRE_CONTROL_PLANE_PUBLISHER", raising=False)
+
+    with pytest.raises(ValueError, match="explicit publisher opt-in"):
+        load_settings()
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"issue_number": "0"},
+        {"issue_number": "1.5"},
+        {"allowed_repository": "Other/repository"},
+        {"allowed_issue_number": "42"},
+        {"allowed_issue_number": "1.5"},
+        {"credential_secret_name": "projects/example/secrets/not-accepted"},
+        {"credential_secret_version": "latest"},
+    ],
+)
+def test_github_configuration_fails_closed_on_malformed_or_non_allowlisted_values(
+    monkeypatch, override,
+) -> None:
+    configure_github_publication(monkeypatch, **override)
+
+    with pytest.raises(ValueError, match="invalid"):
+        load_settings()
 
 
 def test_holmesgpt_executor_is_opt_in_and_fake_is_default(monkeypatch) -> None:
@@ -133,3 +174,37 @@ def test_holmesgpt_executor_configuration_is_complete_and_local_only(monkeypatch
 class FakeGcsClient:
     def bucket(self, bucket_name: str):
         return object()
+
+
+def github_publication_env_names() -> tuple[str, ...]:
+    return (
+        "SRE_CONTROL_PLANE_PUBLISHER",
+        "SRE_CONTROL_PLANE_GITHUB_REPOSITORY",
+        "SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER",
+        "SRE_CONTROL_PLANE_GITHUB_ALLOWED_REPOSITORY",
+        "SRE_CONTROL_PLANE_GITHUB_ALLOWED_ISSUE_NUMBER",
+        "SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME",
+        "SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_VERSION",
+        "SRE_CONTROL_PLANE_GITHUB_TOKEN",
+    )
+
+
+def configure_github_publication(
+    monkeypatch,
+    *,
+    repository: str = "DimitryZH/ai-operations-platform",
+    issue_number: str = "53",
+    allowed_repository: str = "DimitryZH/ai-operations-platform",
+    allowed_issue_number: str = "53",
+    credential_secret_name: str = "sre-control-plane-staging-github-token",
+    credential_secret_version: str = "1",
+    token: str = "test-token",
+) -> None:
+    monkeypatch.setenv("SRE_CONTROL_PLANE_PUBLISHER", "github")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_REPOSITORY", repository)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER", issue_number)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_ALLOWED_REPOSITORY", allowed_repository)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_ALLOWED_ISSUE_NUMBER", allowed_issue_number)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME", credential_secret_name)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_VERSION", credential_secret_version)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_TOKEN", token)

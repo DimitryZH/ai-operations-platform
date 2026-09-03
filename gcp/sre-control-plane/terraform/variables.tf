@@ -179,13 +179,80 @@ variable "scheduler_lease_owner" {
 }
 
 variable "github_publisher_mode" {
-  description = "Publisher selection. Only fake is permitted by this deployment foundation."
+  description = "Publisher selection. Fake is default; github requires explicit allowlist and Secret Manager credential reference."
   type        = string
   default     = "fake"
 
   validation {
-    condition     = var.github_publisher_mode == "fake"
-    error_message = "Only fake publisher mode is permitted until live GitHub publication is separately approved."
+    condition     = contains(["fake", "github"], var.github_publisher_mode)
+    error_message = "github_publisher_mode must be fake or github."
+  }
+}
+
+variable "github_publication_repository" {
+  description = "Explicit GitHub repository publication target. Required only when github_publisher_mode is github."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.github_publication_repository == null || can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_publication_repository))
+    error_message = "github_publication_repository must be null or an owner/repository name."
+  }
+}
+
+variable "github_publication_issue_number" {
+  description = "Explicit GitHub issue publication target. Required only when github_publisher_mode is github."
+  type        = number
+  default     = null
+
+  validation {
+    condition = (
+      var.github_publication_issue_number == null
+      || (
+        var.github_publication_issue_number >= 1
+        && floor(var.github_publication_issue_number) == var.github_publication_issue_number
+      )
+    )
+    error_message = "github_publication_issue_number must be null or a positive integer issue number."
+  }
+}
+
+variable "github_publication_allowed_repository" {
+  description = "Allowlisted GitHub repository for publication. Must exactly match the target when github_publisher_mode is github."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.github_publication_allowed_repository == null || can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_publication_allowed_repository))
+    error_message = "github_publication_allowed_repository must be null or an owner/repository name."
+  }
+}
+
+variable "github_publication_allowed_issue_number" {
+  description = "Allowlisted GitHub issue for publication. Must exactly match the target when github_publisher_mode is github."
+  type        = number
+  default     = null
+
+  validation {
+    condition = (
+      var.github_publication_allowed_issue_number == null
+      || (
+        var.github_publication_allowed_issue_number >= 1
+        && floor(var.github_publication_allowed_issue_number) == var.github_publication_allowed_issue_number
+      )
+    )
+    error_message = "github_publication_allowed_issue_number must be null or a positive integer issue number."
+  }
+}
+
+variable "github_publication_credential_secret_version" {
+  description = "Explicit existing Secret Manager version for the GitHub publisher credential. The value is a version number, never the secret value."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.github_publication_credential_secret_version == null || can(regex("^[1-9][0-9]*$", var.github_publication_credential_secret_version))
+    error_message = "github_publication_credential_secret_version must be null or a positive numeric Secret Manager version."
   }
 }
 

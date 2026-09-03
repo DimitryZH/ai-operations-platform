@@ -314,6 +314,10 @@ def test_postgresql_github_publication_adapter_is_concurrent_and_append_only(
             repository="DimitryZH/ai-operations-platform",
             issue_number=41,
             token="test-token",
+            allowed_repository="DimitryZH/ai-operations-platform",
+            allowed_issue_number=41,
+            credential_secret_name="sre-control-plane-staging-github-token",
+            credential_secret_version="1",
         ),
         transport,
     )
@@ -355,7 +359,13 @@ def test_postgresql_terminal_github_publication_failure_cannot_be_retried(
         evidence_store=LocalFilesystemEvidenceStore(tmp_path / "terminal-github-evidence"),
         publisher=GitHubPublisher(
             GitHubPublicationConfig(
-                repository="DimitryZH/ai-operations-platform", issue_number=41, token="test-token"
+                repository="DimitryZH/ai-operations-platform",
+                issue_number=41,
+                token="test-token",
+                allowed_repository="DimitryZH/ai-operations-platform",
+                allowed_issue_number=41,
+                credential_secret_name="sre-control-plane-staging-github-token",
+                credential_secret_version="1",
             ),
             transport,
         ),

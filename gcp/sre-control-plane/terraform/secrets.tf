@@ -37,4 +37,11 @@ resource "google_secret_manager_secret_iam_member" "control_plane_database_url" 
   member    = "serviceAccount:${google_service_account.control_plane.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "control_plane_github_token" {
+  count     = var.deployment_phase == "runtime" && var.github_publisher_mode == "github" ? 1 : 0
+  secret_id = google_secret_manager_secret.github_token.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.control_plane.email}"
+}
+
 # Terraform creates secret containers only; it never creates a secret version or value.

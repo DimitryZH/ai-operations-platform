@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -21,6 +22,7 @@ DEFAULT_DATABASE_URL = (
     "postgresql+psycopg://sre_control_plane:sre_control_plane"
     "@localhost:5432/sre_control_plane"
 )
+_POSITIVE_INTEGER_PATTERN = re.compile(r"^[1-9][0-9]*$")
 
 
 @dataclass(frozen=True)
@@ -41,22 +43,7 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    repository = os.environ.get("SRE_CONTROL_PLANE_GITHUB_REPOSITORY")
-    issue_number = os.environ.get("SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER")
-    token = os.environ.get("SRE_CONTROL_PLANE_GITHUB_TOKEN")
-    configured = [value is not None for value in (repository, issue_number, token)]
-    if any(configured) and not all(configured):
-        raise ValueError("GitHub publication configuration is incomplete")
-    github_publication = None
-    if all(configured):
-        try:
-            github_publication = GitHubPublicationConfig(
-                repository=repository,
-                issue_number=int(issue_number),
-                token=token,
-            )
-        except (TypeError, ValueError) as exc:
-            raise ValueError("GitHub publication configuration is invalid") from exc
+    github_publication = _load_github_publication_config()
 
     holmes_endpoint = os.environ.get("SRE_CONTROL_PLANE_HOLMESGPT_ENDPOINT")
     holmes_local_test_mode = os.environ.get("SRE_CONTROL_PLANE_HOLMESGPT_LOCAL_TEST_MODE")
@@ -106,6 +93,51 @@ def _load_evidence_store_config() -> EvidenceStoreConfig:
             gcs_bucket_name=bucket_name,
         )
     raise ValueError("evidence store mode is invalid")
+
+
+def _load_github_publication_config() -> GitHubPublicationConfig | None:
+    mode = os.environ.get("SRE_CONTROL_PLANE_PUBLISHER", "fake")
+    github_env_names = (
+        "SRE_CONTROL_PLANE_GITHUB_REPOSITORY",
+        "SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER",
+        "SRE_CONTROL_PLANE_GITHUB_ALLOWED_REPOSITORY",
+        "SRE_CONTROL_PLANE_GITHUB_ALLOWED_ISSUE_NUMBER",
+        "SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME",
+        "SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_VERSION",
+        "SRE_CONTROL_PLANE_GITHUB_TOKEN",
+    )
+    github_values = {name: os.environ.get(name) for name in github_env_names}
+    configured = [value is not None for value in github_values.values()]
+    if mode == "fake":
+        if any(configured):
+            raise ValueError("GitHub publication requires explicit publisher opt-in")
+        return None
+    if mode != "github":
+        raise ValueError("publisher mode is invalid")
+    if not all(configured):
+        raise ValueError("GitHub publication configuration is incomplete")
+    issue_number = _parse_positive_int(github_values["SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER"])
+    allowed_issue_number = _parse_positive_int(github_values["SRE_CONTROL_PLANE_GITHUB_ALLOWED_ISSUE_NUMBER"])
+    if issue_number is None or allowed_issue_number is None:
+        raise ValueError("GitHub publication configuration is invalid")
+    try:
+        return GitHubPublicationConfig(
+            repository=github_values["SRE_CONTROL_PLANE_GITHUB_REPOSITORY"],
+            issue_number=issue_number,
+            token=github_values["SRE_CONTROL_PLANE_GITHUB_TOKEN"],
+            allowed_repository=github_values["SRE_CONTROL_PLANE_GITHUB_ALLOWED_REPOSITORY"],
+            allowed_issue_number=allowed_issue_number,
+            credential_secret_name=github_values["SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME"],
+            credential_secret_version=github_values["SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_VERSION"],
+        )
+    except (TypeError, ValueError):
+        raise ValueError("GitHub publication configuration is invalid") from None
+
+
+def _parse_positive_int(value: str | None) -> int | None:
+    if value is None or _POSITIVE_INTEGER_PATTERN.fullmatch(value) is None:
+        return None
+    return int(value)
 
 
 def create_evidence_store(settings: Settings) -> EvidenceStore:
