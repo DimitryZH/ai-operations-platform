@@ -36,7 +36,84 @@ def publication_request() -> PublicationRequest:
 
 
 def config() -> GitHubPublicationConfig:
-    return GitHubPublicationConfig(repository="DimitryZH/ai-operations-platform", issue_number=41, token="test-token")
+    return GitHubPublicationConfig(
+        repository="DimitryZH/ai-operations-platform",
+        issue_number=41,
+        token="test-token",
+        allowed_repository="DimitryZH/ai-operations-platform",
+        allowed_issue_number=41,
+        credential_secret_name="sre-control-plane-staging-github-token",
+        credential_secret_version="1",
+    )
+
+
+def test_github_publication_config_requires_allowlisted_target_and_secret_reference() -> None:
+    with pytest.raises(ValueError):
+        GitHubPublicationConfig(
+            repository="DimitryZH/ai-operations-platform",
+            issue_number=53,
+            token="test-token",
+            allowed_repository="Other/repository",
+            allowed_issue_number=53,
+            credential_secret_name="sre-control-plane-staging-github-token",
+            credential_secret_version="1",
+        )
+    with pytest.raises(ValueError):
+        GitHubPublicationConfig(
+            repository="DimitryZH/ai-operations-platform",
+            issue_number=53,
+            token="test-token",
+            allowed_repository="DimitryZH/ai-operations-platform",
+            allowed_issue_number=54,
+            credential_secret_name="sre-control-plane-staging-github-token",
+            credential_secret_version="1",
+        )
+    with pytest.raises(ValueError):
+        GitHubPublicationConfig(
+            repository="DimitryZH/ai-operations-platform",
+            issue_number=53,
+            token="test-token",
+            allowed_repository="DimitryZH/ai-operations-platform",
+            allowed_issue_number=53,
+            credential_secret_name="projects/example/secrets/not-accepted",
+            credential_secret_version="1",
+        )
+    with pytest.raises(ValueError):
+        GitHubPublicationConfig(
+            repository="DimitryZH/ai-operations-platform",
+            issue_number=53,
+            token="test-token",
+            allowed_repository="DimitryZH/ai-operations-platform",
+            allowed_issue_number=53,
+            credential_secret_name="sre-control-plane-staging-github-token",
+            credential_secret_version="latest",
+        )
+
+
+def test_github_publication_config_never_exposes_token_in_repr_or_error() -> None:
+    secret = "recognizable-secret-token"
+    config_value = GitHubPublicationConfig(
+        repository="DimitryZH/ai-operations-platform",
+        issue_number=53,
+        token=secret,
+        allowed_repository="DimitryZH/ai-operations-platform",
+        allowed_issue_number=53,
+        credential_secret_name="sre-control-plane-staging-github-token",
+        credential_secret_version="1",
+    )
+
+    assert secret not in repr(config_value)
+    with pytest.raises(ValueError) as exc_info:
+        GitHubPublicationConfig(
+            repository="DimitryZH/ai-operations-platform",
+            issue_number=53,
+            token=secret + "\n",
+            allowed_repository="DimitryZH/ai-operations-platform",
+            allowed_issue_number=53,
+            credential_secret_name="sre-control-plane-staging-github-token",
+            credential_secret_version="1",
+        )
+    assert secret not in str(exc_info.value)
 
 
 def comment_payload(request: PublicationRequest, comment_id: int = 101) -> dict:
@@ -64,6 +141,25 @@ def test_allowlisted_adapter_creates_one_bounded_marked_comment() -> None:
     assert publication_marker(request.idempotency_key, request.payload_sha256) in created_body
     assert len(created_body.encode("utf-8")) <= 16 * 1024
     assert publisher.metrics()["created_total"] == 1
+
+
+def test_allowlisted_adapter_accepts_bounded_gcs_evidence_reference() -> None:
+    request = publication_request()
+    request.payload["evidence_references"] = [
+        "gs://ai-operations-platform-507220-sre-cp-staging-evidence/evidence/sha256/"
+        + "b" * 64
+        + ".json"
+    ]
+    transport = QueueTransport([
+        response(200, []),
+        response(201, comment_payload(request)),
+    ])
+
+    receipt = GitHubPublisher(config(), transport).publish(request)
+
+    assert receipt.reference.endswith("#issuecomment-101")
+    created_body = json.loads(transport.calls[1][3])["body"]
+    assert "gs://ai-operations-platform-507220-sre-cp-staging-evidence/evidence/sha256/" in created_body
 
 
 def test_existing_matching_marker_is_reused_without_post() -> None:

@@ -14,3 +14,12 @@ scheduler_enabled              = false
 scheduler_activation_confirmed = false
 executor_mode                  = "fake"
 github_publisher_mode          = "fake"
+
+# GitHub publication is a separate opt-in runtime phase. Leave these null while
+# github_publisher_mode is fake. Terraform references an existing Secret
+# Manager version only; it never creates or stores the credential value.
+github_publication_repository                = null
+github_publication_issue_number              = null
+github_publication_allowed_repository        = null
+github_publication_allowed_issue_number      = null
+github_publication_credential_secret_version = null

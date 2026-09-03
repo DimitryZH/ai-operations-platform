@@ -60,6 +60,72 @@ resource "google_cloud_run_v2_service" "control_plane" {
         value = google_storage_bucket.evidence.name
       }
 
+      env {
+        name  = "SRE_CONTROL_PLANE_PUBLISHER"
+        value = var.github_publisher_mode
+      }
+
+      dynamic "env" {
+        for_each = var.github_publisher_mode == "github" ? [1] : []
+        content {
+          name  = "SRE_CONTROL_PLANE_GITHUB_REPOSITORY"
+          value = var.github_publication_repository
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.github_publisher_mode == "github" ? [1] : []
+        content {
+          name  = "SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER"
+          value = tostring(var.github_publication_issue_number)
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.github_publisher_mode == "github" ? [1] : []
+        content {
+          name  = "SRE_CONTROL_PLANE_GITHUB_ALLOWED_REPOSITORY"
+          value = var.github_publication_allowed_repository
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.github_publisher_mode == "github" ? [1] : []
+        content {
+          name  = "SRE_CONTROL_PLANE_GITHUB_ALLOWED_ISSUE_NUMBER"
+          value = tostring(var.github_publication_allowed_issue_number)
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.github_publisher_mode == "github" ? [1] : []
+        content {
+          name  = "SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME"
+          value = google_secret_manager_secret.github_token.secret_id
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.github_publisher_mode == "github" ? [1] : []
+        content {
+          name  = "SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_VERSION"
+          value = var.github_publication_credential_secret_version
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.github_publisher_mode == "github" ? [1] : []
+        content {
+          name = "SRE_CONTROL_PLANE_GITHUB_TOKEN"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.github_token.secret_id
+              version = var.github_publication_credential_secret_version
+            }
+          }
+        }
+      }
+
       startup_probe {
         http_get {
           path = "/healthz"
@@ -85,13 +151,42 @@ resource "google_cloud_run_v2_service" "control_plane" {
 
   lifecycle {
     precondition {
-      condition     = var.executor_mode == "fake" && var.github_publisher_mode == "fake"
-      error_message = "This foundation deploys only fake adapters."
+      condition     = var.executor_mode == "fake"
+      error_message = "This foundation keeps the fake executor until a real executor is separately approved."
     }
 
     precondition {
       condition     = var.container_image != null && var.database_secret_version != null
       error_message = "runtime deployment requires an immutable container_image and an explicit database_secret_version."
+    }
+
+    precondition {
+      condition = (
+        var.github_publisher_mode == "fake" || (
+          var.github_publication_repository != null
+          && var.github_publication_issue_number != null
+          && var.github_publication_allowed_repository != null
+          && var.github_publication_allowed_issue_number != null
+          && var.github_publication_credential_secret_version != null
+          && var.github_publication_repository == var.github_publication_allowed_repository
+          && var.github_publication_issue_number == var.github_publication_allowed_issue_number
+        )
+      )
+      error_message = "GitHub publisher mode requires an explicit matching repository/issue allowlist and credential Secret Manager version."
+    }
+
+    precondition {
+      condition = (
+        var.github_publisher_mode == "github"
+        || (
+          var.github_publication_repository == null
+          && var.github_publication_issue_number == null
+          && var.github_publication_allowed_repository == null
+          && var.github_publication_allowed_issue_number == null
+          && var.github_publication_credential_secret_version == null
+        )
+      )
+      error_message = "GitHub publication target and credential references must not be configured while publisher mode is fake."
     }
 
     postcondition {
@@ -103,6 +198,7 @@ resource "google_cloud_run_v2_service" "control_plane" {
   depends_on = [
     google_project_iam_member.control_plane_cloud_sql,
     google_secret_manager_secret_iam_member.control_plane_database_url,
+    google_secret_manager_secret_iam_member.control_plane_github_token,
     google_storage_bucket_iam_member.control_plane_evidence_creator,
     google_storage_bucket_iam_member.control_plane_evidence_viewer,
   ]

@@ -21,6 +21,12 @@ MAX_GITHUB_EVIDENCE_REFERENCES = 10
 MAX_GITHUB_LIMITATIONS = 20
 MAX_GITHUB_COMMENT_PAGES = 3
 _REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+_SECRET_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,255}$")
+_SECRET_VERSION_PATTERN = re.compile(r"^[1-9][0-9]*$")
+_GCS_BUCKET_NAME_PATTERN = re.compile(
+    r"^(?!goog)(?!.*\.\.)(?!.*--)[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$"
+)
+_GCS_EVIDENCE_PATH_PATTERN = re.compile(r"^/evidence/sha256/[a-f0-9]{64}\.json$")
 _MARKER_PATTERN = re.compile(r"<!-- sre-control-plane-publication:v1:([a-f0-9]{32}):([a-f0-9]{64}) -->")
 _MARKER_PREFIX = "sre-control-plane-publication:"
 
@@ -81,17 +87,30 @@ class GitHubPublicationConfig:
     repository: str
     issue_number: int
     token: str = field(repr=False)
+    allowed_repository: str
+    allowed_issue_number: int
+    credential_secret_name: str
+    credential_secret_version: str
     api_url: str = GITHUB_API_URL
 
     def __post_init__(self) -> None:
         if (
-            not isinstance(self.repository, str)
-            or not _REPOSITORY_PATTERN.fullmatch(self.repository)
-            or not isinstance(self.issue_number, int)
-            or isinstance(self.issue_number, bool)
-            or self.issue_number <= 0
+            not _valid_repository(self.repository)
+            or not _valid_issue_number(self.issue_number)
             or not isinstance(self.token, str)
             or not self.token
+            or not self.token.strip()
+            or len(self.token.encode("utf-8")) > 4096
+            or "\n" in self.token
+            or "\r" in self.token
+            or not _valid_repository(self.allowed_repository)
+            or not _valid_issue_number(self.allowed_issue_number)
+            or self.repository != self.allowed_repository
+            or self.issue_number != self.allowed_issue_number
+            or not isinstance(self.credential_secret_name, str)
+            or not _SECRET_NAME_PATTERN.fullmatch(self.credential_secret_name)
+            or not isinstance(self.credential_secret_version, str)
+            or not _SECRET_VERSION_PATTERN.fullmatch(self.credential_secret_version)
             or self.api_url != GITHUB_API_URL
         ):
             raise ValueError("GitHub publication configuration is invalid")
@@ -112,9 +131,8 @@ class GitHubPublicationPayload(BaseModel):
             if "<!--" in text or "-->" in text or _MARKER_PREFIX in text:
                 raise ValueError("GitHub publication text must not contain HTML comments or markers")
         for reference in self.evidence_references:
-            parsed = urlparse(reference)
-            if parsed.scheme != "local" or parsed.netloc != "evidence" or ".." in parsed.path:
-                raise ValueError("evidence reference is not a bounded local artifact URI")
+            if not _is_bounded_evidence_reference(reference):
+                raise ValueError("evidence reference is not a bounded artifact URI")
         return self
 
 
@@ -407,6 +425,45 @@ def validate_github_comment(value: object) -> GitHubCommentResponse:
 
 def _empty_metrics() -> dict[str, int]:
     return {"calls_total": 0, "created_total": 0, "reused_total": 0, "retryable_failures_total": 0, "terminal_failures_total": 0}
+
+
+def _valid_repository(value: object) -> bool:
+    return isinstance(value, str) and _REPOSITORY_PATTERN.fullmatch(value) is not None
+
+
+def _valid_issue_number(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _is_bounded_evidence_reference(value: str) -> bool:
+    parsed = urlparse(value)
+    if parsed.scheme == "local":
+        return (
+            parsed.netloc == "evidence"
+            and parsed.path.startswith("/evidence-")
+            and parsed.path.endswith(".json")
+            and not parsed.params
+            and not parsed.query
+            and not parsed.fragment
+            and ".." not in parsed.path
+        )
+    if parsed.scheme == "gs":
+        return (
+            _valid_gcs_bucket_name(parsed.netloc)
+            and _GCS_EVIDENCE_PATH_PATTERN.fullmatch(parsed.path) is not None
+            and not parsed.params
+            and not parsed.query
+            and not parsed.fragment
+        )
+    return False
+
+
+def _valid_gcs_bucket_name(value: str) -> bool:
+    if len(value) < 3 or len(value) > 63:
+        return False
+    if "/" in value or value.startswith("gs://"):
+        return False
+    return _GCS_BUCKET_NAME_PATTERN.fullmatch(value) is not None
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):

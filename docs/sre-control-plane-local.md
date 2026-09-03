@@ -301,17 +301,29 @@ or payload returns a conflict.
 ### GitHub Publication Adapter
 
 `FakePublisher` remains the default. The GitHub adapter is selected only when
-all of these environment variables are present; any partial configuration fails
-closed during startup:
+the publisher mode is explicitly set to `github` and the publication target
+matches an explicit allowlist. Any partial, malformed, unsafe, or non-matching
+configuration fails closed during startup:
 
 ```powershell
+$env:SRE_CONTROL_PLANE_PUBLISHER = "github"
 $env:SRE_CONTROL_PLANE_GITHUB_REPOSITORY = "owner/repository"
 $env:SRE_CONTROL_PLANE_GITHUB_ISSUE_NUMBER = "123"
+$env:SRE_CONTROL_PLANE_GITHUB_ALLOWED_REPOSITORY = "owner/repository"
+$env:SRE_CONTROL_PLANE_GITHUB_ALLOWED_ISSUE_NUMBER = "123"
+$env:SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME = "secret-container-name"
+$env:SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_VERSION = "1"
 $env:SRE_CONTROL_PLANE_GITHUB_TOKEN = "provided-outside-the-repository"
 ```
 
-The adapter can call only the configured `owner/repository` and Issue number.
-It normalizes GitHub response-header names before classification. It lists comments through at most three validated pages of 100 entries. Every
+The runtime GCP deployment supplies the token only through a Secret Manager
+secret reference. Terraform creates the secret container and grants the runtime
+service account access only when `github_publisher_mode = "github"`; Terraform
+does not create or store the secret version value.
+
+The adapter can call only the configured and allowlisted `owner/repository` and
+Issue number. It normalizes GitHub response-header names before classification.
+It lists comments through at most three validated pages of 100 entries. Every
 pagination URL must use the GitHub API origin and the exact configured comment
 path; an unsafe or truncated page sequence fails closed without a write. The
 transport does not follow redirects: every `3xx` response is terminal and no
@@ -339,7 +351,7 @@ downgrade restores only normalized retryable values to `FAILED`.
 
 The live smoke test is deliberately disabled by default. It requires an
 explicit operator approval immediately before use and all three variables above
-plus:
+plus the allowlist and credential-reference variables shown above and:
 
 ```powershell
 $env:SRE_CONTROL_PLANE_GITHUB_LIVE_SMOKE = "1"
