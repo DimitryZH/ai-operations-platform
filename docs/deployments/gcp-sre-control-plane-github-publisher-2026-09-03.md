@@ -203,6 +203,24 @@ database, or runtime-boundary change, the apply must stop for review.
   Terraform validation failure.
 - `terraform fmt -check`, `git diff --check`, and the sensitive-data scan passed
   for the correction diff.
+- Corrected runtime image: immutable Artifact Registry digest
+  `sha256:e2f544893b971f4dad9cdf9f77bc569f3144febc362dc85c9a7596c2b9730266`
+- Corrected saved plan file: ignored local artifact
+  `issue53-github-publisher-correction.tfplan`
+- Corrected saved plan SHA-256:
+  `0cc457c3bd0884f9ac290d7368e302fc461f83089dfc6db56e49e49c71f2f092`
+- Corrected plan summary: 0 to add, 2 to change, 0 to destroy.
+- Corrected plan resource actions:
+  - update the Cloud Run service image digest in place;
+  - update the Cloud Run migration job image digest in place without executing
+    it.
+- Corrected plan safety checks:
+  - no IAM changes;
+  - no environment variable changes;
+  - no secret versions;
+  - no Scheduler activation or retry-policy change;
+  - no executor, evidence bucket, database, cluster, model, or SRE Platform
+    change.
 
 ## Cost Estimate
 
