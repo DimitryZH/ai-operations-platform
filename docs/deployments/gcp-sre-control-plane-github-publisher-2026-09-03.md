@@ -143,6 +143,39 @@ database, or runtime-boundary change, the apply must stop for review.
   with service status `ok`.
 - Mutable tags are not used in Terraform runtime configuration.
 
+## Credential Version Evidence
+
+- GitHub credential secret version created after explicit operator approval:
+  version `1`.
+- The source was the already-authenticated GitHub CLI token stream supplied
+  directly to Secret Manager.
+- The token value was not printed, stored in Terraform, written to disk,
+  committed, or read back.
+
+## Exact Saved Terraform Plan
+
+- Saved plan file: ignored local artifact `issue53-github-publisher.tfplan`
+- Saved plan SHA-256:
+  `30713d5ca96c3d7016bbd7b2b7277fa6ef39eb96fde1a5600a7637747f4bb2bf`
+- Plan summary: 1 to add, 2 to change, 0 to destroy.
+- Planned resource actions:
+  - update the Cloud Run service image digest in place;
+  - add GitHub publisher target, allowlist, credential-reference, and publisher
+    mode environment variables to the Cloud Run service;
+  - set the GitHub token environment variable through a Secret Manager
+    `value_source` reference to version `1`;
+  - update the Cloud Run migration job image digest in place without executing
+    it;
+  - add one secret-scoped `roles/secretmanager.secretAccessor` binding for the
+    runtime service account on the GitHub credential secret.
+- Plan safety checks:
+  - no secret version is created by Terraform;
+  - no secret value appears in the plan;
+  - no Scheduler activation or retry-policy change is planned;
+  - no Cloud Run public ingress or public invoker change is planned;
+  - no executor, evidence bucket, database, cluster, model, or SRE Platform
+    change is planned.
+
 ## Cost Estimate
 
 Estimated incremental monthly cost for this publisher runtime binding in
@@ -164,7 +197,7 @@ create charges while the instance is running, even with no traffic.
 ## Explicit Non-Events
 
 - No Terraform apply was run.
-- No secret version was created, read, printed, or committed.
+- No secret value was read, printed, or committed.
 - No live GitHub comment was written.
 - No Scheduler activation occurred.
 - No migration job was executed.
