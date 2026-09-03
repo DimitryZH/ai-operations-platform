@@ -221,6 +221,37 @@ database, or runtime-boundary change, the apply must stop for review.
   - no Scheduler activation or retry-policy change;
   - no executor, evidence bucket, database, cluster, model, or SRE Platform
     change.
+- Apply result for the exact corrected saved plan: 0 added, 2 changed, 0
+  destroyed.
+
+## Post-Apply Verification
+
+Read-only checks after the corrected apply confirmed:
+
+- Cloud Run Ready condition: true.
+- Cloud Run latest created revision matched the latest ready revision.
+- Cloud Run ingress: internal.
+- Cloud Run image: corrected immutable digest from this evidence.
+- Cloud Run GitHub publisher environment variable names were present.
+- Cloud Run token delivery used environment secret reference semantics; the
+  secret value was not read.
+- Cloud Run service-level scaling: automatic.
+- Cloud Run template scaling: zero minimum instances and one maximum instance.
+- Cloud Run public invokers: zero.
+- Cloud Run invoker binding member type: Scheduler service account.
+- GitHub credential secret accessor binding member type: runtime service
+  account.
+- Migration job image: corrected immutable digest from this evidence.
+- Migration job execution count did not increase.
+- Scheduler job state: `PAUSED`.
+- Scheduler retry policy block: absent.
+- Evidence bucket public principals: zero `allUsers` or
+  `allAuthenticatedUsers`.
+- Evidence bucket retained the expected runtime service-account object creator
+  and object viewer identity type.
+- Existing broad evidence-bucket legacy principal types remained:
+  `projectOwner`, `projectEditor`, and `projectViewer`.
+- Terraform no-change plan after apply: no changes.
 
 ## Cost Estimate
 
@@ -242,8 +273,8 @@ create charges while the instance is running, even with no traffic.
 
 ## Explicit Non-Events
 
-- The first exact saved Terraform apply did not complete successfully; see the
-  exact plan section above.
+- The initial exact saved Terraform apply did not complete successfully; see
+  the exact plan section above.
 - No secret value was read, printed, or committed.
 - No live GitHub comment was written.
 - No Scheduler activation occurred.
