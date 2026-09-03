@@ -132,6 +132,17 @@ database, or runtime-boundary change, the apply must stop for review.
 - Local container smoke test started the image and `/healthz` returned HTTP 200
   with service status `ok`.
 
+## Image Evidence
+
+- Source commit for the pushed runtime image:
+  `0d2fadc85074332915171a7f439a5aa8dd1e0fd0`
+- Runtime image: immutable Artifact Registry digest
+  `sha256:1702c949774165f91b9d0f4919a201bafe82b4a366f3d670a6488889170e6f91`
+- Local image build succeeded before push.
+- Local container smoke test started the image and `/healthz` returned HTTP 200
+  with service status `ok`.
+- Mutable tags are not used in Terraform runtime configuration.
+
 ## Cost Estimate
 
 Estimated incremental monthly cost for this publisher runtime binding in
@@ -152,7 +163,6 @@ create charges while the instance is running, even with no traffic.
 
 ## Explicit Non-Events
 
-- No image was pushed during preflight or local implementation.
 - No Terraform apply was run.
 - No secret version was created, read, printed, or committed.
 - No live GitHub comment was written.
