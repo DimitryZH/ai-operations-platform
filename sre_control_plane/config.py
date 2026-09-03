@@ -120,11 +120,14 @@ def _load_github_publication_config() -> GitHubPublicationConfig | None:
     allowed_issue_number = _parse_positive_int(github_values["SRE_CONTROL_PLANE_GITHUB_ALLOWED_ISSUE_NUMBER"])
     if issue_number is None or allowed_issue_number is None:
         raise ValueError("GitHub publication configuration is invalid")
+    token = github_values["SRE_CONTROL_PLANE_GITHUB_TOKEN"].strip()
+    if not token or "\n" in token or "\r" in token:
+        raise ValueError("GitHub publication configuration is invalid")
     try:
         return GitHubPublicationConfig(
             repository=github_values["SRE_CONTROL_PLANE_GITHUB_REPOSITORY"],
             issue_number=issue_number,
-            token=github_values["SRE_CONTROL_PLANE_GITHUB_TOKEN"],
+            token=token,
             allowed_repository=github_values["SRE_CONTROL_PLANE_GITHUB_ALLOWED_REPOSITORY"],
             allowed_issue_number=allowed_issue_number,
             credential_secret_name=github_values["SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME"],

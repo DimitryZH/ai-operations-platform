@@ -83,6 +83,29 @@ def test_complete_github_configuration_creates_allowlisted_publisher(monkeypatch
     assert isinstance(create_publisher(load_settings()), GitHubPublisher)
 
 
+def test_github_configuration_accepts_secret_file_trailing_newline(monkeypatch) -> None:
+    configure_github_publication(monkeypatch, token="test-token\n")
+
+    settings = load_settings()
+
+    assert settings.github_publication is not None
+    assert settings.github_publication.token == "test-token"
+    assert isinstance(create_publisher(settings), GitHubPublisher)
+
+
+def test_github_configuration_rejects_embedded_token_newline_without_details(monkeypatch) -> None:
+    secret = "recognizable-secret"
+    configure_github_publication(monkeypatch, token=f"test-{secret}\ntoken")
+
+    with pytest.raises(ValueError) as exc_info:
+        load_settings()
+
+    assert secret not in str(exc_info.value)
+    assert secret not in repr(exc_info.value)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+
+
 def test_invalid_github_configuration_never_exposes_token(monkeypatch, caplog) -> None:
     secret = "recognizable-secret-token"
     configure_github_publication(monkeypatch, repository="not a repository", token=secret)
