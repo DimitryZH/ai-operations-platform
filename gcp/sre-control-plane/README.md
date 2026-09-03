@@ -111,6 +111,14 @@ ambient `gcloud` project.
    and `roles/storage.objectViewer`. This phase must not create another bucket,
    widen project IAM, activate Scheduler, select live adapters, or access SRE
    Platform.
+8. **GitHub publisher phase:** after the bounded GitHub publisher runtime
+   binding is reviewed, set `github_publisher_mode = "github"` only with an
+   exact matching repository and Issue allowlist plus a numeric existing Secret
+   Manager credential version. Terraform references the existing
+   `github-token` secret container and grants the runtime service account
+   `roles/secretmanager.secretAccessor` on that secret only. This phase must
+   keep the fake executor, private Cloud Run ingress, authenticated invocation,
+   GCS evidence adapter, and paused Scheduler boundaries.
 
 ## Controlled Migration And Rollback
 
@@ -158,3 +166,15 @@ retention policy, and idempotency result.
 The smoke test must not activate Scheduler, configure a live executor, configure
 GitHub publication, call a model, access a Kubernetes cluster, mutate SRE
 Platform, print secret values, or publish raw object contents.
+
+## GitHub Publication Smoke Boundary
+
+Live GitHub publication is a separate approval gate. After the reviewed runtime
+plan has been applied, the live smoke may write exactly one marked comment to
+the allowlisted Issue and repeat the same idempotency key to verify reuse. The
+recorded evidence must include only the target identity, marker/idempotency
+status, receipt validation, retry classification, and PostgreSQL outcome shape.
+
+The smoke test must not activate Scheduler, run a migration job, configure a
+real executor, call HolmesGPT or another model, access a Kubernetes cluster,
+mutate SRE Platform, print secret values, or publish raw evidence contents.

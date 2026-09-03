@@ -60,6 +60,14 @@ records only validated artifact metadata back into PostgreSQL. Before accepting
 a GCS object, it fail-closes on missing or unsafe object metadata, unexpected
 remote size, non-JSON content type, oversized readback, or SHA-256 mismatch.
 
+The GitHub publisher remains behind the product-neutral publisher interface and
+is disabled by default for local development and tests. The private GCP runtime
+can select it only through an explicit `github` publisher mode, an exact
+repository and Issue allowlist match, and a Secret Manager version reference.
+Terraform never stores the token value. GitHub calls occur outside database
+transactions and locks, and PostgreSQL records only append-only publication
+outcomes and validated references.
+
 ## Context Boundary
 
 Operational context must remain separate from runtime state and execution
