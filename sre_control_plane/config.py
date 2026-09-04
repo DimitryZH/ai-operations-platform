@@ -16,6 +16,11 @@ from sre_control_plane.executor import CapabilityReport, InvestigationExecutor
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
 from sre_control_plane.holmesgpt_executor import HolmesGptHttpConfig, HolmesGptHttpExecutor
 from sre_control_plane.publisher import FakePublisher, GitHubPublicationConfig, GitHubPublisher, Publisher
+from sre_control_plane.sre_replay_executor import (
+    SreReplayExecutor,
+    SreReplayExecutorConfig,
+    parse_replay_provider_declarations,
+)
 
 
 DEFAULT_DATABASE_URL = (
@@ -40,15 +45,20 @@ class Settings:
     evidence_store: EvidenceStoreConfig = field(default_factory=EvidenceStoreConfig)
     github_publication: GitHubPublicationConfig | None = None
     holmesgpt_executor: HolmesGptHttpConfig | None = None
+    sre_replay_executor: SreReplayExecutorConfig | None = None
 
 
 def load_settings() -> Settings:
     github_publication = _load_github_publication_config()
+    sre_replay_executor = _load_sre_replay_executor_config()
 
     holmes_endpoint = os.environ.get("SRE_CONTROL_PLANE_HOLMESGPT_ENDPOINT")
     holmes_local_test_mode = os.environ.get("SRE_CONTROL_PLANE_HOLMESGPT_LOCAL_TEST_MODE")
     holmes_capabilities = os.environ.get("SRE_CONTROL_PLANE_HOLMESGPT_CAPABILITIES_JSON")
     holmes_configured = [value is not None for value in (holmes_endpoint, holmes_local_test_mode, holmes_capabilities)]
+    explicit_executor_mode = os.environ.get("SRE_CONTROL_PLANE_EXECUTOR")
+    if explicit_executor_mode in {"fake", "sre_replay"} and any(holmes_configured):
+        raise ValueError("executor configuration is ambiguous")
     if any(holmes_configured) and not all(holmes_configured):
         raise ValueError("HolmesGPT executor configuration is incomplete")
     holmesgpt_executor = None
@@ -74,7 +84,35 @@ def load_settings() -> Settings:
         evidence_store=evidence_store,
         github_publication=github_publication,
         holmesgpt_executor=holmesgpt_executor,
+        sre_replay_executor=sre_replay_executor,
     )
+
+
+def _load_sre_replay_executor_config() -> SreReplayExecutorConfig | None:
+    mode = os.environ.get("SRE_CONTROL_PLANE_EXECUTOR", "fake")
+    scenario_id = os.environ.get("SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID")
+    declarations_json = os.environ.get("SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON")
+    configured = [scenario_id is not None, declarations_json is not None]
+    if mode == "fake":
+        if any(configured):
+            raise ValueError("SRE replay executor requires explicit executor opt-in")
+        return None
+    if mode != "sre_replay":
+        raise ValueError("executor mode is invalid")
+    if not all(configured):
+        raise ValueError("SRE replay executor configuration is incomplete")
+    configuration_invalid = False
+    configuration = None
+    try:
+        configuration = SreReplayExecutorConfig(
+            scenario_id=scenario_id,
+            provider_declarations=parse_replay_provider_declarations(declarations_json),
+        )
+    except (TypeError, ValueError):
+        configuration_invalid = True
+    if configuration_invalid or configuration is None:
+        raise ValueError("SRE replay executor configuration is invalid")
+    return configuration
 
 
 def _load_evidence_store_config() -> EvidenceStoreConfig:
@@ -166,6 +204,8 @@ def create_publisher(settings: Settings) -> Publisher:
 
 
 def create_executor(settings: Settings) -> InvestigationExecutor:
+    if settings.sre_replay_executor is not None:
+        return SreReplayExecutor(settings.sre_replay_executor)
     if settings.holmesgpt_executor is None:
         return FakeInvestigationExecutor()
     return HolmesGptHttpExecutor(settings.holmesgpt_executor)

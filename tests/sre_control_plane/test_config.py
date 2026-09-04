@@ -9,6 +9,11 @@ from sre_control_plane.evidence import GcsEvidenceStore, LocalFilesystemEvidence
 from sre_control_plane.fake_executor import FakeInvestigationExecutor
 from sre_control_plane.holmesgpt_executor import HOLMESGPT_EXECUTOR_ID, HolmesGptHttpExecutor
 from sre_control_plane.publisher import FakePublisher, GitHubPublisher
+from sre_control_plane.sre_replay_executor import (
+    SRE_REPLAY_SCENARIO_ID,
+    SreReplayExecutor,
+    approved_replay_provider_declarations_json,
+)
 
 
 def test_github_publisher_is_opt_in_and_fake_is_default(monkeypatch) -> None:
@@ -162,12 +167,67 @@ def test_github_configuration_fails_closed_on_malformed_or_non_allowlisted_value
 
 def test_holmesgpt_executor_is_opt_in_and_fake_is_default(monkeypatch) -> None:
     for name in (
+        "SRE_CONTROL_PLANE_EXECUTOR",
+        "SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID",
+        "SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON",
         "SRE_CONTROL_PLANE_HOLMESGPT_ENDPOINT",
         "SRE_CONTROL_PLANE_HOLMESGPT_LOCAL_TEST_MODE",
         "SRE_CONTROL_PLANE_HOLMESGPT_CAPABILITIES_JSON",
     ):
         monkeypatch.delenv(name, raising=False)
     assert isinstance(create_executor(load_settings()), FakeInvestigationExecutor)
+
+
+def test_sre_replay_executor_requires_explicit_opt_in(monkeypatch) -> None:
+    monkeypatch.delenv("SRE_CONTROL_PLANE_EXECUTOR", raising=False)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID", SRE_REPLAY_SCENARIO_ID)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON", approved_replay_provider_declarations_json())
+
+    with pytest.raises(ValueError, match="explicit executor opt-in"):
+        load_settings()
+
+
+def test_sre_replay_executor_configuration_is_complete(monkeypatch) -> None:
+    monkeypatch.setenv("SRE_CONTROL_PLANE_EXECUTOR", "sre_replay")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID", SRE_REPLAY_SCENARIO_ID)
+    monkeypatch.delenv("SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON", raising=False)
+
+    with pytest.raises(ValueError, match="incomplete"):
+        load_settings()
+
+
+def test_sre_replay_executor_configuration_selects_replay_adapter(monkeypatch) -> None:
+    monkeypatch.setenv("SRE_CONTROL_PLANE_EXECUTOR", "sre_replay")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID", SRE_REPLAY_SCENARIO_ID)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON", approved_replay_provider_declarations_json())
+
+    assert isinstance(create_executor(load_settings()), SreReplayExecutor)
+
+
+def test_sre_replay_executor_rejects_unsafe_configuration_without_details(monkeypatch, caplog) -> None:
+    secret = "token=recognizable-secret-value"
+    monkeypatch.setenv("SRE_CONTROL_PLANE_EXECUTOR", "sre_replay")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID", SRE_REPLAY_SCENARIO_ID)
+    monkeypatch.setenv("SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON", f'{{"unsafe":"{secret}"}}')
+
+    with pytest.raises(ValueError) as exc_info:
+        load_settings()
+
+    assert secret not in str(exc_info.value)
+    assert secret not in repr(exc_info.value)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert secret not in caplog.text
+
+
+def test_explicit_executor_mode_rejects_ambiguous_holmes_configuration(monkeypatch) -> None:
+    monkeypatch.setenv("SRE_CONTROL_PLANE_EXECUTOR", "fake")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_ENDPOINT", "http://127.0.0.1:18080")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_LOCAL_TEST_MODE", "1")
+    monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_CAPABILITIES_JSON", json.dumps(holmesgpt_capability_payload()))
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        load_settings()
 
 
 def test_holmesgpt_executor_configuration_is_complete_and_local_only(monkeypatch) -> None:
@@ -177,20 +237,8 @@ def test_holmesgpt_executor_configuration_is_complete_and_local_only(monkeypatch
     with pytest.raises(ValueError, match="incomplete"):
         load_settings()
 
-    capability_payload = {
-        "executor_id": HOLMESGPT_EXECUTOR_ID,
-        "schema_versions": ["1.0"],
-        "declared_capabilities": ["kubernetes.read", "prometheus.query", "rollout.read", "gitops.read", "logs.read", "investigation.report"],
-        "denied_capabilities": ["kubernetes.write", "rollout.mutate", "gitops.write", "deployment.write", "remediation.execute", "pull_request.merge", "incident.close", "secrets.read"],
-        "target_scope": {"namespace": "online-shop-stage", "workload": "frontend", "rollout": "frontend", "gitops_application": "online-shop-stage"},
-        "auth_mode": "local-fixture-no-credentials",
-        "verification_evidence": ["deterministic local fixture; live runtime NOT TESTED"],
-        "supports_idempotent_start": True,
-        "supports_status_lookup": False,
-        "idempotency_scope": "process_local",
-    }
     monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_LOCAL_TEST_MODE", "1")
-    monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_CAPABILITIES_JSON", json.dumps(capability_payload))
+    monkeypatch.setenv("SRE_CONTROL_PLANE_HOLMESGPT_CAPABILITIES_JSON", json.dumps(holmesgpt_capability_payload()))
     assert isinstance(create_executor(load_settings()), HolmesGptHttpExecutor)
 
 
@@ -231,3 +279,39 @@ def configure_github_publication(
     monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_NAME", credential_secret_name)
     monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_CREDENTIAL_SECRET_VERSION", credential_secret_version)
     monkeypatch.setenv("SRE_CONTROL_PLANE_GITHUB_TOKEN", token)
+
+
+def holmesgpt_capability_payload() -> dict:
+    return {
+        "executor_id": HOLMESGPT_EXECUTOR_ID,
+        "schema_versions": ["1.0"],
+        "declared_capabilities": [
+            "kubernetes.read",
+            "prometheus.query",
+            "rollout.read",
+            "gitops.read",
+            "logs.read",
+            "investigation.report",
+        ],
+        "denied_capabilities": [
+            "kubernetes.write",
+            "rollout.mutate",
+            "gitops.write",
+            "deployment.write",
+            "remediation.execute",
+            "pull_request.merge",
+            "incident.close",
+            "secrets.read",
+        ],
+        "target_scope": {
+            "namespace": "online-shop-stage",
+            "workload": "frontend",
+            "rollout": "frontend",
+            "gitops_application": "online-shop-stage",
+        },
+        "auth_mode": "local-fixture-no-credentials",
+        "verification_evidence": ["deterministic local fixture; live runtime NOT TESTED"],
+        "supports_idempotent_start": True,
+        "supports_status_lookup": False,
+        "idempotency_scope": "process_local",
+    }

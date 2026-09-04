@@ -257,13 +257,13 @@ variable "github_publication_credential_secret_version" {
 }
 
 variable "executor_mode" {
-  description = "Executor selection. Only fake is permitted by this deployment foundation."
+  description = "Executor selection. Fake is default; sre_replay is the bounded fixture-backed read-only SRE adapter."
   type        = string
   default     = "fake"
 
   validation {
-    condition     = var.executor_mode == "fake"
-    error_message = "Only fake executor mode is permitted until a real executor is separately approved."
+    condition     = contains(["fake", "sre_replay"], var.executor_mode)
+    error_message = "executor_mode must be fake or sre_replay."
   }
 }
 

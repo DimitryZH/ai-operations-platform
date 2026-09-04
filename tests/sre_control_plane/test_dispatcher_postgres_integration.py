@@ -24,6 +24,13 @@ from sre_control_plane.holmesgpt_executor import (
     HolmesGptHttpExecutor,
     HolmesGptHttpResponse,
 )
+from sre_control_plane.sre_replay_executor import (
+    SRE_REPLAY_EXECUTOR_ID,
+    SRE_REPLAY_SCENARIO_ID,
+    SreReplayExecutor,
+    SreReplayExecutorConfig,
+    approved_replay_provider_declarations,
+)
 from sre_control_plane.publisher import (
     FakePublisher,
     GitHubHttpResponse,
@@ -348,6 +355,68 @@ def test_postgresql_github_publication_adapter_is_concurrent_and_append_only(
 
 
 @pytest.mark.postgresql_integration
+def test_postgresql_sre_replay_executor_reaches_human_review_and_publishes_evidence(
+    postgres_session_factory,
+    tmp_path: Path,
+) -> None:
+    workflow = SreInvestigationWorkflow(
+        postgres_session_factory,
+        SreReplayExecutor(
+            SreReplayExecutorConfig(
+                scenario_id=SRE_REPLAY_SCENARIO_ID,
+                provider_declarations=approved_replay_provider_declarations(),
+            )
+        ),
+        evidence_store=LocalFilesystemEvidenceStore(tmp_path / "sre-replay-evidence"),
+        publisher=FakePublisher(),
+    )
+    task = workflow.submit_request(request_example("postgres-sre-replay"))
+
+    tick = workflow.run_dispatch_tick("postgres-sre-replay")
+    published = workflow.publish_evidence(
+        task.task_id,
+        EvidencePublicationRequest(idempotency_key="postgres-sre-replay-publication"),
+    )
+
+    assert tick.dispatched is True
+    assert published.task_state == TaskState.AWAITING_HUMAN_REVIEW
+    assert published.results[0].executor_id == SRE_REPLAY_EXECUTOR_ID
+    assert published.evidence_artifacts[0].sanitization_status == "SANITIZED"
+    assert published.publications[0].status == "PUBLISHED"
+    assert published.publications[0].github_reference.startswith("fake-github://publication/")
+    with postgres_session_factory() as session:
+        invocations = list(session.scalars(select(ExecutorInvocationRecord)))
+        publications = list(session.scalars(select(GitHubPublicationRecord)))
+    assert invocations[0].status == "succeeded"
+    assert len(publications) == 1
+
+
+@pytest.mark.postgresql_integration
+def test_postgresql_sre_replay_adapter_call_occurs_outside_database_transaction(
+    postgres_session_factory,
+) -> None:
+    executor = BlockingSreReplayExecutor()
+    first = SreInvestigationWorkflow(postgres_session_factory, executor)
+    second = SreInvestigationWorkflow(postgres_session_factory, executor)
+    task = first.submit_request(request_example("postgres-sre-replay-unlocked"))
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first_tick = pool.submit(first.run_dispatch_tick, "postgres-sre-replay-one")
+        assert executor.started.wait(timeout=5)
+        blocked_tick = second.run_dispatch_tick("postgres-sre-replay-two")
+        executor.release.set()
+        completed_tick = first_tick.result(timeout=5)
+
+    assert completed_tick.dispatched is True
+    assert blocked_tick.dispatched is False
+    assert blocked_tick.reason == "active_dispatch_lease"
+    with postgres_session_factory() as session:
+        persisted_task = session.scalar(select(TaskRecord).where(TaskRecord.task_id == task.task_id))
+        assert persisted_task is not None
+        assert persisted_task.state == TaskState.AWAITING_HUMAN_REVIEW
+
+
+@pytest.mark.postgresql_integration
 def test_postgresql_terminal_github_publication_failure_cannot_be_retried(
     postgres_session_factory,
     tmp_path: Path,
@@ -581,6 +650,24 @@ class HolmesFixtureTransport:
         assert method == "POST" and path == "/api/chat"
         assert "Authorization" not in headers
         return self._response
+
+
+class BlockingSreReplayExecutor(SreReplayExecutor):
+    def __init__(self) -> None:
+        super().__init__(
+            SreReplayExecutorConfig(
+                scenario_id=SRE_REPLAY_SCENARIO_ID,
+                provider_declarations=approved_replay_provider_declarations(),
+            )
+        )
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def start_investigation(self, command):
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test did not release SRE replay executor")
+        return super().start_investigation(command)
 
 
 def holmesgpt_capabilities() -> CapabilityReport:
