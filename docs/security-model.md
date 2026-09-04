@@ -46,6 +46,7 @@ The current GCP control-plane deployment evidence is split by phase:
 
 - [bootstrap foundation evidence](deployments/gcp-sre-control-plane-bootstrap-2026-09-01.md)
 - [private fake-runtime evidence](deployments/gcp-sre-control-plane-runtime-2026-09-01.md)
+- [SRE replay executor evidence](deployments/gcp-sre-control-plane-sre-replay-executor-2026-09-04.md)
 
 The deployed runtime remains private and authenticated, uses fake adapters only,
 keeps Scheduler paused, and does not grant cluster access or live publication
@@ -67,6 +68,17 @@ repository and Issue allowlist match, and a Secret Manager version reference.
 Terraform never stores the token value. GitHub calls occur outside database
 transactions and locks, and PostgreSQL records only append-only publication
 outcomes and validated references.
+
+The bounded SRE replay executor remains behind the product-neutral executor
+interface and is disabled by default. It can be selected only through explicit
+`sre_replay` executor mode and an exact approved provider declaration for the
+first staging contract. The declaration models Kubernetes, Prometheus, GitOps,
+and optional recovery-observation boundaries with read-only verbs/actions,
+approved namespace and GitOps scopes, and an exact Prometheus query allowlist.
+It fails closed on missing, malformed, broader-than-approved, write-capable, or
+unsafe declarations. It uses sanitized replay fixtures only and must not be
+represented as live staging, production, recovery, cluster, HolmesGPT, or model
+validation.
 
 ## Context Boundary
 
