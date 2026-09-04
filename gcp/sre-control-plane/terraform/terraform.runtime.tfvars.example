@@ -15,6 +15,11 @@ scheduler_activation_confirmed = false
 executor_mode                  = "fake"
 github_publisher_mode          = "fake"
 
+# SRE replay executor is a separate opt-in runtime mode for sanitized fixture
+# validation only. It does not contact Kubernetes, Prometheus, GitOps, recovery
+# systems, HolmesGPT, or any model.
+# executor_mode = "sre_replay"
+
 # GitHub publication is a separate opt-in runtime phase. Leave these null while
 # github_publisher_mode is fake. Terraform references an existing Secret
 # Manager version only; it never creates or stores the credential value.

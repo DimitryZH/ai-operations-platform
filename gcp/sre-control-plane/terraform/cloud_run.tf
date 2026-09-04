@@ -46,6 +46,27 @@ resource "google_cloud_run_v2_service" "control_plane" {
       }
 
       env {
+        name  = "SRE_CONTROL_PLANE_EXECUTOR"
+        value = var.executor_mode
+      }
+
+      dynamic "env" {
+        for_each = var.executor_mode == "sre_replay" ? [1] : []
+        content {
+          name  = "SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID"
+          value = local.sre_replay_provider_declarations.scenario_id
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.executor_mode == "sre_replay" ? [1] : []
+        content {
+          name  = "SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON"
+          value = jsonencode(local.sre_replay_provider_declarations)
+        }
+      }
+
+      env {
         name  = "SRE_CONTROL_PLANE_EVIDENCE_STORE"
         value = "gcs"
       }
@@ -151,8 +172,8 @@ resource "google_cloud_run_v2_service" "control_plane" {
 
   lifecycle {
     precondition {
-      condition     = var.executor_mode == "fake"
-      error_message = "This foundation keeps the fake executor until a real executor is separately approved."
+      condition     = contains(["fake", "sre_replay"], var.executor_mode)
+      error_message = "Runtime executor mode must be fake or the bounded fixture-backed SRE replay adapter."
     }
 
     precondition {

@@ -14,6 +14,8 @@ Included:
 - Alembic migration for a fresh local PostgreSQL database
 - product-neutral executor interface
 - deterministic fake executor for tests and local development
+- an opt-in bounded SRE replay executor that validates the approved staging
+  read-only provider contract from sanitized fixtures
 - a database-backed sequential dispatcher with a durable global lease and
   monotonic fencing token
 - one bounded local fake-executor workflow from dispatcher tick to human review
@@ -26,7 +28,7 @@ Included:
 
 Excluded:
 
-- real investigator or HolmesGPT integration
+- live investigator, live HolmesGPT, or model integration
 - automatic retry, timeout, and cancellation workflows
 - Kubernetes, cloud resources, deployment, or SRE Platform repository changes
 
@@ -177,6 +179,30 @@ The fake executor satisfies the product-neutral adapter interface and returns
 deterministic local data. It declares only the accepted MVP read capabilities
 and explicitly denies mutation, remediation, merge, incident closeout, and
 secret-reading capabilities. It never accesses external systems.
+
+## SRE Replay Executor Boundary
+
+The SRE replay executor is an explicit opt-in mode for validating the first
+SRE investigation adapter boundary without live cluster access:
+
+```powershell
+$env:SRE_CONTROL_PLANE_EXECUTOR = "sre_replay"
+$env:SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID = "approved-stage-frontend-slo-v1"
+$env:SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON = '<exact approved provider declaration JSON>'
+```
+
+The approved declaration models read-only Kubernetes, Prometheus, GitOps, and
+optional recovery-observation providers for `online-shop-stage`, `frontend`,
+the `frontend` rollout, and the `online-shop-stage` Argo CD application. The
+adapter accepts only sanitized replay fixtures, exact Prometheus query
+allowlists, read-only verbs/actions, and bounded deterministic output. It
+fails closed on missing, malformed, broader-than-approved, write-capable, or
+unsafe declarations.
+
+This executor does not contact Kubernetes, Prometheus, Argo CD, GitHub,
+HolmesGPT, a model, or any SRE Platform runtime. Its results must be treated as
+fixture validation only, not live staging, production, recovery, or incident
+resolution evidence.
 
 ## Workflow Boundary
 

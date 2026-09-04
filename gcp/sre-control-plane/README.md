@@ -9,12 +9,12 @@ centralized logging and alert-policy configuration.
 The bootstrap phase has been applied for `ai-operations-platform-507220` in
 `us-central1`; see
 `docs/deployments/gcp-sre-control-plane-bootstrap-2026-09-01.md`. The private
-runtime phase has also been applied with fake adapters only; see
+runtime phase has also been applied with fake executor defaults; see
 `docs/deployments/gcp-sre-control-plane-runtime-2026-09-01.md`. The runtime
-deployment deliberately does **not** select a real executor, enable HolmesGPT,
-enable GitHub publication, activate Scheduler, access a cluster, or mutate SRE
-Platform. The application runs with its fake executor and fake publisher
-defaults.
+deployment deliberately does **not** enable HolmesGPT, activate Scheduler,
+access a cluster, or mutate SRE Platform. The application keeps the fake
+executor default. GitHub publication and the SRE replay executor are explicit
+opt-in modes with bounded allowlists.
 
 ## Security Boundaries
 
@@ -119,6 +119,14 @@ ambient `gcloud` project.
    `roles/secretmanager.secretAccessor` on that secret only. This phase must
    keep the fake executor, private Cloud Run ingress, authenticated invocation,
    GCS evidence adapter, and paused Scheduler boundaries.
+9. **SRE replay executor phase:** after the bounded SRE replay executor is
+   reviewed, `executor_mode = "sre_replay"` may be used only as an explicit
+   fixture-backed read-only validation mode. Terraform injects the exact
+   approved provider declaration JSON for Kubernetes, Prometheus, GitOps, and
+   optional recovery observation. This mode must not contact a live cluster,
+   Prometheus endpoint, Argo CD API, HolmesGPT, model, or SRE Platform runtime,
+   and it must not change the paused Scheduler or publication allowlist
+   boundaries.
 
 ## Controlled Migration And Rollback
 
@@ -178,3 +186,17 @@ status, receipt validation, retry classification, and PostgreSQL outcome shape.
 The smoke test must not activate Scheduler, run a migration job, configure a
 real executor, call HolmesGPT or another model, access a Kubernetes cluster,
 mutate SRE Platform, print secret values, or publish raw evidence contents.
+
+## SRE Replay Executor Smoke Boundary
+
+The SRE replay executor smoke test is a local or separately reviewed private
+runtime validation of the adapter boundary only. It may submit the approved
+Issue #55 replay request, run one dispatcher tick, and publish the resulting
+sanitized evidence through the configured evidence and publisher paths only
+when those paths are separately enabled and allowlisted.
+
+The recorded evidence must state that the result came from sanitized fixtures,
+not live staging or production validation. The smoke must not activate
+Scheduler, create or modify secrets, push a new image, apply Terraform, write a
+GitHub comment, call HolmesGPT or a model, access Kubernetes or Prometheus, or
+mutate SRE Platform without the relevant separate approval gate.

@@ -40,6 +40,7 @@ is not a deployed MVP or a live SRE Platform investigation.
 | Fail-closed capability path | Capability checks are recorded before dispatch; rejected or exceptional checks leave a durable audit trail and retry-eligible task state as defined by the local workflow. | Fake executor capabilities only. |
 | Durable evidence and publication audit | Schema-valid results produce sanitized, SHA-256-addressed evidence packages. Artifact metadata, logical publication intents, and append-only publication outcomes are durable and visible through the task API. A bounded GCS evidence adapter is available for the reviewed private GCP runtime while the local filesystem adapter remains the development default. | PostgreSQL remains the source of truth. Cloud Storage writes occur outside database transactions and locks. Fake publisher remains the default, and live publication is still opt-in. |
 | Bounded GitHub publisher | A product-neutral GitHub publisher validates exact target identity, explicit runtime allowlists, Secret Manager credential references, pagination, response receipts, canonical idempotency markers, redirects, and retryable versus terminal outcomes. | The publisher is opt-in; fake remains the local/test default, its live smoke is explicitly gated, and it is not a default workflow action. GitHub remains an audit surface, never transactional state. |
+| Bounded SRE replay executor | A product-neutral SRE executor adapter validates the approved staging provider contract for Kubernetes, Prometheus, GitOps, and optional recovery observation, then returns a deterministic schema-valid investigation result from sanitized replay fixtures. | `sre_replay` is explicit opt-in and fixture-backed only. Fake executor remains the default. No live Kubernetes, Prometheus, Argo CD, recovery, HolmesGPT, model, staging, or production validation is claimed. |
 | Bounded HolmesGPT executor prototype | A product-neutral non-streaming HTTP adapter validates endpoint, capabilities, canonical dispatch identity, JSON response media type, result schema, and reconciliation identity. | `PROTOTYPE_REQUIRED`: fake execution remains the default. No HolmesGPT deployment, authentication, model invocation, runtime RBAC, Prometheus/log enforcement, or live investigation is claimed. |
 | GCP deployment foundation | Terraform and a non-root Python 3.13 container define private Cloud Run, Cloud SQL PostgreSQL, Cloud Storage, Secret Manager containers, scheduler OIDC, least-privilege IAM, structured logging, monitoring, and a controlled migration job. The bootstrap phase has been applied in `ai-operations-platform-507220` with remote GCS state, private networking, private-IP Cloud SQL, evidence storage, service accounts, bounded IAM, logging, monitoring, and Secret Manager containers. The private runtime phase has also been applied with an immutable image digest, one out-of-band database secret version, one controlled migration execution, and authenticated internal readiness evidence. | Private fake-runtime only: Cloud Run is internal and authenticated, Scheduler remains paused, fake adapters remain locked defaults, and no live executor, GitHub publisher, HolmesGPT/model call, Kubernetes access, or SRE Platform mutation has occurred. |
 | CI validation | GitHub Actions uses Python 3.13, PostgreSQL 16, Alembic migrations, and `SRE_CONTROL_PLANE_TEST_DATABASE_URL`. | The latest accepted control-plane run completed `157 passed, 1 skipped`; PostgreSQL integration tests ran, and the only skip was an opt-in live smoke test. |
@@ -77,15 +78,13 @@ incident-management platform.
 
 The remaining work is intentionally ordered and bounded:
 
-1. **Complete reviewed publication smoke**: after approved runtime image and
-   Terraform gates, run one marked GitHub smoke comment and verify semantic
-   idempotency without making GitHub publication a default action.
-2. **One real read-only executor prototype**: verify one product-neutral
-   candidate's capabilities fail closed for the approved scope. HolmesGPT is
-   not selected by the local adapter prototype.
-3. **Complete SRE Platform staging demonstration**: run the approved
+1. **Complete SRE Platform staging demonstration**: run the approved
    SRE-owned controlled scenario and collect only permitted read-only evidence.
-4. **Orchestrator benchmark and portfolio closeout**: execute the accepted
+2. **Promote beyond replay fixtures only after staging evidence**: replace or
+   extend fixture-backed providers with a separately approved live read-only
+   executor boundary after SRE Platform staging access, budget, and safety
+   gates are reviewed.
+3. **Orchestrator benchmark and portfolio closeout**: execute the accepted
    benchmark against the integrated candidate architecture and publish only
    evidence-supported results.
 

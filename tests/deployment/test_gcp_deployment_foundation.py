@@ -165,13 +165,33 @@ def test_service_account_ids_fit_gcp_limits() -> None:
 
 def test_fake_adapter_defaults_and_controlled_migration_job_are_present() -> None:
     source = terraform_source()
+    cloud_run = (TERRAFORM_ROOT / "cloud_run.tf").read_text(encoding="utf-8")
+    variables = (TERRAFORM_ROOT / "variables.tf").read_text(encoding="utf-8")
+    locals_tf = (TERRAFORM_ROOT / "locals.tf").read_text(encoding="utf-8")
 
     assert 'default     = "fake"' in source
+    assert 'contains(["fake", "sre_replay"], var.executor_mode)' in variables
+    assert 'name  = "SRE_CONTROL_PLANE_EXECUTOR"' in cloud_run
+    assert "value = var.executor_mode" in cloud_run
+    assert 'var.executor_mode == "sre_replay"' in cloud_run
+    assert 'name  = "SRE_CONTROL_PLANE_SRE_REPLAY_SCENARIO_ID"' in cloud_run
+    assert 'name  = "SRE_CONTROL_PLANE_SRE_REPLAY_PROVIDERS_JSON"' in cloud_run
+    assert "jsonencode(local.sre_replay_provider_declarations)" in cloud_run
+    assert "approved-stage-frontend-slo-v1" in locals_tf
+    assert "online-shop-stage" in locals_tf
+    assert "slo:error_ratio_5m" in locals_tf
+    assert "slo:burn_rate_5m" in locals_tf
+    assert "read_file" in locals_tf
+    assert "observe_status" in locals_tf
+    assert "patch" not in locals_tf
+    assert "delete" not in locals_tf
+    assert "kubectl" not in cloud_run
+    assert "prometheus-address" not in cloud_run
     assert "google_cloud_run_v2_job" in source
     assert 'command = ["alembic"]' in source
     assert 'args    = ["upgrade", "head"]' in source
     assert 'value = var.github_publisher_mode' in source
-    assert "This foundation keeps the fake executor" in source
+    assert "Runtime executor mode must be fake or the bounded fixture-backed SRE replay adapter." in source
 
 
 def test_terraform_example_contains_only_placeholders() -> None:
@@ -282,6 +302,38 @@ def test_gcs_evidence_adapter_evidence_is_sanitized_and_gated() -> None:
     assert "Cloud SQL continues" in evidence
     assert "charges while the instance is running" in evidence
     assert "No Kubernetes cluster was accessed." in evidence
+
+
+def test_sre_replay_executor_evidence_is_sanitized_and_honest() -> None:
+    evidence = (
+        REPOSITORY_ROOT
+        / "docs"
+        / "deployments"
+        / "gcp-sre-control-plane-sre-replay-executor-2026-09-04.md"
+    ).read_text(encoding="utf-8")
+    forbidden_terms = [
+        "@" + "gmail.com",
+        ".iam." + "gserviceaccount.com",
+        "gho" + "_",
+        "ya29" + ".",
+        "-----" + "BEGIN",
+        "private" + "_key",
+        "client" + "_secret",
+        "postgresql" + "://",
+        ".tfplan",
+        ".tfstate",
+    ]
+
+    for term in forbidden_terms:
+        assert term not in evidence
+
+    assert "GitHub issue: #55" in evidence
+    assert "Target project context: `ai-operations-platform-507220`" in evidence
+    assert "Runtime executor default: fake executor" in evidence
+    assert "New executor mode: `sre_replay`, explicit opt-in only" in evidence
+    assert "fixture-only limitations" in evidence
+    assert "No live Kubernetes, Prometheus, Argo CD, recovery, HolmesGPT, or model call" in evidence
+    assert "No SRE Platform repository file was modified." in evidence
 
 
 def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> None:
