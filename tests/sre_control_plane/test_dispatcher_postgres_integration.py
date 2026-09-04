@@ -383,7 +383,7 @@ def test_postgresql_sre_replay_executor_reaches_human_review_and_publishes_evide
     assert published.results[0].executor_id == SRE_REPLAY_EXECUTOR_ID
     assert published.evidence_artifacts[0].sanitization_status == "SANITIZED"
     assert published.publications[0].status == "PUBLISHED"
-    assert published.publications[0].github_reference.startswith("fake-github://publication/")
+    assert published.publications[0].github_reference.startswith("fake://publication/")
     with postgres_session_factory() as session:
         invocations = list(session.scalars(select(ExecutorInvocationRecord)))
         publications = list(session.scalars(select(GitHubPublicationRecord)))
