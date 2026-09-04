@@ -336,6 +336,91 @@ def test_sre_replay_executor_evidence_is_sanitized_and_honest() -> None:
     assert "No SRE Platform repository file was modified." in evidence
 
 
+def test_sre_platform_staging_readiness_boundary_is_bounded_and_complete() -> None:
+    readiness = (
+        REPOSITORY_ROOT
+        / "docs"
+        / "integrations"
+        / "sre"
+        / "sre-platform-staging-deployment-readiness.md"
+    ).read_text(encoding="utf-8")
+
+    required_terms = [
+        "Planning and readiness only for Issue #57",
+        "No SRE Platform GCP project has been created",
+        "project id pattern: `sre-platform-staging-<reviewed-suffix>`",
+        "primary region: `us-central1`",
+        "Required APIs",
+        "Terraform Remote State Boundary",
+        "IAM And Operator Model",
+        "Budget And Cost Guardrails",
+        "Approval Gates For Future Work",
+        "Rollback And Cleanup Expectations",
+        "Kubernetes staging environment",
+        "Argo CD controller and root application",
+        "Argo Rollouts controller",
+        "Online Boutique staging workload",
+        "Prometheus/kube-prometheus-stack",
+        "controlled failure path `/stage/break`",
+        "read-only investigation service account and RBAC",
+        "Kubernetes workload, pod, service, ingress, event, rollout, and AnalysisRun",
+        "Prometheus instant or range query results",
+        "GitOps repository files and commit references",
+        "Argo CD application status for `online-shop-stage`",
+        "No GCP project was created.",
+        "No cloud write was performed.",
+        "No Terraform plan or apply was performed.",
+        "No Kubernetes cluster was accessed.",
+        "No SRE Platform repository file was modified.",
+    ]
+
+    for term in required_terms:
+        assert term in readiness
+
+    forbidden_actions = [
+        "create, delete, patch, scale, restart, or exec into Kubernetes resources",
+        "apply Kubernetes manifests",
+        "run Helm, Argo CD sync, Argo Rollouts promote, abort, retry, or undo actions",
+        "start or stop baseline traffic or controlled failure traffic",
+        "change GitOps configuration",
+        "read Kubernetes secrets or secret values",
+    ]
+    for action in forbidden_actions:
+        assert action in readiness
+
+    forbidden_sensitive_markers = [
+        "@" + "gmail.com",
+        ".iam." + "gserviceaccount.com",
+        "gho" + "_",
+        "ghp" + "_",
+        "ya29" + ".",
+        "-----" + "BEGIN",
+        "private" + "_key",
+        "client" + "_secret",
+        "postgresql" + "://",
+        ".tfstate",
+        ".tfplan",
+    ]
+    for marker in forbidden_sensitive_markers:
+        assert marker not in readiness
+
+
+def test_roadmap_records_sre_readiness_without_claiming_live_validation() -> None:
+    roadmap = (REPOSITORY_ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
+
+    assert "Bounded SRE replay executor" in roadmap
+    assert "SRE Platform staging readiness boundary" in roadmap
+    assert "`sre_replay` is explicit opt-in and fixture-backed only" in roadmap
+    assert "No SRE Platform GCP project has been created" in roadmap
+    assert "no cloud write or Terraform apply was performed" in roadmap
+    assert "no cluster was accessed" in roadmap
+    assert "no live staging validation is claimed" in roadmap
+    assert "**Create the SRE Platform staging deployment issue**" in roadmap
+    assert "budget ceiling, remote-state design" in roadmap
+    assert "read-only preflight, exact approval gates" in roadmap
+    assert "creating an SRE Platform GCP project or live staging deployment before a" in roadmap
+
+
 def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> None:
     runbook = (REPOSITORY_ROOT / "gcp" / "sre-control-plane" / "README.md").read_text(encoding="utf-8")
 
