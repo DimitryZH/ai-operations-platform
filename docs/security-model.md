@@ -80,6 +80,14 @@ unsafe declarations. It uses sanitized replay fixtures only and must not be
 represented as live staging, production, recovery, cluster, HolmesGPT, or model
 validation.
 
+The future live SRE Platform staging boundary is documented separately in the
+[SRE Platform staging deployment readiness boundary](integrations/sre/sre-platform-staging-deployment-readiness.md).
+That package is planning/readiness only: no separate SRE Platform GCP project
+has been created, no cloud write or Terraform apply was performed, no
+Kubernetes cluster was accessed, and the next cloud/deployment step must be a
+separate issue with budget, remote state, read-only preflight, approval gates,
+and rollback expectations.
+
 ## Context Boundary
 
 Operational context must remain separate from runtime state and execution
