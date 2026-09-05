@@ -10,6 +10,13 @@ first SRE investigation MVP. It does not create a GCP project, create remote
 state, deploy SRE Platform, access Kubernetes, run Terraform, create secrets,
 activate the AI Operations Platform Scheduler, or validate live staging.
 
+Issue #59 adds the
+[cost-bounded GCP bootstrap plan](sre-platform-staging-gcp-cost-bounded-bootstrap-plan.md)
+and sanitized
+[bootstrap preflight evidence](../../deployments/sre-platform-staging-gcp-bootstrap-preflight-2026-09-05.md).
+Those documents remain planning/preflight only and do not authorize cloud or
+cluster writes.
+
 ## Current Baseline
 
 AI Operations Platform has:
