@@ -409,7 +409,8 @@ def test_roadmap_records_sre_readiness_without_claiming_live_validation() -> Non
     roadmap = (REPOSITORY_ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
 
     assert "Bounded SRE replay executor" in roadmap
-    assert "SRE Platform staging readiness boundary" in roadmap
+    assert "SRE Platform staging readiness and cost bootstrap boundary" in roadmap
+    assert "logging/monitoring as a first-class cost risk" in roadmap
     assert "`sre_replay` is explicit opt-in and fixture-backed only" in roadmap
     assert "No SRE Platform GCP project has been created" in roadmap
     assert "no cloud write or Terraform apply was performed" in roadmap
@@ -419,6 +420,140 @@ def test_roadmap_records_sre_readiness_without_claiming_live_validation() -> Non
     assert "budget ceiling, remote-state design" in roadmap
     assert "read-only preflight, exact approval gates" in roadmap
     assert "creating an SRE Platform GCP project or live staging deployment before a" in roadmap
+
+
+def test_sre_platform_cost_bounded_bootstrap_plan_controls_observability_cost() -> None:
+    plan = (
+        REPOSITORY_ROOT
+        / "docs"
+        / "integrations"
+        / "sre"
+        / "sre-platform-staging-gcp-cost-bounded-bootstrap-plan.md"
+    ).read_text(encoding="utf-8")
+
+    required_terms = [
+        "Planning and preflight package for Issue #59",
+        "previous SRE Platform deployment cost risk",
+        "cluster cost and logging/monitoring ingestion or retention",
+        "project id candidate: `sre-platform-staging-507220`",
+        "display name candidate: `sre-platform-staging`",
+        "region: `us-central1`",
+        "preferred initial zone: `us-central1-b`",
+        "Cloud Billing Budget API",
+        "Terraform Remote-State Design",
+        "IAM And Operator Model",
+        "Resource Groups",
+        "Observability Cost Controls",
+        "Logging Strategy",
+        "Metrics And Prometheus Strategy",
+        "Demo Window Controls",
+        "Idle Behavior",
+        "Category-Level Cost Estimate",
+        "Observability Stop Conditions",
+        "Approval Gates",
+        "Rollback And Cleanup Path",
+        "No GCP project was created.",
+        "No Terraform plan or apply was performed.",
+        "No `DimitryZH/sre-platform` file was modified.",
+    ]
+    for term in required_terms:
+        assert term in plan
+
+    observability_controls = [
+        "log exclusions or filters must exist before noisy workloads run",
+        "log retention must be short and explicit",
+        "duplicate log routing must be absent",
+        "Prometheus retention time and size must be bounded",
+        "scrape targets must be limited",
+        "managed Prometheus ingestion must be disabled unless",
+        "demo traffic and failure traffic must be time-boxed",
+        "if observability cost is unbounded, unclear, or above the approved",
+    ]
+    for control in observability_controls:
+        assert control in plan
+
+    cost_categories = [
+        "GKE cluster management",
+        "Node pools",
+        "Persistent disks",
+        "Load balancer / ingress",
+        "Cloud NAT",
+        "Cloud Logging ingestion and retention",
+        "Cloud Monitoring and Prometheus",
+        "Artifact Registry",
+        "Evidence storage",
+    ]
+    for category in cost_categories:
+        assert category in plan
+
+    approval_gates = [
+        "project creation or billing linkage",
+        "API enablement",
+        "budget alert creation",
+        "remote-state bucket creation",
+        "IAM changes",
+        "exact saved Terraform plan apply",
+        "Kubernetes cluster or node-pool creation",
+        "logging or monitoring configuration",
+        "SRE Platform workload or GitOps deployment",
+    ]
+    for gate in approval_gates:
+        assert gate in plan
+
+
+def test_sre_platform_bootstrap_preflight_evidence_is_sanitized_and_honest() -> None:
+    evidence = (
+        REPOSITORY_ROOT
+        / "docs"
+        / "deployments"
+        / "sre-platform-staging-gcp-bootstrap-preflight-2026-09-05.md"
+    ).read_text(encoding="utf-8")
+
+    required_terms = [
+        "Sanitized read-only preflight for Issue #59",
+        "local default configured project: `ai-operations-platform-497515`",
+        "target AI Operations project explicitly checked:",
+        "`ai-operations-platform-507220`",
+        "target AI Operations project lifecycle: active",
+        "target AI Operations project billing enabled: yes",
+        "Cloud Run ingress annotation: internal",
+        "Scheduler state: `PAUSED`",
+        "E2_CPUS",
+        "proposed project id: `sre-platform-staging-507220`",
+        "current account visibility for proposed project id: not visible",
+        "local repository status: clean on `main` tracking `origin/main`",
+        "staging namespace: `online-shop-stage`",
+        "stage GitOps application: `online-shop-stage`",
+        "controlled failure path: `/stage/break`",
+        "logging and monitoring must be treated as a first-class cost risk",
+        "No GCP project was created.",
+        "No API was enabled.",
+        "No remote-state bucket was created.",
+        "No IAM binding was changed.",
+        "No Terraform plan or apply was performed.",
+        "No Kubernetes cluster was accessed.",
+        "No `DimitryZH/sre-platform` file was modified.",
+    ]
+    for term in required_terms:
+        assert term in evidence
+
+    forbidden_sensitive_markers = [
+        "@" + "gmail.com",
+        ".iam." + "gserviceaccount.com",
+        "gho" + "_",
+        "ghp" + "_",
+        "ya29" + ".",
+        "-----" + "BEGIN",
+        "private" + "_key",
+        "client" + "_secret",
+        "postgresql" + "://",
+        ".tfstate",
+        ".tfplan",
+        "kube" + "config",
+        "billingAccounts/",
+    ]
+    for marker in forbidden_sensitive_markers:
+        assert marker not in evidence
 
 
 def test_runbook_requires_staged_bootstrap_and_gates_scheduler_activation() -> None:
