@@ -16,6 +16,14 @@ design constraint: cluster cost and logging/monitoring ingestion or retention
 can be comparable. The next staging design must bound both before any cloud
 write.
 
+Issue #61 created the minimal foundation described by this plan. See
+[SRE Platform staging GCP foundation evidence](../../deployments/sre-platform-staging-gcp-foundation-2026-09-06.md).
+The foundation still excludes Kubernetes, node pools, GitOps, Prometheus,
+Online Boutique workloads, controlled failure traffic, application
+logging/monitoring ingestion resources, AI Operations live read-only access,
+Scheduler changes, live investigation, GitHub investigation publication,
+HolmesGPT calls, and model calls.
+
 ## Current Read-Only Preflight Summary
 
 Read-only preflight evidence is recorded in

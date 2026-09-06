@@ -409,17 +409,17 @@ def test_roadmap_records_sre_readiness_without_claiming_live_validation() -> Non
     roadmap = (REPOSITORY_ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
 
     assert "Bounded SRE replay executor" in roadmap
-    assert "SRE Platform staging readiness and cost bootstrap boundary" in roadmap
+    assert "SRE Platform staging readiness and cost bootstrap foundation" in roadmap
     assert "logging/monitoring as a first-class cost risk" in roadmap
+    assert "minimal foundation project, billing boundary, CAD budget alert" in roadmap
     assert "`sre_replay` is explicit opt-in and fixture-backed only" in roadmap
-    assert "No SRE Platform GCP project has been created" in roadmap
-    assert "no cloud write or Terraform apply was performed" in roadmap
-    assert "no cluster was accessed" in roadmap
-    assert "no live staging validation is claimed" in roadmap
+    assert "No Terraform plan or apply was performed" in roadmap
+    assert "no Kubernetes cluster, node pool, GitOps controller, Prometheus instance" in roadmap
+    assert "no SRE Platform repository change is claimed" in roadmap
     assert "**Create the SRE Platform staging deployment issue**" in roadmap
-    assert "budget ceiling, remote-state design" in roadmap
-    assert "read-only preflight, exact approval gates" in roadmap
-    assert "creating an SRE Platform GCP project or live staging deployment before a" in roadmap
+    assert "reuse the separate" in roadmap
+    assert "observability cost controls, approval gates" in roadmap
+    assert "before any cluster, workload, or ingestion-heavy write" in roadmap
 
 
 def test_sre_platform_cost_bounded_bootstrap_plan_controls_observability_cost() -> None:
@@ -532,6 +532,73 @@ def test_sre_platform_bootstrap_preflight_evidence_is_sanitized_and_honest() -> 
         "No IAM binding was changed.",
         "No Terraform plan or apply was performed.",
         "No Kubernetes cluster was accessed.",
+        "No `DimitryZH/sre-platform` file was modified.",
+    ]
+    for term in required_terms:
+        assert term in evidence
+
+    forbidden_sensitive_markers = [
+        "@" + "gmail.com",
+        ".iam." + "gserviceaccount.com",
+        "gho" + "_",
+        "ghp" + "_",
+        "ya29" + ".",
+        "-----" + "BEGIN",
+        "private" + "_key",
+        "client" + "_secret",
+        "postgresql" + "://",
+        ".tfstate",
+        ".tfplan",
+        "kube" + "config",
+        "billingAccounts/",
+    ]
+    for marker in forbidden_sensitive_markers:
+        assert marker not in evidence
+
+
+def test_sre_platform_foundation_evidence_is_sanitized_and_cost_bounded() -> None:
+    evidence = (
+        REPOSITORY_ROOT
+        / "docs"
+        / "deployments"
+        / "sre-platform-staging-gcp-foundation-2026-09-06.md"
+    ).read_text(encoding="utf-8")
+
+    required_terms = [
+        "Sanitized foundation evidence for Issue #61",
+        "project id: `sre-platform-staging-507220`",
+        "project display name: `sre-platform-staging`",
+        "region: `us-central1`",
+        "zone assumption for later work: `us-central1-b`",
+        "default configured project initially differed from the intended target",
+        "future write commands must explicitly set and re-check the target project",
+        "billing enabled: yes",
+        "`sre-platform-staging-507220-foundation-budget`",
+        "amount: `100CAD`",
+        "scope: target project only",
+        "Cloud Billing Budget API: `billingbudgets.googleapis.com`",
+        "Compute Engine API: disabled",
+        "Kubernetes Engine API: disabled",
+        "Cloud Run API: disabled",
+        "Cloud Scheduler API: disabled",
+        "Artifact Registry API: disabled",
+        "Secret Manager API: disabled",
+        "bucket: `sre-platform-staging-507220-tf-state`",
+        "uniform bucket-level access: enabled",
+        "public access prevention: enforced",
+        "versioning: enabled",
+        "soft delete duration: seven days",
+        "delete noncurrent object versions after 14 days",
+        "public bucket principals: zero",
+        "direct legacy bucket IAM members: zero",
+        "temporary project-level `roles/storage.admin` recovery grant: removed",
+        "`roles/billing.admin` is broader than the steady-state budget-management",
+        "no GKE cluster management fee",
+        "no node pools",
+        "no managed metrics ingestion source",
+        "No Terraform plan or apply was performed.",
+        "No Kubernetes cluster or node pool was created.",
+        "No Prometheus instance or managed Prometheus ingestion was created.",
         "No `DimitryZH/sre-platform` file was modified.",
     ]
     for term in required_terms:
