@@ -88,15 +88,17 @@ Currency note:
 - the billing account currency is CAD, so the approved budget amount was
   changed from the initial USD proposal to `100CAD` before creation.
 
-Broad billing IAM note:
+Budget-management IAM note:
 
-- budget creation required granting the current active identity budget-related
-  billing roles on the billing account;
-- `roles/billing.costsManager` and `roles/billing.admin` are present for the
-  active identity;
-- `roles/billing.admin` is broader than the steady-state budget-management
-  target and should be reviewed or removed after budget administration is no
-  longer needed.
+- budget creation required budget-management permissions on the billing
+  account;
+- read-only verification confirmed that `roles/billing.costsManager` includes
+  the required budget create, update, get, and list permissions;
+- the broad `roles/billing.admin` exception was removed after the budget was
+  created;
+- the budget can still be listed after the removal;
+- `roles/billing.costsManager` remains present for the active budget-management
+  identity and should be reviewed before long-term multi-operator use.
 
 ### API Enablement
 
@@ -165,6 +167,8 @@ Read-only verification after hardening:
 - project owner binding count: one
 - active identity has project Owner: yes
 - active identity has project-level Storage Admin: no
+- active identity has billing account `roles/billing.admin`: no
+- active identity has billing account `roles/billing.costsManager`: yes
 - default Compute Engine service account Editor binding count: zero
 
 Human project Owner is retained as the documented project-admin or break-glass
@@ -216,10 +220,10 @@ Budget:
 
 Billing IAM:
 
-- review and remove `roles/billing.admin` from the active identity when budget
-  administration is no longer needed.
-- keep or narrow `roles/billing.costsManager` according to the next budget
-  management model.
+- do not re-add `roles/billing.admin` without a separate approval gate and
+  documented need.
+- remove or narrow `roles/billing.costsManager` when the budget no longer needs
+  direct operator administration.
 
 State bucket:
 
